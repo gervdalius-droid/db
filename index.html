@@ -486,7 +486,6 @@ span.in-progress-text{color:var(--blue-t)}
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-// Safari-safe HTML helper — avoids nested template literals
 const h=(cond,html,els='')=>cond?html:els;
 // Early declarations — auth code references these before CONSTANTS section
 let USERS = [];
@@ -494,6 +493,44 @@ let DB = {
   projects:[], tasks:[], comments:[], notifications:[],
   currentUserId:'', orders:[], stepDefaults:{}, matStatus:{}, stepDays:{},
 };
+
+// ══════════════════════════════════════════════
+// CONSTANTS & STATE
+// ══════════════════════════════════════════════
+const STEPS = [
+  {id:'pjovimas',     label:'Pjovimas',        short:'PJV', color:'#0ea5e9', bg:'#e0f2fe', icon:'🪚'},
+  {id:'briaunavimas', label:'Briaunavimas',     short:'BRN', color:'#8b5cf6', bg:'#f3f0ff', icon:'📏'},
+  {id:'grezimas',     label:'Gręžimas',         short:'GRŽ', color:'#06b6d4', bg:'#ecfeff', icon:'🔩'},
+  {id:'apdaila',      label:'Apdaila',          short:'APD', color:'#f59e0b', bg:'#fef3c7', icon:'🖌'},
+  {id:'surinkimas',   label:'Surinkimas',       short:'SRK', color:'#10b981', bg:'#d1fae5', icon:'🔧'},
+  {id:'isstatymas',   label:'Išstatymas / KK',  short:'IŠS', color:'#3b82f6', bg:'#dbeafe', icon:'✅'},
+  {id:'pakavimas',    label:'Pakavimas',        short:'PKV', color:'#84cc16', bg:'#f0fdf4', icon:'📦'},
+  {id:'montavimas',   label:'Montavimas',       short:'MNT', color:'#f97316', bg:'#fff7ed', icon:'🏗'},
+];
+const PROJ_COLORS = ['#6366f1','#0ea5e9','#f59e0b','#10b981','#f97316','#8b5cf6','#ef4444','#06b6d4'];
+const USER_COLORS  = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
+const USER_BGS     = ['#eef2ff','#e0f2fe','#d1fae5','#fef3c7','#f3f0ff','#fef2f2','#ecfeff','#fff7ed','#fdf2f8','#f0fdf4'];
+const PRIO_LABELS  = {high:{label:'Aukštas',color:'var(--red-t)',bg:'var(--red-bg)'},mid:{label:'Vidutinis',color:'var(--amber-t)',bg:'var(--amber-bg)'},low:{label:'Žemas',color:'var(--green-t)',bg:'var(--green-bg)'}};
+const STEP_DAYS    = {pjovimas:1,briaunavimas:1,grezimas:1,apdaila:3,surinkimas:3,isstatymas:1,pakavimas:1,montavimas:1};
+let _selColor = PROJ_COLORS[0];
+let _selAssignee = '';
+let _projTab = 'kanban';
+const uid = () => Math.random().toString(36).slice(2,10);
+const getUser    = id => USERS.find(u=>u.id===id)||USERS[0]||{id:'?',name:'?',initials:'?',color:'#888',bg:'#eee',role:'worker',email:''};
+const getProject = id => DB.projects.find(p=>p.id===id);
+const getStep    = id => STEPS.find(s=>s.id===id)||STEPS[0];
+const curUser    = () => getUser(DB.currentUserId);
+const isManager  = () => currentUserRole === 'manager';
+function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
+function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
+function projProgress(pid){const t=projTasks(pid);return t.length?Math.round(t.filter(t=>t.status==='done').length/t.length*100):0}
+function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
+function ava(uid2,sz=22){const u=getUser(uid2);return'<div class="avatar" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Math.floor(sz*.38)+'px;background:'+u.bg+';color:'+u.color+'">'+u.initials+'</div>';}
+function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(msg,type){const c=document.getElementById('toast-container');if(!c)return;const el=document.createElement('div');el.className='toast';el.textContent=msg;if(type==='success')el.style.background='#16a34a';if(type==='error')el.style.background='#dc2626';c.appendChild(el);setTimeout(function(){el.remove()},3000)}
+function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return'<span style="font-size:9px;font-weight:700;color:'+p.color+';background:'+p.bg+';padding:1px 5px;border-radius:4px">'+p.label+'</span>';}
+
 // ══════════════════════════════════════════════
 // SUPABASE — key-value store (like SquadCal)
 // Single table: fabflow(key, value, updated_at)
@@ -823,10 +860,11 @@ window.addEventListener('load',()=>{
         try{const r=await sbRefresh(stored.refresh);if(r.access_token){saveTokens(r.access_token,r.refresh_token,Date.now()+(r.expires_in||3600)*1000);access=r.access_token;}else{clearTokens();}}
         catch(e){clearTokens();}
       }
-      if(SB_TOKEN){
+      if(access){
         try{
           const u=await sbGetUser(access);
           if(u?.id){
+            SB_TOKEN=access;
             const profile=await sbGet('fab_admin_'+u.id);
             if(profile){
               const p=JSON.parse(profile);
@@ -859,45 +897,6 @@ window.addEventListener('load',()=>{
   document.getElementById('worker-code')?.addEventListener('keydown',e=>{if(e.key==='Enter')workerLogin();});
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
-
-// ══════════════════════════════════════════════
-// CONSTANTS & STATE
-// ══════════════════════════════════════════════
-const STEPS = [
-  {id:'pjovimas',     label:'Pjovimas',        short:'PJV', color:'#0ea5e9', bg:'#e0f2fe', icon:'🪚'},
-  {id:'briaunavimas', label:'Briaunavimas',     short:'BRN', color:'#8b5cf6', bg:'#f3f0ff', icon:'📏'},
-  {id:'grezimas',     label:'Gręžimas',         short:'GRŽ', color:'#06b6d4', bg:'#ecfeff', icon:'🔩'},
-  {id:'apdaila',      label:'Apdaila',          short:'APD', color:'#f59e0b', bg:'#fef3c7', icon:'🖌'},
-  {id:'surinkimas',   label:'Surinkimas',       short:'SRK', color:'#10b981', bg:'#d1fae5', icon:'🔧'},
-  {id:'isstatymas',   label:'Išstatymas / KK',  short:'IŠS', color:'#3b82f6', bg:'#dbeafe', icon:'✅'},
-  {id:'pakavimas',    label:'Pakavimas',        short:'PKV', color:'#84cc16', bg:'#f0fdf4', icon:'📦'},
-  {id:'montavimas',   label:'Montavimas',       short:'MNT', color:'#f97316', bg:'#fff7ed', icon:'🏗'},
-];
-const PROJ_COLORS = ['#6366f1','#0ea5e9','#f59e0b','#10b981','#f97316','#8b5cf6','#ef4444','#06b6d4'];
-const USER_COLORS  = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
-const USER_BGS     = ['#eef2ff','#e0f2fe','#d1fae5','#fef3c7','#f3f0ff','#fef2f2','#ecfeff','#fff7ed','#fdf2f8','#f0fdf4'];
-const PRIO_LABELS  = {high:{label:'Aukštas',color:'var(--red-t)',bg:'var(--red-bg)'},mid:{label:'Vidutinis',color:'var(--amber-t)',bg:'var(--amber-bg)'},low:{label:'Žemas',color:'var(--green-t)',bg:'var(--green-bg)'}};
-const STEP_DAYS    = {pjovimas:1,briaunavimas:1,grezimas:1,apdaila:3,surinkimas:3,isstatymas:1,pakavimas:1,montavimas:1};
-
-let _selColor = PROJ_COLORS[0];
-let _selAssignee = '';
-let _projTab = 'kanban';
-
-const uid = () => Math.random().toString(36).slice(2,10);
-const getUser    = id => USERS.find(u=>u.id===id)||USERS[0]||{id:'?',name:'?',initials:'?',color:'#888',bg:'#eee',role:'worker',email:''};
-const getProject = id => DB.projects.find(p=>p.id===id);
-const getStep    = id => STEPS.find(s=>s.id===id)||STEPS[0];
-const curUser    = () => getUser(DB.currentUserId);
-const isManager  = () => currentUserRole === 'manager';
-function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
-function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
-function projProgress(pid){const t=projTasks(pid);return t.length?Math.round(t.filter(t=>t.status==='done').length/t.length*100):0}
-function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
-function ava(uid2,sz=22){const u=getUser(uid2);return`<div class="avatar" style="width:${sz}px;height:${sz}px;font-size:${Math.floor(sz*.38)}px;background:${u.bg};color:${u.color}">${u.initials}</div>`}
-function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'}
-function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function toast(msg,type=''){const c=document.getElementById('toast-container');if(!c)return;const el=document.createElement('div');el.className='toast';el.textContent=msg;if(type==='success')el.style.background='#16a34a';if(type==='error')el.style.background='#dc2626';c.appendChild(el);setTimeout(()=>el.remove(),3000)}
-function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return`<span style="font-size:9px;font-weight:700;color:${p.color};background:${p.bg};padding:1px 5px;border-radius:4px">${p.label}</span>`}
 
 // ══════════════════════════════════════════════
 // SEED
@@ -1043,7 +1042,8 @@ function renderSidebar(){
 
   document.getElementById('team-nav').innerHTML=USERS.map(u=>{
     const my=DB.tasks.filter(t=>t.assigneeId===u.id&&t.status==='in-progress').length;
-    return`<div class="nav-item" style="gap:7px;padding:5px 14px">${ava(u.id,20)}<span style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.name}</span>${my?`<span style="font-size:9px;background:var(--amber-bg);color:var(--amber-t);padding:1px 5px;border-radius:3px;font-family:var(--mono)">${my}</span>`:''}</div>`;
+    const myBadge=my?'<span style="font-size:9px;background:var(--amber-bg);color:var(--amber-t);padding:1px 5px;border-radius:3px;font-family:var(--mono)">'+my+'</span>':'';
+    return'<div class="nav-item" style="gap:7px;padding:5px 14px">'+ava(u.id,20)+'<span style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+u.name+'</span>'+myBadge+'</div>';
   }).join('');
 
   const unread=DB.notifications.filter(n=>!n.read).length;
@@ -1255,8 +1255,8 @@ function renderProjectView(pid,tab){
         ${p.lines?.length?`<span class="badge badge-blue" style="cursor:pointer" onclick="toggleProjectLines('${p.id}')">📋 ${p.lines.length} poz.</span>`:''}
       </div>
       ${p.notes?`<div style="font-size:11px;color:var(--hint);margin-top:4px;font-style:italic">${escHtml(p.notes)}</div>`:''}
-      ${p.status==='archived'?`<div style="margin-top:5px"><span class="archive-badge">📦 Archyvuotas ${p.completedAt?new Date(p.completedAt).toLocaleDateString('lt-LT'):''}</span>${p.completionNote?` <span style="font-size:11px;color:var(--hint);font-style:italic">— ${escHtml(p.completionNote)}</span>`:''}</div>`:''}
-      ${p.status==='completed'?`<div style="margin-top:5px"><span style="font-size:10px;background:var(--green-bg);color:var(--green-t);padding:2px 8px;border-radius:4px;font-weight:600">✅ Baigtas ${p.completedAt?new Date(p.completedAt).toLocaleDateString('lt-LT'):''}</span>${p.completionNote?` <span style="font-size:11px;color:var(--hint);font-style:italic">— ${escHtml(p.completionNote)}</span>`:''}</div>`:''}
+      ${p.status==='archived'?'<div style="margin-top:5px"><span class="archive-badge">📦 Archyvuotas '+(p.completedAt?new Date(p.completedAt).toLocaleDateString('lt-LT'):'')+' </span>'+(p.completionNote?' <span style="font-size:11px;color:var(--hint);font-style:italic">— '+escHtml(p.completionNote)+'</span>':'')+'</div>':''}
+      ${p.status==='completed'?'<div style="margin-top:5px"><span style="font-size:10px;background:var(--green-bg);color:var(--green-t);padding:2px 8px;border-radius:4px;font-weight:600">✅ Baigtas '+(p.completedAt?new Date(p.completedAt).toLocaleDateString('lt-LT'):'')+' </span>'+(p.completionNote?' <span style="font-size:11px;color:var(--hint);font-style:italic">— '+escHtml(p.completionNote)+'</span>':'')+'</div>':''}
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
       <div style="text-align:center"><div style="font-size:26px;font-weight:700;letter-spacing:-.03em;color:${p.color}">${pct}%</div><div style="font-size:9px;color:var(--muted)">Atlikta</div></div>
@@ -1552,7 +1552,6 @@ function startProject(pid){
   }
 }
 
-function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 // ── VIEW 3: WORKLOAD (per worker) ──
 function renderWorkload(pid){
@@ -2111,7 +2110,7 @@ function renderProjectSchedule(pid){
   const finishDetected=[...new Set([...finishMats,...finishTaskMats])];
 
   const finishBadge=hasApdaila
-    ?`<div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:11px;color:var(--amber-t)">🖌 <strong>Apdaila reikalinga</strong> — aptikti kodai: ${finishDetected.map(m=>`<code style="background:var(--surface2);padding:1px 4px;border-radius:3px">${escHtml(m)}</code>`).join(', ')||'taip'}. Apdailai skirta <strong>${sched?sched.apdaila?.daysNeeded||3:3} d. d.</strong></div>`
+    ?'<div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:11px;color:var(--amber-t)">🖌 <strong>Apdaila reikalinga</strong> — aptikti kodai: '+finishDetected.map(m=>'<code style="background:var(--surface2);padding:1px 4px;border-radius:3px">'+escHtml(m)+'</code>').join(', ')+'</div>'
     :`<div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:11px;color:var(--green-t)">✓ <strong>Apdaila nereikalinga</strong> — medžiagose nerasta dažų/folijos/HPL kodų. Apdailos žingsnis praleistas.</div>`;
 
   if(!p.deadline){
@@ -2946,7 +2945,8 @@ function setQtyDone(tid,val){
   t.qtyDone=Math.max(0,Math.min(t.qtyOrdered||9999,val||0));
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban')patchKanbanColumn(t.projectId,t.stepId);
-}const i=document.getElementById('nm-'+id)||document.getElementById('nm');if(!i?.value.trim())return;const t=DB.tasks.find(x=>x.id===id);if(t){t.materials.push(i.value.trim());save();openTaskModal(id)}}
+}
+function addMat(id){const i=document.getElementById('nm-'+id)||document.getElementById('nm');if(!i?.value.trim())return;const t=DB.tasks.find(x=>x.id===id);if(t){t.materials.push(i.value.trim());save();openTaskModal(id)}}
 function rmMatIdx(id,idx){const t=DB.tasks.find(x=>x.id===id);if(t){t.materials.splice(idx,1);save();openTaskModal(id)}}
 function rmMat(id,m){const t=DB.tasks.find(x=>x.id===id);if(t){t.materials=t.materials.filter(x=>x!==m);save();}}
 function addComment(tid){const i=document.getElementById('ci-'+tid);const text=i?.value.trim();if(!text)return;const t=DB.tasks.find(x=>x.id===tid);DB.comments.push({id:uid(),taskId:tid,userId:DB.currentUserId,text,created:new Date().toISOString()});addNotif('comment',`${curUser().name} paliko komentarą`,t?.name||'',t?.projectId||'');save();openTaskModal(tid)}
@@ -3003,7 +3003,6 @@ const MS_LABELS={reikia:{label:'Reikia',dot:'ms-reikia',badge:'badge-red'},sande
 // ORDERS VIEW (Manager-only — pending orders)
 // ══════════════════════════════════════════════
 // PRIO_LABELS defined in CONSTANTS section above
-function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return`<span class="prio-pill ${p.cls}">${p.icon} ${p.label}</span>`;}
 function deadlineHtml(d){
   if(!d)return'<span style="color:var(--hint);font-size:10px">—</span>';
   const days=Math.round((new Date(d)-Date.now())/86400000);
@@ -3270,9 +3269,14 @@ function renderTeam(){
           const defIds=Array.isArray(DB.stepDefaults[s.id])?DB.stepDefaults[s.id]:(DB.stepDefaults[s.id]?[DB.stepDefaults[s.id]]:[]);
           const userBtns=USERS.map(u=>{
             const sel=defIds.includes(u.id);
-            return`<div onclick="${isManager()?`toggleStepDefault('${s.id}','${u.id}')`:''}" style="display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:6px;border:1.5px solid ${sel?u.color:'var(--border)'};background:${sel?u.bg:'transparent'};cursor:${isManager()?'pointer':'default'};font-size:11px;transition:all .12s">
-              ${ava(u.id,16)}<span style="font-weight:${sel?'600':'400'}">${escHtml(u.name)}</span>
-            </div>`;
+            const onclick2=isManager()?'toggleStepDefault(\''+s.id+'\',\''+u.id+'\')':'';
+            const borderColor=sel?u.color:'var(--border)';
+            const bgColor=sel?u.bg:'transparent';
+            const cursor=isManager()?'pointer':'default';
+            const fontWeight=sel?'600':'400';
+            return'<div onclick="'+onclick2+'" style="display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:6px;border:1.5px solid '+borderColor+';background:'+bgColor+';cursor:'+cursor+';font-size:11px;transition:all .12s">'
+              +ava(u.id,16)+'<span style="font-weight:'+fontWeight+'">'+escHtml(u.name)+'</span>'
+              +'</div>';
           }).join('');
           const assigned=defIds.map(id=>getUser(id).name).filter(Boolean).join(', ')||'—';
           return`<div class="step-def-row">
