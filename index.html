@@ -324,6 +324,7 @@ span.in-progress-text{color:var(--blue-t)}
     <div style="display:flex;gap:6px;margin-bottom:18px">
       <button id="atab-admin" class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('admin')">Vadyba</button>
       <button id="atab-worker" class="btn" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('worker')">Gamyba</button>
+      <button id="atab-view" class="btn" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('view')">👁 Peržiūra</button>
     </div>
 
     <!-- ── ADMIN: email + password ── -->
@@ -346,7 +347,18 @@ span.in-progress-text{color:var(--blue-t)}
       </div>
     </div>
 
-    <!-- ── ADMIN SETUP: first time ── -->
+    <!-- ── PERŽIŪRA: read-only with code ── -->
+    <div id="auth-view-form" style="display:none">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--muted);margin-bottom:14px">
+        👁 Peržiūros režimas — galite matyti, bet negalite redaguoti.
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Darbo vietos kodas</label>
+        <input class="auth-input" id="view-code" placeholder="pvz. FAB123" style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;font-size:16px">
+      </div>
+      <button class="btn btn-primary auth-btn" onclick="viewLogin()">Peržiūrėti →</button>
+      <div id="view-error" style="font-size:11px;color:var(--red-t);margin-top:8px;min-height:16px;text-align:center"></div>
+    </div>
     <div id="auth-setup-form" style="display:none">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">Sukurti darbo vietą</div>
       <div class="auth-field">
@@ -411,7 +423,7 @@ span.in-progress-text{color:var(--blue-t)}
       <div class="sidebar-section">
         <div class="sidebar-label">Projektai</div>
         <div id="proj-nav"></div>
-        <div style="padding:6px 10px"><button class="btn btn-sm" style="width:100%;justify-content:center" onclick="openNewProjectModal()">+ Naujas projektas</button></div>
+        <div style="padding:6px 10px"><button class="btn btn-sm" style="width:100%;justify-content:center" onclick="if(isReadOnly()){toast('👁 Peržiūros režimas','');return;}openNewProjectModal()">+ Naujas projektas</button></div>
       </div>
       <div class="sidebar-section" id="archive-section" style="display:none">
         <div class="sidebar-label">Archyvas <span id="archive-count" style="color:var(--hint)"></span></div>
@@ -521,6 +533,7 @@ const getProject = id => DB.projects.find(p=>p.id===id);
 const getStep    = id => STEPS.find(s=>s.id===id)||STEPS[0];
 const curUser    = () => getUser(DB.currentUserId);
 const isManager  = () => currentUserRole === 'manager';
+const isReadOnly = () => currentUserRole === 'view';
 function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
 function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
 function projProgress(pid){const t=projTasks(pid);return t.length?Math.round(t.filter(t=>t.status==='done').length/t.length*100):0}
@@ -668,10 +681,13 @@ function load(){
 function switchAuthTab(tab){
   document.getElementById('atab-admin').className='btn'+(tab==='admin'?' btn-primary':'');
   document.getElementById('atab-worker').className='btn'+(tab==='worker'?' btn-primary':'');
+  document.getElementById('atab-view').className='btn'+(tab==='view'?' btn-primary':'');
   document.getElementById('auth-admin-form').style.display=tab==='admin'?'block':'none';
   document.getElementById('auth-setup-form').style.display='none';
   document.getElementById('auth-worker-form').style.display=tab==='worker'?'block':'none';
+  document.getElementById('auth-view-form').style.display=tab==='view'?'block':'none';
   if(tab==='worker')setTimeout(()=>document.getElementById('worker-name')?.focus(),50);
+  else if(tab==='view')setTimeout(()=>document.getElementById('view-code')?.focus(),50);
   else setTimeout(()=>document.getElementById('auth-email')?.focus(),50);
 }
 function showAdminSetup(){
@@ -801,6 +817,29 @@ async function workerLogin(){
     await enterApp();
   }catch(e){setAuthError('worker-error','Klaida: '+e.message);}
   finally{if(btn){btn.textContent='Prisijungti →';btn.disabled=false;}}
+}
+
+// READ-ONLY VIEW LOGIN — just a code, no name needed
+async function viewLogin(){
+  const code=(document.getElementById('view-code')?.value||'').trim().toUpperCase();
+  if(!code||code.length<4){setAuthError('view-error','Įveskite darbo vietos kodą');return;}
+  const btn=document.querySelector('#auth-view-form .btn-primary');
+  if(btn){btn.textContent='Tikrinama…';btn.disabled=true;}
+  setAuthError('view-error','');
+  try{
+    const proj=await sbGet('fab_'+code+'_projects');
+    const users=await sbGet('fab_'+code+'_users');
+    if(proj===null&&users===null){setAuthError('view-error','Kodas nerastas');return;}
+    WORKSPACE_CODE=code;
+    currentUserRole='view';
+    CURRENT_USER_NAME='Peržiūra';
+    SB_TOKEN=SB_KEY;
+    if(users){try{const u=JSON.parse(users);if(u.length)USERS=u;}catch(e){}}
+    await enterApp();
+    // Show read-only banner
+    setTimeout(()=>toast('👁 Peržiūros režimas — redagavimas išjungtas',''), 500);
+  }catch(e){setAuthError('view-error','Klaida: '+e.message);}
+  finally{if(btn){btn.textContent='Peržiūrėti →';btn.disabled=false;}}
 }
 
 async function enterApp(){
@@ -1070,11 +1109,15 @@ function renderSidebar(){
   const cu=curUser();
   document.getElementById('cur-name').textContent=CURRENT_USER_NAME||cu.name;
   document.getElementById('cur-email').textContent=currentUserEmail||cu.email||WORKSPACE_CODE;
-  document.getElementById('cur-av').textContent=cu.initials;
-  document.getElementById('cur-av').style.background=cu.bg;
-  document.getElementById('cur-av').style.color=cu.color;
+  document.getElementById('cur-av').textContent=isReadOnly()?'👁':(cu.initials);
+  document.getElementById('cur-av').style.background=isReadOnly()?'var(--amber-bg)':cu.bg;
+  document.getElementById('cur-av').style.color=isReadOnly()?'var(--amber-t)':cu.color;
   const rp=document.getElementById('cur-role');
-  if(rp){rp.textContent=isManager()?'Vadyba':'Gamyba';rp.style.background=isManager()?'var(--amber-bg)':'var(--blue-bg)';rp.style.color=isManager()?'var(--amber-t)':'var(--blue-t)';}
+  if(rp){
+    rp.textContent=isReadOnly()?'Peržiūra':isManager()?'Vadyba':'Gamyba';
+    rp.style.background=isReadOnly()?'var(--amber-bg)':isManager()?'var(--amber-bg)':'var(--blue-bg)';
+    rp.style.color=isReadOnly()?'var(--amber-t)':isManager()?'var(--amber-t)':'var(--blue-t)';
+  }
   // Show workspace code for admin
   const wcBar=document.getElementById('workspace-code-bar');
   const wcDisp=document.getElementById('ws-code-display');
@@ -1202,10 +1245,12 @@ function renderFloor(){
       const cls=t?(t.status==='done'?'done':t.status==='in-progress'?'active':''):'';
       return'<div class="pp-step '+cls+'" title="'+s.label+'"'+(p.serviceSteps?' style="flex:unset;width:12px"':'')+' ></div>';
     }).join('');
+    const doneTasks=tasks.filter(t=>t.status==='done').length;
     const statusBadge=p.status==='completed'
       ?'<span style="font-size:10px;font-weight:700;background:var(--green-bg);color:var(--green-t);padding:2px 7px;border-radius:5px">✅ Baigtas</span>'
       :curStep?'<span class="badge badge-blue">🔄 '+curStep.label+'</span>'
-      :'<span class="badge badge-green">✅ Visi atlikti</span>';
+      :tasks.length&&doneTasks===tasks.length?'<span class="badge badge-green">✅ Visi atlikti</span>'
+      :'<span class="badge badge-gray">⏳ Laukia</span>';
     return'<div class="project-card" onclick="showView(\'project\',\''+p.id+'\')" style="'+cardStyle+'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">'
       +'<div style="width:38px;height:38px;border-radius:9px;background:'+p.color+'20;color:'+p.color+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">'+iconContent+'</div>'
@@ -2571,7 +2616,26 @@ function markAllRead(){DB.notifications.forEach(n=>n.read=true);renderNotifs();r
 // ══════════════════════════════════════════════
 // MODALS
 // ══════════════════════════════════════════════
-function openModal(html){document.getElementById('modal-body').innerHTML=html;document.getElementById('modal-overlay').classList.add('open')}
+function openModal(html){
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-overlay').classList.add('open');
+  // In read-only mode, disable all inputs/buttons except close
+  if(isReadOnly()){
+    setTimeout(()=>{
+      const m=document.getElementById('modal-body');
+      if(!m)return;
+      m.querySelectorAll('input,textarea,select,button:not(.modal-close)').forEach(el=>{
+        if(el.tagName==='BUTTON'){el.disabled=true;el.style.opacity='0.4';el.style.cursor='not-allowed';}
+        else{el.disabled=true;el.style.background='var(--surface2)';}
+      });
+      // Add read-only notice
+      const notice=document.createElement('div');
+      notice.style.cssText='background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:7px;padding:7px 12px;font-size:11px;color:var(--amber-t);text-align:center;margin-bottom:10px;font-weight:500';
+      notice.textContent='👁 Peržiūros režimas — redagavimas išjungtas';
+      m.insertBefore(notice,m.firstChild);
+    },10);
+  }
+}
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open')}
 function openNewProjectModal(fromOrder){
   _selColor=PROJ_COLORS[DB.projects.length%PROJ_COLORS.length];
