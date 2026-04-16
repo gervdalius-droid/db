@@ -2796,15 +2796,20 @@ function openTaskModal(tid){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   if(!t.assigneeIds) t.assigneeIds=[t.assigneeId].filter(Boolean);
 
-  // Auto-build qtyLines from project lines if task doesn't have them yet
+  // Auto-build qtyLines from project lines if missing
   const proj=getProject(t.projectId);
-  if(proj?.lines?.length&&(!t.qtyLines||!t.qtyLines.length)){
-    t.qtyLines=proj.lines.map(l=>({
-      art:l.art||'',desc:l.desc||'',qty:parseInt(l.qty)||0,done:0
-    }));
-    t.qtyOrdered=t.qtyLines.reduce((s,l)=>s+l.qty,0);
-    t.qtyDone=0;
-    save(); // persist so next open shows same data
+  const projLines=proj?.lines||[];
+  if(projLines.length&&(!t.qtyLines||!t.qtyLines.length)){
+    t.qtyLines=projLines
+      .filter(l=>l.art||l.desc)
+      .map(l=>({art:l.art||'',desc:l.desc||'',qty:parseInt(l.qty)||0,done:l.qtyDone||0}));
+    if(t.qtyLines.length){
+      t.qtyOrdered=t.qtyLines.reduce((s,l)=>s+l.qty,0);
+      if(!t.qtyDone)t.qtyDone=0;
+    }
+    // Save without triggering full re-render
+    try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
+    clearTimeout(_saveTimer);_saveTimer=setTimeout(saveToCloud,2000);
   }
   const step=getStep(t.stepId);const comments=taskComments(tid);
   const so=STEPS.map(s=>`<option value="${s.id}" ${s.id===t.stepId?'selected':''}>${s.icon} ${s.label}</option>`).join('');
@@ -3035,6 +3040,8 @@ function openEditProjectModal(pid){
   _selColor=p.color;
   const userOpts=USERS.map(u=>`<option value="${u.id}" ${u.id===p.owner?'selected':''}>${u.name}</option>`).join('');
   const prioOpts=[['mid','🟡 Vidutinis'],['high','🔴 Aukštas'],['low','🟢 Žemas']].map(([v,l])=>`<option value="${v}" ${v===p.priority?'selected':''}>${l}</option>`).join('');
+  const existingLines=p.lines&&p.lines.length?p.lines:[{art:'',desc:'',qty:'',date:''}];
+  const linesHtml=existingLines.map((l,i)=>editProjLineRow(i,l)).join('');
   openModal(`<div class="modal-title">Redaguoti projektą <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-field"><label class="form-label">Pavadinimas *</label><input id="ep-name" value="${escHtml(p.name)}" autofocus></div>
     <div class="form-grid-2">
@@ -3045,10 +3052,42 @@ function openEditProjectModal(pid){
       <div class="form-field"><label class="form-label">Terminas</label><input type="date" id="ep-deadline" value="${p.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas vadovas</label><select id="ep-owner">${userOpts}</select></div>
     </div>
+    <div class="form-field" style="margin-bottom:8px">
+      <label class="form-label">Pozicijos / Artikulai</label>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:28px 90px 1fr 80px 100px 28px;background:var(--surface2);padding:4px 8px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">
+          <span>#</span><span>Artikulas</span><span>Aprašymas</span><span>Kiekis</span><span>Prist. data</span><span></span>
+        </div>
+        <div id="ep-lines">${linesHtml}</div>
+      </div>
+      <button class="btn btn-sm" style="margin-top:5px" onclick="addEpLine()">+ Eilutė</button>
+    </div>
     <div class="form-field"><label class="form-label">Pastabos</label><textarea id="ep-notes" style="min-height:44px">${escHtml(p.notes||'')}</textarea></div>
     <div class="form-field"><label class="form-label">Spalva</label><div class="color-picker">${PROJ_COLORS.map((c,i)=>`<div class="color-swatch ${c===_selColor?'selected':''}" style="background:${c}" onclick="selCol('${c}')" id="sw${i}"></div>`).join('')}</div></div>
     <div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button><button class="btn btn-primary" onclick="saveEditProject('${pid}')">Išsaugoti</button></div>`);
 }
+
+function editProjLineRow(i,l){
+  return '<div id="epl-row-'+i+'" style="display:grid;grid-template-columns:28px 90px 1fr 80px 100px 28px;border-top:1px solid var(--border);align-items:center">'
+    +'<span style="padding:0 8px;font-size:10px;color:var(--hint)">'+(i+1)+'</span>'
+    +'<input id="epl-art-'+i+'" value="'+escHtml(l.art||'')+'" placeholder="Artikulas" style="border:none;border-right:1px solid var(--border);border-radius:0;font-size:10px;font-family:var(--mono);padding:5px 6px">'
+    +'<input id="epl-desc-'+i+'" value="'+escHtml(l.desc||'')+'" placeholder="Aprašymas" style="border:none;border-right:1px solid var(--border);border-radius:0;font-size:10px;padding:5px 6px">'
+    +'<input id="epl-qty-'+i+'" value="'+escHtml(String(l.qty||''))+'" placeholder="kiekis" style="border:none;border-right:1px solid var(--border);border-radius:0;font-size:10px;padding:5px 6px;text-align:right">'
+    +'<input id="epl-date-'+i+'" type="date" value="'+(l.date||'')+'" style="border:none;border-right:1px solid var(--border);border-radius:0;font-size:10px;padding:5px 4px">'
+    +'<button onclick="removeEpLine('+i+')" style="border:none;background:none;color:var(--red-t);cursor:pointer;font-size:16px;padding:0 8px">×</button>'
+    +'</div>';
+}
+function addEpLine(){
+  const el=document.getElementById('ep-lines');if(!el)return;
+  const i=el.children.length;
+  el.insertAdjacentHTML('beforeend',editProjLineRow(i,{art:'',desc:'',qty:'',date:''}));
+}
+function removeEpLine(i){
+  const el=document.getElementById('epl-row-'+i);if(el)el.remove();
+  const rows=document.querySelectorAll('#ep-lines > div');
+  rows.forEach((r,idx)=>{r.id='epl-row-'+idx;const n=r.querySelector('span');if(n)n.textContent=idx+1;});
+}
+
 function saveEditProject(pid){
   const p=getProject(pid);if(!p)return;
   p.name=document.getElementById('ep-name').value.trim()||p.name;
@@ -3058,6 +3097,28 @@ function saveEditProject(pid){
   p.owner=document.getElementById('ep-owner').value;
   p.notes=document.getElementById('ep-notes').value.trim();
   p.color=_selColor;
+  // Save lines
+  const rows=document.querySelectorAll('#ep-lines > div');
+  const lines=[];
+  rows.forEach((r,i)=>{
+    const art=(document.getElementById('epl-art-'+i)?.value||'').trim();
+    const desc=(document.getElementById('epl-desc-'+i)?.value||'').trim();
+    const qty=(document.getElementById('epl-qty-'+i)?.value||'').trim();
+    const date=(document.getElementById('epl-date-'+i)?.value||'');
+    if(art||desc)lines.push({art,desc,qty,date,qtyDone:0});
+  });
+  p.lines=lines;
+  // Update qtyOrdered on all tasks if lines changed
+  if(lines.length){
+    const total=lines.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+    projTasks(pid).forEach(t=>{
+      if(!t.qtyOrdered||t.qtyOrdered===0){
+        t.qtyOrdered=total;
+        t.qtyDone=0;
+        t.qtyLines=lines.map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
+      }
+    });
+  }
   closeModal();toast('✅ Išsaugota!','success');renderProjectView(pid,_projTab);renderSidebar();save();
 }
 
