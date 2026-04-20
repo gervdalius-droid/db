@@ -758,6 +758,7 @@ function wsKey(k){ return 'fab_'+WORKSPACE_CODE+'_'+k; }
 
 async function saveToCloud(){
   if(!WORKSPACE_CODE)return;
+  _lastSavedAt=Date.now(); // mark before sending
   await Promise.all([
     sbSet(wsKey('projects'), JSON.stringify(DB.projects)),
     sbSet(wsKey('tasks'),    JSON.stringify(DB.tasks)),
@@ -765,10 +766,13 @@ async function saveToCloud(){
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
     sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus})),
   ]);
+  _lastSavedAt=Date.now();
 }
 
 async function loadFromCloud(){
   if(!WORKSPACE_CODE)return false;
+  // Don't load if we saved recently — our local data is newer
+  if(Date.now()-_lastSavedAt<12000)return false;
   try{
     const [proj,tasks,comments,users,settings]=await Promise.all([
       sbGet(wsKey('projects')),
@@ -777,12 +781,14 @@ async function loadFromCloud(){
       sbGet(wsKey('users')),
       sbGet(wsKey('settings')),
     ]);
-    if(!proj&&!users)return false; // workspace empty
+    if(!proj&&!users)return false;
     DB.projects=proj?JSON.parse(proj):[];
     DB.tasks=tasks?JSON.parse(tasks):[];
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
     if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};}
+    // Update localStorage with fresh cloud data
+    try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     return true;
   }catch(e){console.warn('loadFromCloud:',e);return false;}
 }
@@ -791,15 +797,17 @@ let _saveTimer=null;
 let _isSaving=false;
 let _lastSavedAt=0;
 function save(){
+  // Always write to localStorage immediately
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
   _lastSavedAt=Date.now(); // block auto-refresh immediately
+  // Debounce cloud save — but only 500ms
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(async()=>{
+    if(_isSaving)return;
     _isSaving=true;
     await saveToCloud();
-    _lastSavedAt=Date.now();
     _isSaving=false;
-  },800);
+  },500);
 }
 
 function load(){
@@ -1023,7 +1031,6 @@ function startAutoRefresh(){
   stopAutoRefresh();
   _autoRefreshTimer=setInterval(async()=>{
     if(!WORKSPACE_CODE||_isSaving)return;
-    if(Date.now()-_lastSavedAt<10000)return; // don't overwrite a recent save
     if(DB.currentView==='project'&&DB.currentProjectId&&_projTab==='kanban'){
       const ok=await loadFromCloud();
       if(ok){STEPS.forEach(s=>patchKanbanColumn(DB.currentProjectId,s.id));patchStepProgressBar(DB.currentProjectId);updateFloorCard(DB.currentProjectId);renderSidebar();}
@@ -1031,7 +1038,7 @@ function startAutoRefresh(){
       const ok=await loadFromCloud();
       if(ok)renderFloor();
     }
-  },3000);
+  },5000);
 }
 function stopAutoRefresh(){clearInterval(_autoRefreshTimer);}
 
@@ -1177,8 +1184,18 @@ function showView(name,extra){
   else if(name==='schedule'){document.getElementById('topbar-title').textContent='Grafikas / Lean planas';document.getElementById('topbar-sub').textContent='Gamybos eilė · WIP limitai · Butelio kakleliai';renderSchedule();}
   else if(name==='orders'){
     document.getElementById('topbar-title').textContent='Užsakymai';
-    document.getElementById('topbar-sub').textContent='Nauji užsakymai dar nesukurti kaip projektai';
-    if(act)act.innerHTML=isManager()?`<button class="btn btn-sm btn-primary" onclick="openOrderModal()">+ Naujas užsakymas</button>`:'';
+    document.getElementById('topbar-sub').textContent='Pardavimo užsakymai · Excel importas';
+    if(act)act.innerHTML=isManager()?`
+      <button class="btn btn-sm btn-primary" onclick="syncFromOneDrive()" title="Atsisiųsti naujausią failą iš OneDrive ir importuoti">
+        ☁️ Sync OneDrive
+      </button>
+      <label class="btn btn-sm" style="cursor:pointer" title="Arba pasirinkite failą rankiniu būdu">
+        📥 Failas
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importOrdersExcel(this)">
+      </label>
+      <button class="btn btn-sm btn-primary" onclick="openOrderModal()">+ Naujas</button>
+    `:'';
+    renderOrders();
     renderOrders();
   }
   else if(name==='team'){
@@ -3515,41 +3532,173 @@ function renderOrders(){
 
 function orderCardHtml(o,done=false){
   const lines=o.lines||[];
-  const linesHtml=lines.length?`
-    <div style="margin-top:8px;border:1px solid var(--border);border-radius:7px;overflow:hidden">
-      <table style="width:100%;border-collapse:collapse;font-size:10px">
-        <thead><tr style="background:var(--surface2)">
-          <th style="padding:4px 8px;text-align:left;color:var(--muted);font-weight:600;white-space:nowrap">Eil.</th>
-          <th style="padding:4px 8px;text-align:left;color:var(--muted);font-weight:600">Artikulas / Aprašymas</th>
-          <th style="padding:4px 8px;text-align:right;color:var(--muted);font-weight:600">Kiekis</th>
-          <th style="padding:4px 8px;text-align:right;color:var(--muted);font-weight:600;white-space:nowrap">Prist. data</th>
-        </tr></thead>
-        <tbody>${lines.map((l,i)=>`<tr style="border-top:1px solid var(--border)">
-          <td style="padding:4px 8px;color:var(--hint)">${i+1}</td>
-          <td style="padding:4px 8px"><div style="font-weight:600;font-family:var(--mono);font-size:9px;color:var(--blue-t)">${escHtml(l.art||'')}</div><div>${escHtml(l.desc||'')}</div></td>
-          <td style="padding:4px 8px;text-align:right;font-weight:600;font-family:var(--mono)">${l.qty||''}</td>
-          <td style="padding:4px 8px;text-align:right;color:var(--hint);white-space:nowrap">${l.date||''}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-    </div>`:'';
-  return`<div class="order-card" style="${done?'opacity:.55':''}">
-    <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-        <div style="font-size:13px;font-weight:600">${escHtml(o.name)}</div>
-        ${prioHtml(o.priority)}
-        ${done?'<span class="badge badge-green">✓ Projektas sukurtas</span>':''}
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:3px">👤 ${escHtml(o.client||'—')} · ${formatAge(o.created)}</div>
-      ${o.deadline?deadlineHtml(o.deadline):''}
-      ${o.notes?`<div style="font-size:11px;color:var(--hint);margin-top:3px;font-style:italic">${escHtml(o.notes)}</div>`:''}
-      ${linesHtml}
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;margin-left:12px">
-      ${!done?`<button class="btn btn-sm btn-primary" onclick="convertOrder('${o.id}')">▶ Sukurti projektą</button>`:''}
-      ${!done?`<button class="btn btn-sm" onclick="openOrderModal('${o.id}')">✏ Redaguoti</button>`:''}
-      <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">🗑</button>
-    </div>
-  </div>`;
+  // Find linked project
+  const linkedProj=o.projectId?DB.projects.find(p=>p.id===o.projectId):
+    DB.projects.find(p=>p.name&&o.name&&p.name.toLowerCase().includes(o.client?.toLowerCase()||'__none__'));
+
+  const projBadge=linkedProj
+    ?'<span class="badge badge-blue" style="cursor:pointer" onclick="showView(\'project\',\''+linkedProj.id+'\')" title="Atidaryti projektą">🔗 '+escHtml(linkedProj.name)+' ('+projProgress(linkedProj.id)+'%)</span>'
+    :(done?'<span class="badge badge-green">✓ Projektas sukurtas</span>':'');
+
+  const linesHtml=lines.length?'<div style="margin-top:8px;border:1px solid var(--border);border-radius:7px;overflow:hidden">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:10px">'
+    +'<thead><tr style="background:var(--surface2)">'
+    +'<th style="padding:4px 8px;color:var(--muted);font-weight:600">Eil.</th>'
+    +'<th style="padding:4px 8px;color:var(--muted);font-weight:600">Artikulas / Aprašymas</th>'
+    +'<th style="padding:4px 8px;text-align:right;color:var(--muted);font-weight:600">Kiekis</th>'
+    +'<th style="padding:4px 8px;text-align:right;color:var(--muted);font-weight:600;white-space:nowrap">Prist. data</th>'
+    +'</tr></thead><tbody>'
+    +lines.map((l,i)=>'<tr style="border-top:1px solid var(--border)">'
+      +'<td style="padding:4px 8px;color:var(--hint)">'+(i+1)+'</td>'
+      +'<td style="padding:4px 8px"><div style="font-weight:600;font-family:var(--mono);font-size:9px;color:var(--blue-t)">'+escHtml(l.art||'')+'</div><div>'+escHtml(l.desc||'')+'</div></td>'
+      +'<td style="padding:4px 8px;text-align:right;font-weight:600;font-family:var(--mono)">'+(l.qty||'')+'</td>'
+      +'<td style="padding:4px 8px;text-align:right;color:var(--hint);white-space:nowrap">'+(l.date||'')+'</td>'
+      +'</tr>').join('')
+    +'</tbody></table></div>':'';
+
+  // Extra fields from Excel
+  const extraHtml=(o.orderNr||o.amount||o.payStatus)?
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:10px;color:var(--hint)">'
+    +(o.orderNr?'<span>📄 '+escHtml(o.orderNr)+'</span>':'')
+    +(o.amount?'<span>💶 '+o.amount+' EUR</span>':'')
+    +(o.payStatus?'<span style="color:'+(o.payStatus==='Apmokėta'?'var(--green-t)':o.payStatus==='Neapmokėta'?'var(--red-t)':'var(--amber-t)')+'">'+escHtml(o.payStatus)+'</span>':'')
+    +(o.orderStatus?'<span>'+escHtml(o.orderStatus)+'</span>':'')
+    +'</div>':'';
+
+  return'<div class="order-card" style="'+(done?'opacity:.7':'')+(linkedProj?'border-left:3px solid var(--blue);':'')+'">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">'
+    +'<div style="font-size:13px;font-weight:600">'+escHtml(o.name)+'</div>'
+    +prioHtml(o.priority||'mid')
+    +projBadge
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:3px">👤 '+escHtml(o.client||'—')+' · '+(o.orderDate||formatAge(o.created))+'</div>'
+    +(o.deadline?deadlineHtml(o.deadline):'')
+    +extraHtml
+    +(o.notes?'<div style="font-size:11px;color:var(--hint);margin-top:3px;font-style:italic">'+escHtml(o.notes)+'</div>':'')
+    +linesHtml
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;margin-left:12px">'
+    +(!linkedProj&&!done?'<button class="btn btn-sm btn-primary" onclick="convertOrder(\''+o.id+'\')">▶ Sukurti projektą</button>':'')
+    +(linkedProj?'<button class="btn btn-sm badge-blue" onclick="showView(\'project\',\''+linkedProj.id+'\')" style="background:var(--blue-bg);color:var(--blue-t);border-color:var(--blue-t)">→ Atidaryti</button>':'')
+    +(isManager()&&!done?'<button class="btn btn-sm" onclick="openLinkProjectModal(\''+o.id+'\')">🔗 Susieti</button>':'')
+    +(!done?'<button class="btn btn-sm" onclick="openOrderModal(\''+o.id+'\')">✏</button>':'')
+    +'<button class="btn btn-sm btn-danger" onclick="deleteOrder(\''+o.id+'\')">🗑</button>'
+    +'</div>'
+    +'</div>';
+}
+
+// Link order to existing project
+function openLinkProjectModal(oid){
+  const projOpts=DB.projects.map(p=>'<option value="'+p.id+'">'+escHtml(p.name)+'</option>').join('');
+  openModal('<div class="modal-title">Susieti su projektu <button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div class="form-field"><label class="form-label">Pasirinkite projektą</label>'
+    +'<select id="link-proj-sel"><option value="">— pasirinkite —</option>'+projOpts+'</select></div>'
+    +'<div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button>'
+    +'<button class="btn btn-primary" onclick="linkOrderToProject(\''+oid+'\')">Susieti</button></div>');
+}
+function linkOrderToProject(oid){
+  const pid=document.getElementById('link-proj-sel')?.value;
+  if(!pid){toast('Pasirinkite projektą','error');return;}
+  const o=(DB.orders||[]).find(x=>x.id===oid);
+  if(o){o.projectId=pid;o.status='converted';}
+  closeModal();save();renderOrders();toast('✅ Susieta!','success');
+}
+
+// OneDrive sync — tries direct fetch, falls back to browser download
+const ONEDRIVE_URL = 'https://rgervinskas-my.sharepoint.com/:x:/g/personal/admin_rgervinskas_onmicrosoft_com/IQCwGkSKtccaQKwnRLV2gwXlAaUrLaFJtdhwV4QEf99YY3c?e=Lg9FGf';
+const ONEDRIVE_DOWNLOAD = ONEDRIVE_URL + '&download=1';
+
+async function syncFromOneDrive(){
+  const btn=document.querySelector('#topbar-actions .btn-primary');
+  if(btn){btn.textContent='⏳ Kraunama…';btn.disabled=true;}
+  try{
+    // Try direct fetch
+    const resp=await fetch(ONEDRIVE_DOWNLOAD);
+    if(resp.ok){
+      const buf=await resp.arrayBuffer();
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+      _processOrdersWorkbook(wb);
+      return;
+    }
+  }catch(e){
+    console.log('Direct fetch blocked (CORS), opening browser download...');
+  }finally{
+    if(btn){btn.textContent='☁️ Sync OneDrive';btn.disabled=false;}
+  }
+  // CORS blocked — show instructions modal
+  openModal('<div class="modal-title">☁️ OneDrive Sync <button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div style="text-align:center;padding:10px 0 16px">'
+    +'<div style="font-size:13px;margin-bottom:16px;color:var(--muted)">Dėl naršyklės saugumo tiesioginė prieiga prie OneDrive užblokuota.<br>Atsisiųskite failą ir įkelkite — tai užtruks 5 sekundes.</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;align-items:center">'
+    +'<a href="'+ONEDRIVE_DOWNLOAD+'" target="_blank" class="btn btn-primary" style="width:260px;justify-content:center;text-decoration:none">1. Atsisiųsti iš OneDrive ↗</a>'
+    +'<label class="btn" style="width:260px;justify-content:center;cursor:pointer">'
+    +'2. Įkelti atsisiųstą failą'
+    +'<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importOrdersExcel(this);closeModal()">'
+    +'</label>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--hint);margin-top:14px">💡 Patarimas: naršyklė gali automatiškai išsaugoti į Atsisiuntimų aplanką</div>'
+    +'</div>');
+}
+
+function _processOrdersWorkbook(wb){
+  const sheetName=wb.SheetNames.find(n=>n.toLowerCase().includes('uzsakym'))||wb.SheetNames[0];
+  const ws=wb.Sheets[sheetName];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  if(rows.length<2){toast('Nerasta duomenų','error');return;}
+  let hdrIdx=rows.findIndex(r=>r.some(c=>String(c).toUpperCase().includes('UŽSAKYMO NR')||String(c).toUpperCase().includes('UZSAKYMO NR')));
+  if(hdrIdx<0)hdrIdx=0;
+  const hdr=rows[hdrIdx].map(c=>String(c).trim().toUpperCase());
+  const col=name=>hdr.findIndex(h=>h.includes(name));
+  const iNr=col('UŽSAKYMO NR');const iDate=col('UŽSAKYMO DATA');const iDl=col('PRISTATYMO DATA');
+  const iClient=col('KLIENTAS');const iProduct=col('PRODUKTAS');const iQty=col('KIEKIS');
+  const iStatus=col('UŽSAKYMO STATUSAS');const iPrio=col('PRIORITETAS');const iNotes=col('PASTABOS');
+  const iSum=col('SUMA BE PVM');const iPayStatus=col('APMOKĖJIMO STATUSAS');const iAddr=col('PRISTATYMO ADRESAS');
+  const prioMap={'aukštas':'high','skubus':'high','normalus':'mid','žemas':'low'};
+  let imported=0,updated=0;
+  const fmtDate=d=>{if(!d)return'';if(d instanceof Date)return d.toISOString().slice(0,10);const s=String(d).trim();return s.match(/^\d{4}-\d{2}-\d{2}/)?s.slice(0,10):s;};
+  rows.slice(hdrIdx+1).forEach(row=>{
+    const orderNr=String(row[iNr]||'').trim();
+    const client=String(row[iClient]||'').trim();
+    if(!orderNr&&!client)return;
+    const prio=prioMap[String(row[iPrio]||'').toLowerCase()]||'mid';
+    const product=String(row[iProduct]||'').trim();
+    const addr=String(row[iAddr]||'').trim();
+    const name=orderNr?(client?orderNr+' — '+client:orderNr):(client||'Užsakymas');
+    const data={name,orderNr,client,priority:prio,
+      deadline:fmtDate(row[iDl]),orderDate:fmtDate(row[iDate]),
+      orderStatus:String(row[iStatus]||'').trim(),
+      payStatus:String(row[iPayStatus]||'').trim(),
+      amount:row[iSum]?Number(row[iSum]).toFixed(2):'',
+      notes:(String(row[iNotes]||'').trim())+(addr?' ['+addr+']':''),
+      lines:product?[{art:'',desc:product,qty:String(row[iQty]||''),date:fmtDate(row[iDl])}]:[],
+    };
+    if(!DB.orders)DB.orders=[];
+    const existing=DB.orders.find(o=>o.orderNr===orderNr&&orderNr);
+    if(existing){
+      // Update existing — keep projectId and status if already linked
+      Object.assign(existing,data);
+      if(!existing.created)existing.created=new Date().toISOString();
+      updated++;
+    } else {
+      DB.orders.unshift({id:uid(),...data,status:'pending',created:new Date().toISOString()});
+      imported++;
+    }
+  });
+  save();renderOrders();renderSidebar();
+  toast('✅ '+imported+' nauji, '+updated+' atnaujinti','success');
+}
+function importOrdersExcel(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      _processOrdersWorkbook(wb);
+    }catch(err){toast('Klaida: '+err.message,'error');}
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function openOrderModal(editId){
