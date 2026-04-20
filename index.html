@@ -3516,18 +3516,143 @@ function addDeadlineNotif(msg,sub,pid,refId,days){
   if(days<=0)toast('⚠ '+msg,'error');
   else if(days<=1)toast('⏰ '+msg,'');
 }
+let _ordSort='deadline';
+let _ordSortDir='asc';
+let _ordSearch='';
+let _ordFilter='all';
+
+function setOrdSort(field){
+  if(_ordSort===field){_ordSortDir=_ordSortDir==='asc'?'desc':'asc';}
+  else{_ordSort=field;_ordSortDir='asc';}
+  renderOrders();
+}
+function setOrdSearch(v){_ordSearch=v.toLowerCase();renderOrders();}
+function setOrdFilter(v){_ordFilter=v;renderOrders();}
+
 function renderOrders(){
   if(!isManager()){document.getElementById('orders-content').innerHTML='<div class="empty-state">Tik vadovams</div>';return;}
   const orders=DB.orders||[];
-  const pending=orders.filter(o=>o.status==='pending');
-  const converted=orders.filter(o=>o.status==='converted');
   const el=document.getElementById('orders-content');
-  el.innerHTML=`
-    ${!pending.length&&!converted.length?`<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">📬</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">Nėra užsakymų</div><div style="font-size:12px;color:var(--hint)">Pridėkite naują užsakymą mygtuku viršuje</div></div>`:''}
-    ${pending.length?`<div class="section-header"><div class="section-title">🕐 Laukiantys (${pending.length})</div></div>
-    ${pending.map(o=>orderCardHtml(o)).join('')}`:''}
-    ${converted.length?`<div class="section-header" style="margin-top:16px"><div class="section-title" style="color:var(--muted)">✅ Paversti projektais (${converted.length})</div></div>
-    ${converted.map(o=>orderCardHtml(o,true)).join('')}`:''}`;
+  if(!orders.length){
+    el.innerHTML='<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">📬</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">Nėra užsakymų</div><div style="font-size:12px;color:var(--hint)">Importuokite iš Excel arba pridėkite rankiniu būdu</div></div>';
+    return;
+  }
+
+  // Filter
+  let filtered=orders;
+  if(_ordFilter==='pending')filtered=filtered.filter(o=>o.status==='pending'&&!o.projectId);
+  else if(_ordFilter==='linked')filtered=filtered.filter(o=>o.projectId||o.status==='converted');
+  else if(_ordFilter==='overdue')filtered=filtered.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)<0&&o.status!=='converted');
+  else if(_ordFilter==='thisweek')filtered=filtered.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)>=0&&daysUntilDeadline(o.deadline)<=7);
+
+  // Search
+  if(_ordSearch){
+    const q=_ordSearch;
+    filtered=filtered.filter(o=>
+      (o.orderNr||'').toLowerCase().includes(q)||
+      (o.client||'').toLowerCase().includes(q)||
+      (o.name||'').toLowerCase().includes(q)||
+      (o.notes||'').toLowerCase().includes(q)||
+      (o.orderStatus||'').toLowerCase().includes(q)||
+      (o.lines?.[0]?.desc||'').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  const sorted=[...filtered].sort((a,b)=>{
+    let va,vb;
+    if(_ordSort==='orderNr'){va=a.orderNr||'';vb=b.orderNr||'';}
+    else if(_ordSort==='client'){va=(a.client||a.name||'').toLowerCase();vb=(b.client||b.name||'').toLowerCase();}
+    else if(_ordSort==='orderDate'){va=a.orderDate||'';vb=b.orderDate||'';}
+    else if(_ordSort==='deadline'){va=a.deadline||'9999';vb=b.deadline||'9999';}
+    else if(_ordSort==='orderStatus'){va=a.orderStatus||'';vb=b.orderStatus||'';}
+    else {va=a.deadline||'9999';vb=b.deadline||'9999';}
+    const cmp=String(va).localeCompare(String(vb));
+    return _ordSortDir==='asc'?cmp:-cmp;
+  });
+
+  const statusColor=s=>s==='Vykdomas'?'var(--blue-t)':s==='Patvirtintas'?'var(--green-t)':s==='Naujas'?'var(--muted)':s==='Paruoštas'?'var(--purple-t)':s==='Atšauktas'?'var(--red-t)':'var(--hint)';
+  const arrow=f=>_ordSort===f?(_ordSortDir==='asc'?' ↑':' ↓'):'';
+
+  const rows=sorted.map((o,idx)=>{
+    const linkedProj=o.projectId?DB.projects.find(p=>p.id===o.projectId):null;
+    const isPending=o.status==='pending';
+    const dlDays=o.deadline?daysUntilDeadline(o.deadline):null;
+    const dlColor=dlDays===null?'var(--hint)':dlDays<0?'var(--red-t)':dlDays<3?'var(--amber-t)':'var(--text)';
+    const rowBg=idx%2===0?'var(--surface)':'var(--surface2)';
+
+    return'<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background=\'var(--blue-bg)\'" onmouseout="this.style.background=\''+rowBg+'\'">'
+      +'<td style="padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--blue-t);font-weight:600;white-space:nowrap">'+escHtml(o.orderNr||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:12px;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(o.client||o.name||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:11px;color:var(--muted);white-space:nowrap">'+(o.orderDate||'—')+'</td>'
+      +'<td style="padding:8px 10px;font-size:11px;font-weight:'+(dlDays!==null&&dlDays<7?'700':'400')+';color:'+dlColor+';white-space:nowrap">'
+        +(o.deadline?o.deadline+(dlDays===0?' 🔴':dlDays===1?' 🟠':dlDays!==null&&dlDays<0?' ⚠':''):'—')
+      +'</td>'
+      +'<td style="padding:8px 10px;font-size:11px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        +escHtml(o.lines?.[0]?.desc||o.notes?.slice(0,80)||'—')
+      +'</td>'
+      +'<td style="padding:8px 10px;white-space:nowrap">'
+        +(o.orderStatus?'<span style="font-size:10px;font-weight:600;color:'+statusColor(o.orderStatus)+'">'+escHtml(o.orderStatus)+'</span>':'<span style="color:var(--hint);font-size:10px">—</span>')
+      +'</td>'
+      +'<td style="padding:8px 10px;white-space:nowrap">'
+        +(linkedProj
+          ?'<span onclick="showView(\'project\',\''+linkedProj.id+'\')" style="font-size:10px;background:var(--blue-bg);color:var(--blue-t);padding:2px 7px;border-radius:5px;cursor:pointer;font-weight:600">🔗 '+escHtml(linkedProj.name.slice(0,20))+'</span>'
+          :(isPending?'<span style="font-size:10px;color:var(--hint)">—</span>':'<span style="font-size:10px;color:var(--green-t)">✓</span>'))
+      +'</td>'
+      +'<td style="padding:6px 8px;white-space:nowrap;text-align:right">'
+        +(isPending&&!linkedProj?'<button onclick="convertOrder(\''+o.id+'\')" class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 7px;margin-right:2px" title="Sukurti projektą">▶</button>':'')
+        +(isPending?'<button onclick="openLinkProjectModal(\''+o.id+'\')" class="btn btn-sm" style="font-size:10px;padding:3px 7px;margin-right:2px" title="Susieti su projektu">🔗</button>':'')
+        +'<button onclick="openOrderModal(\''+o.id+'\')" class="btn btn-sm" style="font-size:10px;padding:3px 6px;margin-right:2px" title="Redaguoti">✏</button>'
+        +'<button onclick="deleteOrder(\''+o.id+'\')" class="btn btn-sm btn-danger" style="font-size:10px;padding:3px 6px" title="Ištrinti">🗑</button>'
+      +'</td>'
+      +'</tr>';
+  }).join('');
+
+  const pendCount=orders.filter(o=>o.status==='pending'&&!o.projectId).length;
+  const linkedCount=orders.filter(o=>o.projectId||o.status==='converted').length;
+  const overdueCount=orders.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)<0&&o.status!=='converted').length;
+  const weekCount=orders.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)>=0&&daysUntilDeadline(o.deadline)<=7).length;
+
+  const filterBtn=(val,label,count,color)=>'<button onclick="setOrdFilter(\''+val+'\')" class="btn btn-sm'+(_ordFilter===val?' btn-primary':'')+'" style="font-size:11px;padding:5px 10px">'+label+' <span style="font-family:var(--mono);font-weight:700;'+(color?'color:'+color:'')+'">'+count+'</span></button>';
+
+  const headerStyle='padding:9px 10px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none';
+  const sortHeader=(field,label)=>'<th style="'+headerStyle+'" onclick="setOrdSort(\''+field+'\')">'+label+'<span style="color:var(--blue-t);font-size:10px">'+arrow(field)+'</span></th>';
+
+  el.innerHTML=
+    // Controls bar
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">'
+    +'<div style="position:relative;flex:1;min-width:200px;max-width:340px">'
+    +'<input type="text" placeholder="🔍 Paieška pagal nr., klientą, aprašymą..." value="'+escHtml(_ordSearch)+'" oninput="setOrdSearch(this.value)" style="width:100%;padding:7px 10px 7px 10px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--surface)">'
+    +(_ordSearch?'<span onclick="setOrdSearch(\'\')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--hint);font-size:14px">✕</span>':'')
+    +'</div>'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'
+    +filterBtn('all','Visi',orders.length,'')
+    +filterBtn('pending','Laukia',pendCount,'var(--amber-t)')
+    +filterBtn('linked','Susieta',linkedCount,'var(--green-t)')
+    +filterBtn('thisweek','Šią sav.',weekCount,'var(--blue-t)')
+    +filterBtn('overdue','Vėluoja',overdueCount,'var(--red-t)')
+    +'</div>'
+    +'</div>'
+    // Table
+    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh)">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:var(--surface2);border-bottom:2px solid var(--border)">'
+    +sortHeader('orderNr','Nr.')
+    +sortHeader('client','Klientas')
+    +sortHeader('orderDate','Užs. data')
+    +sortHeader('deadline','Prist. data')
+    +'<th style="'+headerStyle.replace(';cursor:pointer;user-select:none','')+'">Produktas</th>'
+    +sortHeader('orderStatus','Statusas')
+    +'<th style="'+headerStyle.replace(';cursor:pointer;user-select:none','')+'">Projektas</th>'
+    +'<th style="'+headerStyle.replace('text-align:left','text-align:right').replace(';cursor:pointer;user-select:none','')+'">Veiksmai</th>'
+    +'</tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="8" style="padding:30px;text-align:center;color:var(--hint);font-size:12px">Nerasta pagal paiešką</td></tr>')+'</tbody>'
+    +'</table>'
+    +'<div style="padding:8px 12px;font-size:10px;color:var(--hint);border-top:1px solid var(--border);background:var(--surface2)">'
+    +'Rodoma: <strong>'+sorted.length+'</strong> iš <strong>'+orders.length+'</strong> užsakymų'
+    +(_ordSearch?' · paieška: "<strong>'+escHtml(_ordSearch)+'</strong>"':'')
+    +'</div>'
+    +'</div>';
 }
 
 function orderCardHtml(o,done=false){
