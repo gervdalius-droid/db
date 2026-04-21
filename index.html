@@ -517,6 +517,7 @@ span.in-progress-text{color:var(--blue-t)}
       <div class="sidebar-section">
         <div class="sidebar-label">Rodiniai</div>
         <div class="nav-item active" id="nav-floor" onclick="showView('floor')"><span class="nav-icon">▦</span>Cecho rodinys</div>
+        <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
         <div class="nav-item" onclick="window.open('orders.html','_blank')"><span class="nav-icon">📋</span>Pirkimo užsakymai ↗</div>
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge" id="mat-badge" style="display:none">!</span></div>
@@ -610,6 +611,7 @@ span.in-progress-text{color:var(--blue-t)}
       <div class="view" id="view-project"><div id="project-content"></div></div>
       <div class="view" id="view-schedule"><div id="schedule-content"></div></div>
       <div class="view" id="view-orders"><div id="orders-content"></div></div>
+      <div class="view" id="view-projects"><div id="projects-content"></div></div>
       <div class="view" id="view-team"><div id="team-content"></div></div>
       <div class="view" id="view-report"><div id="report-content"></div></div>
       <div class="view" id="view-materials"><div id="materials-content"></div></div>
@@ -1171,6 +1173,12 @@ function showView(name,extra){
   if(mm&&mm.style.display==='block')toggleMobileMenu();
   const act=document.getElementById('topbar-actions');if(act)act.innerHTML='';
   if(name==='floor'){document.getElementById('topbar-title').textContent='Cecho rodinys';document.getElementById('topbar-sub').textContent='Visi aktyvūs projektai';renderFloor();}
+  else if(name==='projects'){
+    document.getElementById('topbar-title').textContent='Visi Projektai';
+    document.getElementById('topbar-sub').textContent='Pilnas projektų sąrašas su filtrais';
+    if(act)act.innerHTML=isManager()&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Naujas projektas</button>':'';
+    renderAllProjects();
+  }
   else if(name==='project'){
     DB.currentProjectId=extra;const p=getProject(extra);if(!p)return showView('floor');
     document.getElementById('topbar-title').textContent=p.name;
@@ -1260,6 +1268,13 @@ function renderSidebar(){
   const ob=document.getElementById('orders-badge');
   const pendingOrders=(DB.orders||[]).filter(o=>o.status==='pending').length;
   ob.textContent=pendingOrders;ob.style.display=(pendingOrders&&isManager())?'inline-block':'none';
+
+  // Projects badge — active count
+  const pb=document.getElementById('proj-badge');
+  if(pb){
+    const activeCount=DB.projects.filter(p=>p.status!=='archived').length;
+    pb.textContent=activeCount;pb.style.display=activeCount?'inline-block':'none';
+  }
 
   // Materials badge — any "reikia" status across all projects
   const matBadge=document.getElementById('mat-badge');
@@ -3528,6 +3543,205 @@ function setOrdSort(field){
 }
 function setOrdSearch(v){_ordSearch=v.toLowerCase();renderOrders();}
 function setOrdFilter(v){_ordFilter=v;renderOrders();}
+
+// ── Projects state filter/sort ──
+let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'asc'};
+
+function renderAllProjects(){
+  const el=document.getElementById('projects-content');
+  if(!el)return;
+  const all=DB.projects||[];
+
+  // Apply filter
+  let filtered=all.filter(p=>{
+    if(_projFilter.status==='active'&&p.status==='archived')return false;
+    if(_projFilter.status==='archived'&&p.status!=='archived')return false;
+    if(_projFilter.status==='done'){
+      const tasks=projTasks(p.id);
+      if(!tasks.length||tasks.filter(t=>t.status==='done').length!==tasks.length)return false;
+    }
+    if(_projFilter.status==='inprogress'){
+      const tasks=projTasks(p.id);
+      if(!tasks.some(t=>t.status==='in-progress'))return false;
+    }
+    if(_projFilter.status==='overdue'){
+      if(!p.deadline||daysUntilDeadline(p.deadline)>=0)return false;
+    }
+    if(_projFilter.type==='projektas'&&p.type==='paslauga')return false;
+    if(_projFilter.type==='paslauga'&&p.type!=='paslauga')return false;
+    if(_projFilter.search){
+      const q=_projFilter.search.toLowerCase();
+      const hay=(p.name+' '+(p.client||'')+' '+(p.notes||'')).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a,b)=>{
+    const dir=_projFilter.sortDir==='asc'?1:-1;
+    if(_projFilter.sortBy==='name')return a.name.localeCompare(b.name)*dir;
+    if(_projFilter.sortBy==='client')return (a.client||'').localeCompare(b.client||'')*dir;
+    if(_projFilter.sortBy==='deadline'){
+      if(!a.deadline&&!b.deadline)return 0;
+      if(!a.deadline)return 1;
+      if(!b.deadline)return -1;
+      return a.deadline.localeCompare(b.deadline)*dir;
+    }
+    if(_projFilter.sortBy==='progress')return (projProgress(a.id)-projProgress(b.id))*dir;
+    if(_projFilter.sortBy==='priority'){
+      const order={high:0,mid:1,low:2};
+      return ((order[a.priority]||1)-(order[b.priority]||1))*dir;
+    }
+    return 0;
+  });
+
+  // Count totals for summary
+  const totalActive=all.filter(p=>p.status!=='archived').length;
+  const totalDone=all.filter(p=>{const t=projTasks(p.id);return t.length&&t.filter(x=>x.status==='done').length===t.length;}).length;
+  const totalOverdue=all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0&&p.status!=='archived').length;
+  const totalInProgress=all.filter(p=>projTasks(p.id).some(t=>t.status==='in-progress')).length;
+
+  const sortHdr=(key,label,alignRight)=>{
+    const active=_projFilter.sortBy===key;
+    const arrow=active?(_projFilter.sortDir==='asc'?' ↑':' ↓'):'';
+    return '<th style="padding:9px 10px;text-align:'+(alignRight?'right':'left')+';font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+(active?'var(--blue-t)':'var(--muted)')+';white-space:nowrap;cursor:pointer;user-select:none" onclick="setProjSort(\''+key+'\')">'+label+arrow+'</th>';
+  };
+
+  const rows=filtered.map((p,idx)=>{
+    const tasks=projTasks(p.id);
+    const pct=projProgress(p.id);
+    const inProg=tasks.filter(t=>t.status==='in-progress');
+    const curStep=inProg[0]?getStep(inProg[0].stepId):null;
+    const doneTasks=tasks.filter(t=>t.status==='done').length;
+    const dlDays=p.deadline?daysUntilDeadline(p.deadline):null;
+    const dlColor=dlDays===null?'var(--hint)':dlDays<0?'var(--red-t)':dlDays<3?'var(--amber-t)':dlDays<7?'var(--text)':'var(--muted)';
+    const isPaslauga=p.type==='paslauga';
+    const allDone=tasks.length&&doneTasks===tasks.length;
+    const statusBadge=p.status==='archived'?'<span style="font-size:10px;color:var(--hint)">📦 Archyvuotas</span>'
+      :allDone?'<span style="font-size:10px;color:var(--green-t);font-weight:600">✅ Baigtas</span>'
+      :curStep?'<span style="font-size:10px;color:var(--blue-t);font-weight:600">🔄 '+curStep.short+'</span>'
+      :'<span style="font-size:10px;color:var(--muted)">⏳ Laukia</span>';
+
+    const prioColors={high:'var(--red-t)',mid:'var(--amber-t)',low:'var(--green-t)'};
+    const prioIcons={high:'🔴',mid:'🟡',low:'🟢'};
+
+    const rowBg=idx%2===0?'var(--surface)':'var(--surface2)';
+    const leftBorder=isPaslauga?'border-left:3px solid var(--amber-t);':'border-left:3px solid '+p.color+';';
+
+    return'<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);'+leftBorder+'cursor:pointer" onclick="showView(\'project\',\''+p.id+'\')" onmouseover="this.style.background=\'var(--blue-bg)\'" onmouseout="this.style.background=\''+rowBg+'\'">'
+      // Icon + Name
+      +'<td style="padding:8px 10px;max-width:220px">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<div style="width:26px;height:26px;border-radius:7px;background:'+p.color+'20;color:'+p.color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(isPaslauga?'⚡':initials(p.name))+'</div>'
+        +'<div style="min-width:0;flex:1">'
+        +'<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.name)+'</div>'
+        +(isPaslauga?'<div style="font-size:9px;color:var(--amber-t);font-weight:600">⚡ Paslauga</div>':'')
+        +'</div></div>'
+      +'</td>'
+      // Client
+      +'<td style="padding:8px 10px;font-size:11px;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.client||'—')+'</td>'
+      // Priority
+      +'<td style="padding:8px 10px;white-space:nowrap">'
+        +'<span style="font-size:10px;font-weight:600;color:'+(prioColors[p.priority]||prioColors.mid)+'">'+(prioIcons[p.priority]||prioIcons.mid)+' '+(PRIO_LABELS[p.priority||'mid'].label)+'</span>'
+      +'</td>'
+      // Deadline
+      +'<td style="padding:8px 10px;font-size:11px;font-weight:'+(dlDays!==null&&dlDays<7?'700':'400')+';color:'+dlColor+';white-space:nowrap">'
+        +(p.deadline?p.deadline+(dlDays!==null&&dlDays<0?' ⚠':dlDays===0?' 🔴':dlDays===1?' 🟠':''):'—')
+      +'</td>'
+      // Progress
+      +'<td style="padding:8px 10px;min-width:120px">'
+        +'<div style="display:flex;align-items:center;gap:6px">'
+        +'<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+(pct===100?'var(--green)':'var(--blue)')+';transition:width .3s"></div></div>'
+        +'<span style="font-size:10px;font-family:var(--mono);font-weight:600;min-width:35px;text-align:right">'+pct+'%</span>'
+        +'</div>'
+        +'<div style="font-size:9px;color:var(--hint);margin-top:2px">'+doneTasks+'/'+tasks.length+' užduočių</div>'
+      +'</td>'
+      // Status
+      +'<td style="padding:8px 10px;white-space:nowrap">'+statusBadge+'</td>'
+      // Actions
+      +'<td style="padding:6px 8px;white-space:nowrap;text-align:right" onclick="event.stopPropagation()">'
+        +'<button onclick="showView(\'project\',\''+p.id+'\')" class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 8px;margin-right:2px">→</button>'
+        +(isManager()&&!isReadOnly()?'<button onclick="openEditProjectModal(\''+p.id+'\')" class="btn btn-sm" style="font-size:10px;padding:3px 6px;margin-right:2px" title="Redaguoti">✏</button>':'')
+        +(isManager()&&!isReadOnly()?'<button onclick="confirmDeleteProject(\''+p.id+'\')" class="btn btn-sm btn-danger" style="font-size:10px;padding:3px 6px" title="Ištrinti">🗑</button>':'')
+      +'</td>'
+      +'</tr>';
+  }).join('');
+
+  el.innerHTML=
+    // Summary cards
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Iš viso</div>'
+      +'<div style="font-size:22px;font-weight:800;margin-top:2px">'+totalActive+'</div>'
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--blue-t);text-transform:uppercase;letter-spacing:.06em">🔄 Vykdoma</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--blue-t);margin-top:2px">'+totalInProgress+'</div>'
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--green-t);text-transform:uppercase;letter-spacing:.06em">✅ Baigta</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--green-t);margin-top:2px">'+totalDone+'</div>'
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--red-t);text-transform:uppercase;letter-spacing:.06em">⚠ Vėluoja</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--red-t);margin-top:2px">'+totalOverdue+'</div>'
+    +'</div>'
+    +'</div>'
+    // Filter bar
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +'<input type="text" id="proj-search" placeholder="🔍 Ieškoti projektų, klientų..." value="'+escHtml(_projFilter.search)+'" oninput="_projFilter.search=this.value;renderAllProjects()" style="flex:1;min-width:200px;font-size:12px;padding:6px 10px">'
+    +'<select onchange="_projFilter.status=this.value;renderAllProjects()" style="font-size:12px;padding:6px 10px">'
+      +'<option value="all"'+(_projFilter.status==='all'?' selected':'')+'>Visi statusai</option>'
+      +'<option value="active"'+(_projFilter.status==='active'?' selected':'')+'>Aktyvūs</option>'
+      +'<option value="inprogress"'+(_projFilter.status==='inprogress'?' selected':'')+'>🔄 Vykdomi</option>'
+      +'<option value="done"'+(_projFilter.status==='done'?' selected':'')+'>✅ Baigti</option>'
+      +'<option value="overdue"'+(_projFilter.status==='overdue'?' selected':'')+'>⚠ Vėluojantys</option>'
+      +'<option value="archived"'+(_projFilter.status==='archived'?' selected':'')+'>📦 Archyvuoti</option>'
+    +'</select>'
+    +'<select onchange="_projFilter.type=this.value;renderAllProjects()" style="font-size:12px;padding:6px 10px">'
+      +'<option value="all"'+(_projFilter.type==='all'?' selected':'')+'>Visi tipai</option>'
+      +'<option value="projektas"'+(_projFilter.type==='projektas'?' selected':'')+'>📁 Projektai</option>'
+      +'<option value="paslauga"'+(_projFilter.type==='paslauga'?' selected':'')+'>⚡ Paslaugos</option>'
+    +'</select>'
+    +(_projFilter.search||_projFilter.status!=='all'||_projFilter.type!=='all'?'<button class="btn btn-sm" onclick="resetProjFilter()">✕ Išvalyti</button>':'')
+    +'</div>'
+    // Table
+    +(!filtered.length
+      ?'<div class="empty-state" style="padding:40px;text-align:center"><div style="font-size:30px;margin-bottom:8px">📁</div><div style="font-size:13px;color:var(--muted)">'+(all.length?'Nieko nerasta — pakeiskite filtrus':'Nėra projektų')+'</div></div>'
+      :'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh)">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="background:var(--surface2);border-bottom:2px solid var(--border)">'
+      +sortHdr('name','Pavadinimas')
+      +sortHdr('client','Klientas')
+      +sortHdr('priority','Prioritetas')
+      +sortHdr('deadline','Terminas')
+      +sortHdr('progress','Progresas')
+      +'<th style="padding:9px 10px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Būsena</th>'
+      +'<th style="padding:9px 10px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Veiksmai</th>'
+      +'</tr></thead>'
+      +'<tbody>'+rows+'</tbody>'
+      +'</table>'
+      +'<div style="padding:8px 12px;font-size:10px;color:var(--hint);border-top:1px solid var(--border);background:var(--surface2)">'
+      +'Rodoma: <strong>'+filtered.length+'</strong> iš <strong>'+all.length+'</strong> projektų'
+      +'</div>'
+      +'</div>');
+}
+
+function setProjSort(key){
+  if(_projFilter.sortBy===key){
+    _projFilter.sortDir=_projFilter.sortDir==='asc'?'desc':'asc';
+  } else {
+    _projFilter.sortBy=key;
+    _projFilter.sortDir='asc';
+  }
+  renderAllProjects();
+}
+
+function resetProjFilter(){
+  _projFilter={search:'',status:'all',type:'all',sortBy:_projFilter.sortBy,sortDir:_projFilter.sortDir};
+  renderAllProjects();
+}
 
 function renderOrders(){
   if(!isManager()){document.getElementById('orders-content').innerHTML='<div class="empty-state">Tik vadovams</div>';return;}
