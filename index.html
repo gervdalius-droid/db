@@ -707,14 +707,16 @@ async function sbGet(k){
   }catch(e){return null;}
 }
 async function sbSet(k,v){
-  try{
-    const r=await fetch(SB_URL+'/rest/v1/fabflow',{
-      method:'POST',
-      headers:{...sbH(),'Prefer':'resolution=merge-duplicates'},
-      body:JSON.stringify({key:k,value:v,updated_at:new Date().toISOString()})
-    });
-    return r.ok;
-  }catch(e){return false;}
+  const r=await fetch(SB_URL+'/rest/v1/fabflow',{
+    method:'POST',
+    headers:{...sbH(),'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify({key:k,value:v,updated_at:new Date().toISOString()})
+  });
+  if(!r.ok){
+    const txt=await r.text().catch(()=>'');
+    throw new Error('sbSet '+k+' → '+r.status+' '+txt.slice(0,100));
+  }
+  return true;
 }
 async function sbDel(k){
   try{await fetch(SB_URL+'/rest/v1/fabflow?key=eq.'+encodeURIComponent(k),{method:'DELETE',headers:sbH()});}catch(e){}
@@ -2976,7 +2978,7 @@ function toggleServiceStep(){
 
 function selCol(c){_selColor=c;PROJ_COLORS.forEach((col,i)=>{const el=document.getElementById('sw'+i);if(el)el.classList.toggle('selected',col===c)})}
 
-function createProject(fromOrderId){
+async function createProject(fromOrderId){
   const name=document.getElementById('np-name').value.trim();if(!name)return;
   const type=document.getElementById('np-type')?.value||'projektas';
 
@@ -3036,12 +3038,21 @@ function createProject(fromOrderId){
   DB.projects.push(p);
   if(fromOrderId&&fromOrderId!==''){const o=(DB.orders||[]).find(x=>x.id===fromOrderId);if(o)o.status='converted';}
   closeModal();
-  toast('✅ '+(type==='paslauga'?'Paslauga':'Projektas')+' sukurtas!','success');
   showView('project',p.id);
-  // Save immediately — don't risk losing new project to auto-refresh
+  // Save immediately and wait for it to complete
   _isSaving=true;
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
-  saveToCloud().then(()=>{_lastSavedAt=Date.now();_isSaving=false;});
+  toast('💾 Išsaugoma...','');
+  try{
+    await saveToCloud();
+    _lastSavedAt=Date.now();
+    toast('✅ '+(type==='paslauga'?'Paslauga':'Projektas')+' išsaugotas!','success');
+  }catch(err){
+    console.error('Save failed:',err);
+    toast('❌ Klaida išsaugant: '+err.message,'error');
+  }finally{
+    _isSaving=false;
+  }
 }
 
 // ── openAddTaskModal ──
