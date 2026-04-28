@@ -678,7 +678,19 @@ const isManager  = () => currentUserRole === 'manager';
 const isReadOnly = () => currentUserRole === 'view';
 function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
 function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
-function projProgress(pid){const t=projTasks(pid);return t.length?Math.round(t.filter(t=>t.status==='done').length/t.length*100):0}
+function projProgress(pid){
+  const t=projTasks(pid);
+  if(!t.length)return 0;
+  // Use quantity-based progress when tasks have qtyOrdered > 0
+  const totalOrdered=t.reduce((s,x)=>s+(x.qtyOrdered||0),0);
+  const totalDone=t.reduce((s,x)=>{
+    if(x.qtyLines&&x.qtyLines.length)return s+x.qtyLines.reduce((a,l)=>a+(l.done||0),0);
+    return s+(x.qtyDone||0);
+  },0);
+  if(totalOrdered>0)return Math.round(totalDone/totalOrdered*100);
+  // Fallback: count done tasks
+  return Math.round(t.filter(x=>x.status==='done').length/t.length*100);
+}
 function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
 function ava(uid2,sz=22){const u=getUser(uid2);return'<div class="avatar" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Math.floor(sz*.38)+'px;background:'+u.bg+';color:'+u.color+'">'+u.initials+'</div>';}
 function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'}
@@ -804,15 +816,31 @@ function save(){
   // Always write to localStorage immediately
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
   _lastSavedAt=Date.now(); // block auto-refresh immediately
-  // Debounce cloud save — but only 500ms
+  // Short debounce so cloud save fires fast
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(async()=>{
     if(_isSaving)return;
     _isSaving=true;
-    await saveToCloud();
+    try{await saveToCloud();_lastSavedAt=Date.now();}
+    catch(e){console.error('Cloud save failed:',e);toast('❌ Išsaugojimo klaida: '+e.message,'error');}
     _isSaving=false;
-  },500);
+  },200);
 }
+
+// Flush pending save before page unload
+window.addEventListener('beforeunload',(e)=>{
+  if(_saveTimer&&WORKSPACE_CODE){
+    clearTimeout(_saveTimer);
+    // Use sendBeacon for reliable save during unload
+    try{
+      const payload=JSON.stringify({key:wsKey('projects'),value:JSON.stringify(DB.projects),updated_at:new Date().toISOString()});
+      const blob=new Blob([payload],{type:'application/json'});
+      navigator.sendBeacon(SB_URL+'/rest/v1/fabflow?apikey='+SB_KEY,blob);
+      const tasksPayload=JSON.stringify({key:wsKey('tasks'),value:JSON.stringify(DB.tasks),updated_at:new Date().toISOString()});
+      navigator.sendBeacon(SB_URL+'/rest/v1/fabflow?apikey='+SB_KEY,new Blob([tasksPayload],{type:'application/json'}));
+    }catch(err){}
+  }
+});
 
 function load(){
   try{
@@ -3413,7 +3441,7 @@ function removeEpLine(i){
   rows.forEach((r,idx)=>{r.id='epl-row-'+idx;const n=r.querySelector('span');if(n)n.textContent=idx+1;});
 }
 
-function saveEditProject(pid){
+async function saveEditProject(pid){
   const p=getProject(pid);if(!p)return;
   p.name=document.getElementById('ep-name').value.trim()||p.name;
   p.client=document.getElementById('ep-client').value.trim()||'—';
@@ -3444,7 +3472,22 @@ function saveEditProject(pid){
       }
     });
   }
-  closeModal();toast('✅ Išsaugota!','success');renderProjectView(pid,_projTab);renderSidebar();save();
+  closeModal();
+  renderProjectView(pid,_projTab);renderSidebar();
+  // Immediate cloud save with error visibility
+  _isSaving=true;
+  try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
+  toast('💾 Išsaugoma...','');
+  try{
+    await saveToCloud();
+    _lastSavedAt=Date.now();
+    toast('✅ Išsaugota!','success');
+  }catch(err){
+    console.error('Save edit failed:',err);
+    toast('❌ Klaida išsaugant: '+err.message,'error');
+  }finally{
+    _isSaving=false;
+  }
 }
 
 // ══════════════════════════════════════════════
