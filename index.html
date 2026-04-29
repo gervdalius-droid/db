@@ -850,8 +850,22 @@ async function loadFromCloud(){
       sbGet(wsKey('settings')),
     ]);
     if(!proj&&!users)return false;
-    DB.projects=proj?JSON.parse(proj):[];
-    DB.tasks=tasks?JSON.parse(tasks):[];
+    const cloudProjects=proj?JSON.parse(proj):[];
+    const cloudTasks=tasks?JSON.parse(tasks):[];
+    // ANTI-REGRESSION MERGE: keep the more-progressed version of each task
+    // If local has a task in 'done' or higher qtyDone, never let cloud roll it back
+    const localTasksMap={};DB.tasks.forEach(t=>localTasksMap[t.id]=t);
+    cloudTasks.forEach((ct,i)=>{
+      const lt=localTasksMap[ct.id];
+      if(!lt)return;
+      const localQtyDone=(lt.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||lt.qtyDone||0;
+      const cloudQtyDone=(ct.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||ct.qtyDone||0;
+      // If local has more progress OR is 'done' but cloud isn't, keep local version
+      if(lt.status==='done'&&ct.status!=='done'){cloudTasks[i]=lt;return;}
+      if(localQtyDone>cloudQtyDone){cloudTasks[i]=lt;return;}
+    });
+    DB.projects=cloudProjects;
+    DB.tasks=cloudTasks;
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
     if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};}
@@ -3249,16 +3263,18 @@ function openTaskModal(tid){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   if(!t.assigneeIds) t.assigneeIds=[t.assigneeId].filter(Boolean);
 
-  // Auto-build qtyLines from project lines if missing
+  // Auto-build qtyLines from project lines ONLY if task is fresh (status==='pending' AND no completed quantity)
+  // Never overwrite existing progress data — that's destructive
   const proj=getProject(t.projectId);
   const projLines=proj?.lines||[];
-  if(projLines.length&&(!t.qtyLines||!t.qtyLines.length)){
+  const taskHasProgress=(t.qtyDone&&t.qtyDone>0)||t.status==='done'||t.status==='in-progress';
+  if(projLines.length&&(!t.qtyLines||!t.qtyLines.length)&&!taskHasProgress){
     t.qtyLines=projLines
       .filter(l=>l.art||l.desc)
-      .map(l=>({art:l.art||'',desc:l.desc||'',qty:parseInt(l.qty)||0,done:l.qtyDone||0}));
+      .map(l=>({art:l.art||'',desc:l.desc||'',qty:parseInt(l.qty)||0,done:0}));
     if(t.qtyLines.length){
       t.qtyOrdered=t.qtyLines.reduce((s,l)=>s+l.qty,0);
-      if(!t.qtyDone)t.qtyDone=0;
+      if(t.qtyDone===undefined)t.qtyDone=0;
     }
     // Save without triggering full re-render
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
@@ -3597,10 +3613,13 @@ async function saveEditProject(pid){
     if(art||desc)lines.push({art,desc,qty,date,qtyDone:0});
   });
   p.lines=lines;
-  // Update qtyOrdered on all tasks if lines changed
+  // Update qtyOrdered on tasks ONLY if task has no progress yet (fresh task)
+  // Never overwrite progress on tasks that have done work
   if(lines.length){
     const total=lines.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
     projTasks(pid).forEach(t=>{
+      const hasProgress=(t.qtyDone&&t.qtyDone>0)||t.status==='done'||t.status==='in-progress'||(t.qtyLines||[]).some(l=>l.done>0);
+      if(hasProgress)return; // never touch tasks with progress
       if(!t.qtyOrdered||t.qtyOrdered===0){
         t.qtyOrdered=total;
         t.qtyDone=0;
