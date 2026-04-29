@@ -428,10 +428,11 @@ span.in-progress-text{color:var(--blue-t)}
     <div class="auth-sub">Gamybos valdymo sistema</div>
 
     <!-- ── Tab switcher ── -->
-    <div style="display:flex;gap:6px;margin-bottom:18px">
-      <button id="atab-admin" class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('admin')">Vadyba</button>
-      <button id="atab-worker" class="btn" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('worker')">Gamyba</button>
-      <button id="atab-view" class="btn" style="flex:1;justify-content:center;font-size:12px" onclick="switchAuthTab('view')">👁 Peržiūra</button>
+    <div style="display:flex;gap:5px;margin-bottom:18px;flex-wrap:wrap">
+      <button id="atab-admin" class="btn btn-primary" style="flex:1;min-width:80px;justify-content:center;font-size:11px" onclick="switchAuthTab('admin')">Vadyba</button>
+      <button id="atab-engineer" class="btn" style="flex:1;min-width:80px;justify-content:center;font-size:11px" onclick="switchAuthTab('engineer')">📐 Projektavimas</button>
+      <button id="atab-worker" class="btn" style="flex:1;min-width:80px;justify-content:center;font-size:11px" onclick="switchAuthTab('worker')">Gamyba</button>
+      <button id="atab-view" class="btn" style="flex:1;min-width:80px;justify-content:center;font-size:11px" onclick="switchAuthTab('view')">👁</button>
     </div>
 
     <!-- ── ADMIN: email + password ── -->
@@ -502,11 +503,24 @@ span.in-progress-text{color:var(--blue-t)}
       </div>
       <button class="btn btn-primary auth-btn" onclick="workerLogin()">Prisijungti →</button>
       <div id="worker-error" style="font-size:11px;color:var(--red-t);margin-top:8px;min-height:16px;text-align:center"></div>
+    <!-- ── ENGINEER: name + workspace code (technical engineer) ── -->
+    <div id="auth-engineer-form" style="display:none">
+      <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:9px 12px;font-size:11px;color:#4338ca;margin-bottom:14px">
+        📐 Projektavimo inžinieriui. Matysite tik savo projektus ir užduotis.
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Jūsų vardas</label>
+        <input class="auth-input" id="eng-name" placeholder="Vardas Pavardė" autocomplete="name">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Darbo vietos kodas</label>
+        <input class="auth-input" id="eng-code" placeholder="pvz. FAB123" style="text-transform:uppercase;letter-spacing:.1em;font-weight:600;font-size:16px">
+      </div>
+      <button class="btn btn-primary auth-btn" onclick="engineerLogin()">Prisijungti →</button>
+      <div id="eng-error" style="font-size:11px;color:var(--red-t);margin-top:8px;min-height:16px;text-align:center"></div>
     </div>
   </div>
 </div>
-
-<!-- ══ MAIN APP ══ -->
 <div class="app" id="main-app" style="display:none">
   <aside class="sidebar">
     <div class="sidebar-logo">
@@ -526,6 +540,7 @@ span.in-progress-text{color:var(--blue-t)}
         <div class="nav-item" id="nav-report" onclick="showView('report')"><span class="nav-icon">📊</span>Ataskaita</div>
         <div class="nav-item" id="nav-notifs" onclick="showView('notifs')"><span class="nav-icon">🔔</span>Pranešimai<span class="nav-badge" id="notif-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-import" onclick="showView('import')"><span class="nav-icon">📥</span>Importuoti Excel</div>
+        <div class="nav-item" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
       </div>
       <div class="sidebar-section">
@@ -661,21 +676,55 @@ const STEPS = [
   {id:'pakavimas',    label:'Pakavimas',        short:'PKV', color:'#84cc16', bg:'#f0fdf4', icon:'📦'},
   {id:'montavimas',   label:'Montavimas',       short:'MNT', color:'#f97316', bg:'#fff7ed', icon:'🏗'},
 ];
+// Design phase steps (Projektavimas) — comes BEFORE production
+const DESIGN_STEPS = [
+  {id:'briefas',      label:'Briefas',          short:'BRF', color:'#64748b', bg:'#f1f5f9', icon:'📋', desc:'Užklausa: matmenys, medžiagos, terminas'},
+  {id:'koncepcija',   label:'Koncepcija',       short:'KNC', color:'#a855f7', bg:'#faf5ff', icon:'✏️', desc:'Pradinis eskizas, 3D peržiūra klientui'},
+  {id:'modelis3d',    label:'3D Modelis',       short:'3DM', color:'#6366f1', bg:'#eef2ff', icon:'🎯', desc:'Detalus parametrinis modelis'},
+  {id:'breziniai',    label:'Brėžiniai',        short:'BRZ', color:'#0891b2', bg:'#ecfeff', icon:'📐', desc:'2D brėžiniai, matmenys, sujungimai'},
+  {id:'cam',          label:'CAM / Nesting',    short:'CAM', color:'#0284c7', bg:'#e0f2fe', icon:'⚙️', desc:'CNC kodai, nesting, pjovimo planas'},
+  {id:'perdavimas',   label:'Perdavimas',       short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', desc:'Failai perduoti į gamybą'},
+];
+const ALL_STEPS_BY_ID={};STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);DESIGN_STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);
+
 const PROJ_COLORS = ['#6366f1','#0ea5e9','#f59e0b','#10b981','#f97316','#8b5cf6','#ef4444','#06b6d4'];
 const USER_COLORS  = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
 const USER_BGS     = ['#eef2ff','#e0f2fe','#d1fae5','#fef3c7','#f3f0ff','#fef2f2','#ecfeff','#fff7ed','#fdf2f8','#f0fdf4'];
 const PRIO_LABELS  = {high:{label:'Aukštas',color:'var(--red-t)',bg:'var(--red-bg)'},mid:{label:'Vidutinis',color:'var(--amber-t)',bg:'var(--amber-bg)'},low:{label:'Žemas',color:'var(--green-t)',bg:'var(--green-bg)'}};
-const STEP_DAYS    = {pjovimas:1,briaunavimas:1,grezimas:1,apdaila:3,surinkimas:3,isstatymas:1,pakavimas:1,montavimas:1};
+const STEP_DAYS    = {briefas:1,koncepcija:2,modelis3d:3,breziniai:2,cam:1,perdavimas:1,pjovimas:1,briaunavimas:1,grezimas:1,apdaila:3,surinkimas:3,isstatymas:1,pakavimas:1,montavimas:1};
 let _selColor = PROJ_COLORS[0];
 let _selAssignee = '';
 let _projTab = 'kanban';
 const uid = () => Math.random().toString(36).slice(2,10);
 const getUser    = id => USERS.find(u=>u.id===id)||USERS[0]||{id:'?',name:'?',initials:'?',color:'#888',bg:'#eee',role:'worker',email:''};
 const getProject = id => DB.projects.find(p=>p.id===id);
-const getStep    = id => STEPS.find(s=>s.id===id)||STEPS[0];
+const getStep    = id => ALL_STEPS_BY_ID[id]||STEPS[0];
 const curUser    = () => getUser(DB.currentUserId);
 const isManager  = () => currentUserRole === 'manager';
+const isEngineer = () => currentUserRole === 'engineer';
 const isReadOnly = () => currentUserRole === 'view';
+const canEdit    = () => !isReadOnly();
+
+// Get steps for a project — design steps if in design phase, else production
+function projSteps(p){
+  if(!p)return STEPS;
+  if(p.designStatus==='design')return DESIGN_STEPS;
+  if(p.serviceSteps)return STEPS.filter(s=>p.serviceSteps.includes(s.id));
+  return STEPS;
+}
+
+// Visibility — can current user see this project?
+function canSeeProject(p){
+  if(isManager())return true;
+  if(isReadOnly())return true;
+  if(isEngineer()){
+    // Engineers see projects where they're owner or have tasks assigned
+    if(p.owner===DB.currentUserId)return true;
+    return projTasks(p.id).some(t=>t.assigneeId===DB.currentUserId||(t.assigneeIds||[]).includes(DB.currentUserId));
+  }
+  // Workers see all projects in the workspace (per existing behavior)
+  return true;
+}
 function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
 function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
 function projProgress(pid){
@@ -863,12 +912,15 @@ function switchAuthTab(tab){
   document.getElementById('atab-admin').className='btn'+(tab==='admin'?' btn-primary':'');
   document.getElementById('atab-worker').className='btn'+(tab==='worker'?' btn-primary':'');
   document.getElementById('atab-view').className='btn'+(tab==='view'?' btn-primary':'');
+  document.getElementById('atab-engineer').className='btn'+(tab==='engineer'?' btn-primary':'');
   document.getElementById('auth-admin-form').style.display=tab==='admin'?'block':'none';
   document.getElementById('auth-setup-form').style.display='none';
   document.getElementById('auth-worker-form').style.display=tab==='worker'?'block':'none';
   document.getElementById('auth-view-form').style.display=tab==='view'?'block':'none';
+  document.getElementById('auth-engineer-form').style.display=tab==='engineer'?'block':'none';
   if(tab==='worker')setTimeout(()=>document.getElementById('worker-name')?.focus(),50);
   else if(tab==='view')setTimeout(()=>document.getElementById('view-code')?.focus(),50);
+  else if(tab==='engineer')setTimeout(()=>document.getElementById('eng-name')?.focus(),50);
   else setTimeout(()=>document.getElementById('auth-email')?.focus(),50);
 }
 function showAdminSetup(){
@@ -1000,6 +1052,41 @@ async function workerLogin(){
   finally{if(btn){btn.textContent='Prisijungti →';btn.disabled=false;}}
 }
 
+// ENGINEER LOGIN — name + workspace code, sees only assigned/own projects
+async function engineerLogin(){
+  const name=(document.getElementById('eng-name')?.value||'').trim();
+  const code=(document.getElementById('eng-code')?.value||'').trim().toUpperCase();
+  if(!name){setAuthError('eng-error','Įveskite savo vardą');return;}
+  if(!code||code.length<4){setAuthError('eng-error','Įveskite darbo vietos kodą');return;}
+  const btn=document.querySelector('#auth-engineer-form .btn-primary');
+  if(btn){btn.textContent='Jungiamasi…';btn.disabled=true;}
+  setAuthError('eng-error','');
+  try{
+    const proj=await sbGet('fab_'+code+'_projects');
+    const users=await sbGet('fab_'+code+'_users');
+    if(proj===null&&users===null){setAuthError('eng-error','Darbo vietos kodas nerastas');return;}
+    WORKSPACE_CODE=code;
+    currentUserRole='engineer';
+    CURRENT_USER_NAME=name;
+    SB_TOKEN=SB_KEY;
+    let existingUsers=users?JSON.parse(users):[];
+    let me=existingUsers.find(u=>u.name.toLowerCase()===name.toLowerCase()&&u.role==='engineer');
+    if(!me){
+      const initials2=name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const idx=name.charCodeAt(0)%USER_COLORS.length;
+      me={id:'e_'+Date.now(),name,email:'',role:'engineer',color:USER_COLORS[idx],bg:USER_BGS[idx],initials:initials2};
+      existingUsers.push(me);
+      await sbSet('fab_'+code+'_users',JSON.stringify(existingUsers));
+    }
+    USERS=existingUsers;
+    DB.currentUserId=me.id;
+    try{localStorage.setItem('fabflow_engineer',JSON.stringify({name,code,userId:me.id}));}catch(e){}
+    await enterApp();
+    setTimeout(()=>toast('📐 Projektavimo režimas — matomi tik Jūsų projektai','success'),500);
+  }catch(e){setAuthError('eng-error','Klaida: '+e.message);}
+  finally{if(btn){btn.textContent='Prisijungti →';btn.disabled=false;}}
+}
+
 // READ-ONLY VIEW LOGIN — just a code, no name needed
 async function viewLogin(){
   const code=(document.getElementById('view-code')?.value||'').trim().toUpperCase();
@@ -1036,6 +1123,8 @@ async function enterApp(){
   renderSidebar();renderFloor();
   setSyncStatus('online');
   setTimeout(checkDeadlines,800);setInterval(checkDeadlines,10*60*1000);
+  // Daily backup check — once per browser session per workspace per day
+  setTimeout(checkDailyBackup,3000);
   startAutoRefresh();
   toast('Sveiki, '+(CURRENT_USER_NAME||me?.name||'')+'!','success');
 }
@@ -1206,7 +1295,7 @@ function showView(name,extra){
   else if(name==='projects'){
     document.getElementById('topbar-title').textContent='Visi Projektai';
     document.getElementById('topbar-sub').textContent='Pilnas projektų sąrašas su filtrais';
-    if(act)act.innerHTML=isManager()&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Naujas projektas</button>':'';
+    if(act)act.innerHTML=(isManager()||isEngineer())&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Naujas projektas</button>':'';
     renderAllProjects();
   }
   else if(name==='project'){
@@ -1259,7 +1348,7 @@ function showView(name,extra){
 
 function renderSidebar(){
   // Active projects
-  document.getElementById('proj-nav').innerHTML=DB.projects.filter(p=>p.status!=='archived').map(p=>{
+  document.getElementById('proj-nav').innerHTML=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p)).map(p=>{
     const pct=projProgress(p.id),active=DB.currentProjectId===p.id;
     const isCompleted=p.status==='completed';
     return`<div class="proj-item ${active?'active':''}" onclick="showView('project','${p.id}')">
@@ -1321,9 +1410,9 @@ function renderSidebar(){
   document.getElementById('cur-av').style.color=isReadOnly()?'var(--amber-t)':cu.color;
   const rp=document.getElementById('cur-role');
   if(rp){
-    rp.textContent=isReadOnly()?'Peržiūra':isManager()?'Vadyba':'Gamyba';
-    rp.style.background=isReadOnly()?'var(--amber-bg)':isManager()?'var(--amber-bg)':'var(--blue-bg)';
-    rp.style.color=isReadOnly()?'var(--amber-t)':isManager()?'var(--amber-t)':'var(--blue-t)';
+    rp.textContent=isReadOnly()?'Peržiūra':isManager()?'Vadyba':isEngineer()?'📐 Projektavimas':'Gamyba';
+    rp.style.background=isReadOnly()?'var(--amber-bg)':isManager()?'var(--amber-bg)':isEngineer()?'#eef2ff':'var(--blue-bg)';
+    rp.style.color=isReadOnly()?'var(--amber-t)':isManager()?'var(--amber-t)':isEngineer()?'#4338ca':'var(--blue-t)';
   }
   // Show workspace code for admin
   const wcBar=document.getElementById('workspace-code-bar');
@@ -1342,7 +1431,7 @@ function toggleMobileMenu(){
     // Populate project list
     const list=document.getElementById('mob-proj-list');
     if(list){
-      list.innerHTML=DB.projects.filter(p=>p.status!=='archived').map(p=>{
+      list.innerHTML=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p)).map(p=>{
         const pct=projProgress(p.id);
         return'<div onclick="showView(\'project\',\''+p.id+'\');toggleMobileMenu()" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:var(--surface2);cursor:pointer">'
           +'<div style="width:8px;height:8px;border-radius:50%;background:'+p.color+';flex-shrink:0"></div>'
@@ -1376,20 +1465,23 @@ function showWorkspaceCode(){
 // FLOOR VIEW
 // ══════════════════════════════════════════════
 function renderFloor(){
-  const all=DB.tasks,done=all.filter(t=>t.status==='done').length,inp=all.filter(t=>t.status==='in-progress').length;
+  const visibleProjects=DB.projects.filter(canSeeProject);
+  const visibleTaskIds=new Set();
+  DB.tasks.forEach(t=>{const p=getProject(t.projectId);if(p&&canSeeProject(p))visibleTaskIds.add(t.id);});
+  const all=DB.tasks.filter(t=>visibleTaskIds.has(t.id)),done=all.filter(t=>t.status==='done').length,inp=all.filter(t=>t.status==='in-progress').length;
   document.getElementById('summary-grid').innerHTML=[
-    {label:'Projektai',val:DB.projects.length,c:'#2563eb'},{label:'Iš viso užduočių',val:all.length,c:'var(--text)'},
+    {label:'Projektai',val:visibleProjects.length,c:'#2563eb'},{label:'Iš viso užduočių',val:all.length,c:'var(--text)'},
     {label:'Vykdoma',val:inp,c:'#d97706'},{label:'Atlikta',val:done,c:'#16a34a'},
   ].map(c=>`<div class="summary-card"><div class="summary-label">${c.label}</div><div class="summary-value" style="color:${c.c}">${c.val}</div></div>`).join('');
 
   // ── Deadline warning strip ──
   const now=Date.now();
   const urgentItems=[];
-  DB.projects.filter(p=>p.deadline&&projProgress(p.id)<100).forEach(p=>{
+  visibleProjects.filter(p=>p.deadline&&projProgress(p.id)<100).forEach(p=>{
     const days=daysUntilDeadline(p.deadline);
     if(days<=5)urgentItems.push({days,label:escHtml(p.name),sub:'Projektas',color:p.color,pid:p.id,taskId:null});
   });
-  DB.tasks.filter(t=>t.deadline&&t.status!=='done').forEach(t=>{
+  all.filter(t=>t.deadline&&t.status!=='done').forEach(t=>{
     const days=daysUntilDeadline(t.deadline);
     if(days<=3){const p=getProject(t.projectId);urgentItems.push({days,label:escHtml(t.name),sub:p?.name||'',color:p?.color||'#888',pid:t.projectId,taskId:t.id});}
   });
@@ -1460,7 +1552,7 @@ function renderFloor(){
   }
 
   const g=document.getElementById('floor-grid');
-  const visProj=DB.projects.filter(p=>p.status!=='archived');
+  const visProj=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
   if(!visProj.length){g.innerHTML=`<div class="empty-state"><div style="font-size:30px;margin-bottom:8px">🏭</div><div>Nėra projektų</div></div>`;return}
   g.innerHTML=visProj.map(p=>{
     const tasks=projTasks(p.id),pct=projProgress(p.id),inp2=tasks.filter(t=>t.status==='in-progress');
@@ -1473,6 +1565,7 @@ function renderFloor(){
     const cardStyle=(overdueTasks?'border-color:var(--red-t);':'')+(p.type==='paslauga'?'border-left:3px solid var(--amber-t);':'');
     const iconContent=p.type==='paslauga'?'⚡':initials(p.name);
     const paslaugaBadge=p.type==='paslauga'?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:1px 5px;border-radius:4px">⚡ Paslauga</span>':'';
+    const designBadge=p.designStatus==='design'?'<span style="font-size:9px;font-weight:700;color:#4338ca;background:#eef2ff;padding:1px 5px;border-radius:4px">📐 Projektavimas</span>':'';
     const overdueBadge=overdueTasks?'<span style="font-size:9px;font-weight:700;color:var(--red-t);background:var(--red-bg);padding:1px 5px;border-radius:4px">⚠ '+overdueTasks+' vėluoja</span>':'';
     const deadlineLine=p.deadline?'<div style="margin-top:2px">'+deadlineHtml(p.deadline)+'</div>':'';
     const routeLine=p.type==='paslauga'&&p.serviceSteps?'<div style="font-size:9px;color:var(--hint);margin-top:2px;font-family:var(--mono)">'+p.serviceSteps.map(id=>{const st=STEPS.find(s=>s.id===id);return st?st.short:id;}).join(' → ')+'</div>':'';
@@ -1494,7 +1587,7 @@ function renderFloor(){
       +'<div style="flex:1;min-width:0">'
       +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:1px">'
       +'<div style="font-size:12px;font-weight:600;line-height:1.3">'+escHtml(p.name)+'</div>'
-      +paslaugaBadge+prioHtml(p.priority||'mid')+overdueBadge
+      +paslaugaBadge+designBadge+prioHtml(p.priority||'mid')+overdueBadge
       +'</div>'
       +'<div style="font-size:10px;color:var(--muted)">'+escHtml(p.client)+'</div>'
       +deadlineLine+routeLine
@@ -1571,7 +1664,7 @@ function renderKanban(pid){
   const p=getProject(pid);
   const tasks=projTasks(pid);
   // For Paslauga, only show selected steps; for full project show all
-  const visibleSteps=p?.serviceSteps ? STEPS.filter(s=>p.serviceSteps.includes(s.id)) : STEPS;
+  const visibleSteps=p?.designStatus==='design' ? DESIGN_STEPS : (p?.serviceSteps ? STEPS.filter(s=>p.serviceSteps.includes(s.id)) : STEPS);
 
   // Step progress bar at top
   const stepBar=`<div id="step-progress-bar" style="display:flex;align-items:center;gap:2px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px;box-shadow:var(--sh)">
@@ -2699,6 +2792,40 @@ function advanceTask(tid){
     const allDone=projTasks(pid).every(t2=>t2.status==='done');
     if(allDone)toast('🎉 Visi žingsniai atlikti!','success');
 
+    // DESIGN → PRODUCTION TRANSITION
+    // If this was the last design step (Perdavimas) and project is in design phase,
+    // transition to production: create production tasks
+    if(proj?.designStatus==='design'&&stepId==='perdavimas'){
+      const designDone=DESIGN_STEPS.every(s=>{
+        const designTask=DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id);
+        return !designTask||designTask.status==='done';
+      });
+      if(designDone){
+        proj.designStatus='production';
+        proj.designCompletedAt=now;
+        const shortName=proj.name.split('—')[0].trim();
+        const qtyLines2=(proj.lines||[]).map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
+        const totalQty2=qtyLines2.reduce((s,l)=>s+l.qty,0)||0;
+        const stepsToCreate=proj.serviceSteps?STEPS.filter(s=>proj.serviceSteps.includes(s.id)):STEPS;
+        stepsToCreate.forEach(s=>{
+          // Only create if not already exists
+          if(!DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id)){
+            const defIds=DB.stepDefaults?.[s.id]||[proj.owner];
+            const estHours=proj.timeEstimates?.[s.id]||0;
+            DB.tasks.push({
+              id:uid(),projectId:pid,stepId:s.id,
+              name:`${s.label} – ${shortName}`,
+              status:'pending',assigneeId:defIds[0]||proj.owner,assigneeIds:defIds,
+              qtyOrdered:totalQty2,qtyDone:0,
+              qtyLines:qtyLines2.length?qtyLines2.map(l=>({...l,done:0})):null,
+              estimatedHours:estHours,
+              materials:[],created:now,
+            });
+          }
+        });
+        toast('🚀 Projektas perduotas į gamybą!','success');
+      }
+    }
     save();
     if(DB.currentProjectId===pid&&_projTab==='kanban'){
       patchKanbanColumn(pid, stepId);
@@ -2812,7 +2939,7 @@ function updateFloorCard(pid){
 function patchStepProgressBar(pid){
   const tasks=projTasks(pid);
   const p=getProject(pid);
-  const visibleSteps=p?.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
+  const visibleSteps=p?.designStatus==='design'?DESIGN_STEPS:(p?.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS);
   visibleSteps.forEach(s=>{
     const t=tasks.find(t=>t.stepId===s.id);
     const st=t?.status||'none';
@@ -3032,9 +3159,12 @@ async function createProject(fromOrderId){
     color:_selColor,status:'active',
     priority:document.getElementById('np-prio')?.value||'mid',
     deadline:document.getElementById('np-deadline')?.value||'',
-    owner:document.getElementById('np-owner')?.value||USERS[0]?.id||'',
+    owner:isEngineer()?DB.currentUserId:(document.getElementById('np-owner')?.value||USERS[0]?.id||''),
     notes:document.getElementById('np-notes')?.value.trim()||'',
     lines, // save order lines/positions to project
+    designStatus:isEngineer()?'design':'production', // engineers start in design phase
+    timeEstimates:{}, // per-step time estimates {stepId: hours}
+    materials:[], // BOM list
     created:new Date().toISOString(),
   };
 
@@ -3054,7 +3184,10 @@ async function createProject(fromOrderId){
 
   const shortName=name.split('—')[0].trim();
 
-  if(type==='paslauga'){
+  if(p.designStatus==='design'){
+    // Engineer project — create design step tasks
+    DESIGN_STEPS.forEach(s=>DB.tasks.push(makeTask(s.id,shortName,p.owner)));
+  } else if(type==='paslauga'){
     const selectedSteps=STEPS.filter(s=>document.getElementById('ns-step-'+s.id)?.checked);
     if(!selectedSteps.length){toast('Pasirinkite bent vieną žingsnį','error');return;}
     p.serviceSteps=selectedSteps.map(s=>s.id);
@@ -3604,7 +3737,7 @@ let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'as
 function renderAllProjects(){
   const el=document.getElementById('projects-content');
   if(!el)return;
-  const all=DB.projects||[];
+  const all=(DB.projects||[]).filter(canSeeProject);
 
   // Apply filter
   let filtered=all.filter(p=>{
@@ -4081,6 +4214,154 @@ function _processOrdersWorkbook(wb){
   save();renderOrders();renderSidebar();
   toast('✅ '+imported+' nauji, '+updated+' atnaujinti','success');
 }
+// ══════════════════════════════════════════════
+// DAILY BACKUP — exports all data to Excel
+// ══════════════════════════════════════════════
+function fmtDateForBackup(iso){
+  if(!iso)return '';
+  try{const d=new Date(iso);return d.toISOString().slice(0,16).replace('T',' ');}catch(e){return iso;}
+}
+
+function buildBackupWorkbook(){
+  const wb=XLSX.utils.book_new();
+  const today=new Date().toISOString().slice(0,10);
+
+  // Sheet 1: Projects
+  const projData=[['ID','Pavadinimas','Tipas','Klientas','Prioritetas','Statusas','Dizaino fazė','Terminas','Spalva','Atsakingas','Pastabos','Sukurta','Pozicijų sk.','Užduočių sk.','Atlikta %']];
+  (DB.projects||[]).forEach(p=>{
+    const tasks=projTasks(p.id);
+    const owner=getUser(p.owner)?.name||'';
+    projData.push([
+      p.id,p.name||'',p.type||'projektas',p.client||'',
+      p.priority||'mid',p.status||'active',
+      p.designStatus||'production',
+      p.deadline||'',p.color||'',owner,
+      p.notes||'',fmtDateForBackup(p.created),
+      (p.lines||[]).length,tasks.length,projProgress(p.id),
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(projData),'Projektai');
+
+  // Sheet 2: Tasks
+  const taskData=[['ID','Projektas','Žingsnis','Pavadinimas','Statusas','Atsakingas','Terminas','Užsakyta','Atlikta','Likę','Blokas','Pradėta','Atlikta data','Sukurta']];
+  (DB.tasks||[]).forEach(t=>{
+    const proj=getProject(t.projectId);
+    const step=getStep(t.stepId);
+    const ass=getUser(t.assigneeId)?.name||'';
+    const left=(t.qtyOrdered||0)-(t.qtyDone||0);
+    taskData.push([
+      t.id,proj?.name||'',step?.label||t.stepId,t.name||'',
+      t.status||'pending',ass,t.deadline||'',
+      t.qtyOrdered||0,t.qtyDone||0,left,
+      t.blocker||'',
+      fmtDateForBackup(t.startedAt),
+      fmtDateForBackup(t.completedAt),
+      fmtDateForBackup(t.created),
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(taskData),'Užduotys');
+
+  // Sheet 3: Order lines (per-article qty tracking)
+  const lineData=[['Projektas','Žingsnis','Eil.','Artikulas','Aprašymas','Užsakyta','Atlikta','Likę','Pristatymas']];
+  (DB.tasks||[]).forEach(t=>{
+    if(!t.qtyLines||!t.qtyLines.length)return;
+    const proj=getProject(t.projectId);
+    const step=getStep(t.stepId);
+    t.qtyLines.forEach((l,i)=>{
+      lineData.push([
+        proj?.name||'',step?.label||'',i+1,
+        l.art||'',l.desc||'',l.qty||0,l.done||0,
+        (l.qty||0)-(l.done||0),l.date||'',
+      ]);
+    });
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(lineData),'Pozicijos');
+
+  // Sheet 4: Orders (Užsakymai)
+  const ordData=[['Užs. nr.','Klientas','Užs. data','Prist. data','Produktas','Statusas','Užsakymo statusas','Susietas projektas','Pastabos','Prioritetas']];
+  (DB.orders||[]).forEach(o=>{
+    const lp=o.projectId?getProject(o.projectId):null;
+    ordData.push([
+      o.orderNr||'',o.client||'',o.orderDate||'',o.deadline||'',
+      (o.lines?.[0]?.desc)||'',
+      o.status||'pending',o.orderStatus||'',
+      lp?.name||'',o.notes||'',o.priority||'mid',
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ordData),'Užsakymai');
+
+  // Sheet 5: Comments
+  const cmtData=[['Užduotis','Projektas','Autorius','Data','Tekstas']];
+  (DB.comments||[]).forEach(c=>{
+    const t=DB.tasks.find(x=>x.id===c.taskId);
+    const proj=t?getProject(t.projectId):null;
+    cmtData.push([
+      t?.name||c.taskId,proj?.name||'',
+      getUser(c.userId)?.name||c.userId,
+      fmtDateForBackup(c.created||c.at),
+      c.text||'',
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cmtData),'Komentarai');
+
+  // Sheet 6: Team
+  const userData=[['ID','Vardas','El. paštas','Rolė','Spalva']];
+  (USERS||[]).forEach(u=>userData.push([u.id,u.name,u.email||'',u.role||'worker',u.color||'']));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(userData),'Komanda');
+
+  // Sheet 7: Meta
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Eksporto data',today],
+    ['Eksporto laikas',new Date().toISOString()],
+    ['Darbo vietos kodas',WORKSPACE_CODE||''],
+    ['Eksportavo',CURRENT_USER_NAME||''],
+    ['Projektų skaičius',(DB.projects||[]).length],
+    ['Užduočių skaičius',(DB.tasks||[]).length],
+    ['Užsakymų skaičius',(DB.orders||[]).length],
+    ['Komandos narių',(USERS||[]).length],
+  ]),'Info');
+
+  return wb;
+}
+
+function downloadBackup(silent){
+  try{
+    const wb=buildBackupWorkbook();
+    const today=new Date().toISOString().slice(0,10);
+    const fn='DedesBaldai_'+(WORKSPACE_CODE||'backup')+'_'+today+'.xlsx';
+    XLSX.writeFile(wb,fn);
+    if(!silent)toast('💾 Atsarginė kopija atsisiųsta: '+fn,'success');
+    // Mark as backed up today
+    if(WORKSPACE_CODE){
+      try{localStorage.setItem('fab_lastBackup_'+WORKSPACE_CODE,today);}catch(e){}
+    }
+    return true;
+  }catch(err){
+    console.error('Backup failed:',err);
+    if(!silent)toast('❌ Klaida kuriant kopiją: '+err.message,'error');
+    return false;
+  }
+}
+
+function checkDailyBackup(){
+  // Only admin auto-backs up
+  if(!isManager()||!WORKSPACE_CODE)return;
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    const last=localStorage.getItem('fab_lastBackup_'+WORKSPACE_CODE);
+    if(last===today)return; // already backed up today
+
+    // Show prompt instead of auto-downloading (browsers may block silent downloads)
+    const banner=document.createElement('div');
+    banner.id='backup-banner';
+    banner.style.cssText='position:fixed;bottom:20px;right:20px;z-index:9999;background:var(--surface);border:2px solid var(--blue-t);border-radius:12px;padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:340px;font-family:inherit';
+    banner.innerHTML='<div style="display:flex;align-items:flex-start;gap:10px"><span style="font-size:24px">💾</span><div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:4px">Dienos atsarginė kopija</div><div style="font-size:11px;color:var(--muted);margin-bottom:10px">Šiandien dar nesukurta atsarginė kopija. Atsisiųsti?</div><div style="display:flex;gap:6px"><button onclick="downloadBackup();document.getElementById(\'backup-banner\').remove()" class="btn btn-sm btn-primary" style="font-size:11px">📥 Atsisiųsti</button><button onclick="document.getElementById(\'backup-banner\').remove();try{localStorage.setItem(\'fab_lastBackup_\'+WORKSPACE_CODE,new Date().toISOString().slice(0,10));}catch(e){}" class="btn btn-sm" style="font-size:11px">Atidėti</button></div></div></div>';
+    document.body.appendChild(banner);
+    // Auto-dismiss after 30s
+    setTimeout(()=>{const b=document.getElementById('backup-banner');if(b)b.remove();},30000);
+  }catch(e){console.warn('Backup check failed:',e);}
+}
+
 function importOrdersExcel(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
