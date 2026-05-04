@@ -1997,6 +1997,284 @@ function renderPipeline(pid){
 }
 
 // ── LEAN SCHEDULE VIEW ──
+// ══════════════════════════════════════════════
+// PLANNING MODULE — backward/forward scheduling with working-days
+// ══════════════════════════════════════════════
+
+// Add N working days to a date (skip Sat/Sun). Returns YYYY-MM-DD.
+function addWorkDays(dateStr, days){
+  if(!dateStr)return '';
+  const d=new Date(dateStr+'T00:00:00');
+  if(isNaN(d))return '';
+  let added=0;
+  const direction=days>=0?1:-1;
+  const target=Math.abs(days);
+  while(added<target){
+    d.setDate(d.getDate()+direction);
+    const dow=d.getDay();
+    if(dow!==0&&dow!==6)added++; // skip Sun (0) and Sat (6)
+  }
+  return d.toISOString().slice(0,10);
+}
+
+// Count working days between two dates (exclusive of start, inclusive of end)
+function workDaysBetween(fromStr,toStr){
+  if(!fromStr||!toStr)return 0;
+  const a=new Date(fromStr+'T00:00:00');
+  const b=new Date(toStr+'T00:00:00');
+  if(isNaN(a)||isNaN(b))return 0;
+  let count=0;
+  const sign=b>=a?1:-1;
+  const cur=new Date(a);
+  while(cur.getTime()!==b.getTime()){
+    cur.setDate(cur.getDate()+sign);
+    const dow=cur.getDay();
+    if(dow!==0&&dow!==6)count+=sign;
+  }
+  return count;
+}
+
+// Get duration of a single step in working days (uses STEP_DAYS or DB.stepDays override)
+function stepDuration(stepId){
+  return (DB.stepDays&&DB.stepDays[stepId])||STEP_DAYS[stepId]||1;
+}
+
+// Calculate planned start/end dates for each step in a project
+// Returns array: [{stepId, label, start, end, days}]
+function planProjectSteps(p){
+  if(!p)return [];
+  const steps=projSteps(p);
+  const mode=p.planMode||(p.deadline?'backward':'forward');
+  const out=[];
+  if(mode==='backward'){
+    // Anchor on deadline (installation date), work backwards
+    if(!p.deadline)return [];
+    let endCursor=p.deadline;
+    // Process steps in reverse (last step ends ON deadline)
+    for(let i=steps.length-1;i>=0;i--){
+      const s=steps[i];
+      const days=stepDuration(s.id);
+      // step ends on endCursor, starts (days-1) working days earlier (inclusive)
+      const start=addWorkDays(endCursor,-(days-1));
+      out.unshift({stepId:s.id,label:s.label,start,end:endCursor,days,color:s.color,bg:s.bg,icon:s.icon,short:s.short});
+      // Next earlier step ends 1 working day before this start
+      endCursor=addWorkDays(start,-1);
+    }
+  } else {
+    // Forward: starts on p.startDate (or today if missing)
+    let startCursor=p.startDate||new Date().toISOString().slice(0,10);
+    // Adjust to nearest working day
+    const sd=new Date(startCursor+'T00:00:00');
+    while(sd.getDay()===0||sd.getDay()===6){sd.setDate(sd.getDate()+1);}
+    startCursor=sd.toISOString().slice(0,10);
+    for(const s of steps){
+      const days=stepDuration(s.id);
+      const end=addWorkDays(startCursor,days-1);
+      out.push({stepId:s.id,label:s.label,start:startCursor,end,days,color:s.color,bg:s.bg,icon:s.icon,short:s.short});
+      startCursor=addWorkDays(end,1);
+    }
+  }
+  return out;
+}
+
+// Apply plan to actual tasks — set t.deadline based on planned end date
+function applyPlanToTasks(pid){
+  const p=getProject(pid);
+  if(!p)return 0;
+  const plan=planProjectSteps(p);
+  if(!plan.length)return 0;
+  let updated=0;
+  plan.forEach(pl=>{
+    const t=DB.tasks.find(x=>x.projectId===pid&&x.stepId===pl.stepId);
+    if(t&&t.deadline!==pl.end){t.deadline=pl.end;updated++;}
+  });
+  return updated;
+}
+
+// State for planning view
+let _planView='calendar'; // 'calendar' or 'gantt'
+let _planMonth=new Date().toISOString().slice(0,7); // YYYY-MM
+
+function setPlanView(v){_planView=v;renderSchedule();}
+function changePlanMonth(delta){
+  const [y,m]=_planMonth.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  _planMonth=d.toISOString().slice(0,7);
+  renderSchedule();
+}
+
+function renderPlanningCalendar(){
+  const [y,m]=_planMonth.split('-').map(Number);
+  const firstDay=new Date(y,m-1,1);
+  const lastDay=new Date(y,m,0);
+  const monthName=firstDay.toLocaleDateString('lt-LT',{month:'long',year:'numeric'});
+  // Build day cells (start from Monday of first week)
+  const cells=[];
+  const startDow=(firstDay.getDay()+6)%7; // 0=Mon
+  const startCell=new Date(firstDay);startCell.setDate(startCell.getDate()-startDow);
+  const totalDays=lastDay.getDate();
+  const totalCells=Math.ceil((startDow+totalDays)/7)*7;
+  for(let i=0;i<totalCells;i++){
+    const d=new Date(startCell);d.setDate(d.getDate()+i);
+    cells.push(d);
+  }
+  // Collect all step plans for visible projects, indexed by date
+  const dayMap={}; // YYYY-MM-DD → [{project, step}]
+  const visProj=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
+  visProj.forEach(p=>{
+    const plan=planProjectSteps(p);
+    plan.forEach(pl=>{
+      // Add to every day from start to end
+      const sd=new Date(pl.start+'T00:00:00');
+      const ed=new Date(pl.end+'T00:00:00');
+      if(isNaN(sd)||isNaN(ed))return;
+      const cur=new Date(sd);
+      while(cur<=ed){
+        const dow=cur.getDay();
+        if(dow!==0&&dow!==6){
+          const k=cur.toISOString().slice(0,10);
+          if(!dayMap[k])dayMap[k]=[];
+          dayMap[k].push({proj:p,step:pl,isStart:k===pl.start,isEnd:k===pl.end});
+        }
+        cur.setDate(cur.getDate()+1);
+      }
+    });
+  });
+  // Also add deadline marker for installation dates
+  visProj.forEach(p=>{
+    if(p.deadline){
+      const k=p.deadline;
+      if(k>=cells[0].toISOString().slice(0,10)&&k<=cells[cells.length-1].toISOString().slice(0,10)){
+        if(!dayMap[k])dayMap[k]=[];
+        dayMap[k].push({proj:p,step:null,isInstall:true});
+      }
+    }
+  });
+
+  const today=new Date().toISOString().slice(0,10);
+  const dayNames=['Pir','Ant','Tre','Ket','Pen','Šeš','Sek'];
+  const headerHtml=dayNames.map(d=>`<div style="padding:8px;font-size:11px;font-weight:700;color:var(--muted);text-align:center;background:var(--surface2);border-bottom:1px solid var(--border)">${d}</div>`).join('');
+  const cellsHtml=cells.map((d,idx)=>{
+    const k=d.toISOString().slice(0,10);
+    const inMonth=d.getMonth()===m-1;
+    const dow=d.getDay();
+    const isWeekend=dow===0||dow===6;
+    const isToday=k===today;
+    const items=dayMap[k]||[];
+    const itemsHtml=items.slice(0,4).map(it=>{
+      if(it.isInstall){
+        return `<div onclick="event.stopPropagation();showView('project','${it.proj.id}')" style="background:var(--red-bg);color:var(--red-t);padding:2px 5px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer;margin-bottom:1px;border-left:3px solid var(--red-t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="🚀 Montavimas: ${escHtml(it.proj.name)}">🚀 ${escHtml(it.proj.name)}</div>`;
+      }
+      return `<div onclick="event.stopPropagation();showView('project','${it.proj.id}')" style="background:${it.step.bg};color:${it.step.color};padding:2px 5px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(it.proj.name)} — ${it.step.label}">${it.step.short} ${escHtml(it.proj.name.slice(0,18))}</div>`;
+    }).join('');
+    const more=items.length>4?`<div style="font-size:9px;color:var(--muted);font-weight:600">+${items.length-4} dar</div>`:'';
+    return `<div style="min-height:90px;padding:5px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:${isWeekend?'#fafafa':isToday?'var(--blue-bg)':'var(--surface)'};${!inMonth?'opacity:.4':''}">
+      <div style="font-size:11px;font-weight:${isToday?'700':'500'};color:${isToday?'var(--blue-t)':isWeekend?'var(--hint)':'var(--text)'};margin-bottom:3px">${d.getDate()}${isToday?' · šiandien':''}</div>
+      ${itemsHtml}${more}
+    </div>`;
+  }).join('');
+
+  return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:18px">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" onclick="changePlanMonth(-1)">‹</button>
+          <div style="font-weight:600;font-size:14px;min-width:140px;text-align:center;text-transform:capitalize">${monthName}</div>
+          <button class="btn btn-sm" onclick="changePlanMonth(1)">›</button>
+          <button class="btn btn-sm" onclick="_planMonth=new Date().toISOString().slice(0,7);renderSchedule()">Šiandien</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">📌 Spauskite žingsnį → atidaryti projektą · 🚀 = Montavimo data</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr)">${headerHtml}${cellsHtml}</div>
+    </div>`;
+}
+
+function renderPlanningGantt(){
+  const visProj=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
+  if(!visProj.length)return '<div class="empty-state">Nėra projektų</div>';
+  // Find global date range across all plans
+  let minDate=null,maxDate=null;
+  const projPlans=visProj.map(p=>{
+    const plan=planProjectSteps(p);
+    plan.forEach(pl=>{
+      if(!minDate||pl.start<minDate)minDate=pl.start;
+      if(!maxDate||pl.end>maxDate)maxDate=pl.end;
+    });
+    return {p,plan};
+  }).filter(x=>x.plan.length);
+  if(!projPlans.length)return '<div style="padding:24px;text-align:center;color:var(--muted)">Nėra suplanuotų projektų. Atidarykite projektą ir nustatykite planavimo režimą.</div>';
+  // Extend range a bit
+  const today=new Date().toISOString().slice(0,10);
+  if(today<minDate)minDate=today;
+  // Build day list (working days only)
+  const days=[];
+  const cur=new Date(minDate+'T00:00:00');
+  const end=new Date(maxDate+'T00:00:00');
+  while(cur<=end){
+    const dow=cur.getDay();
+    if(dow!==0&&dow!==6)days.push(cur.toISOString().slice(0,10));
+    cur.setDate(cur.getDate()+1);
+  }
+  if(days.length>120)days.length=120; // cap for browser perf
+  const colW=24;
+  const headerCells=days.map(d=>{
+    const dt=new Date(d+'T00:00:00');
+    const day=dt.getDate();
+    const isMonStart=day<=7;
+    const isToday=d===today;
+    return `<div style="width:${colW}px;flex-shrink:0;text-align:center;font-size:9px;padding:4px 0;border-right:1px solid var(--border);background:${isToday?'var(--blue-bg)':'var(--surface2)'};color:${isToday?'var(--blue-t)':'var(--muted)'};font-weight:${isToday?'700':'500'}" title="${d}">
+      ${isMonStart?`<div style="font-size:9px;font-weight:700;text-transform:uppercase">${dt.toLocaleDateString('lt-LT',{month:'short'})}</div>`:'<div style="height:11px"></div>'}
+      ${day}
+    </div>`;
+  }).join('');
+  const rows=projPlans.map(({p,plan})=>{
+    // Build row cells
+    const cells=days.map(d=>{
+      // Find which step (if any) covers this day
+      const pl=plan.find(x=>d>=x.start&&d<=x.end);
+      if(!pl)return `<div style="width:${colW}px;flex-shrink:0;border-right:1px solid var(--border);height:32px"></div>`;
+      const isStart=d===pl.start;
+      const isEnd=d===pl.end;
+      return `<div style="width:${colW}px;flex-shrink:0;border-right:1px solid var(--border);height:32px;background:${pl.bg};border-top:2px solid ${pl.color};border-bottom:2px solid ${pl.color};${isStart?'border-left:3px solid '+pl.color+';border-top-left-radius:4px;border-bottom-left-radius:4px;':''}${isEnd?'border-right:3px solid '+pl.color+';border-top-right-radius:4px;border-bottom-right-radius:4px;':''};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:${pl.color}" title="${pl.label} (${pl.start} → ${pl.end})">${isStart?pl.short:''}</div>`;
+    }).join('');
+    const dlBadge=p.deadline?`<span style="font-size:10px;color:var(--red-t);font-weight:600;margin-left:6px">🚀 ${p.deadline}</span>`:'';
+    const modeBadge=`<span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;${(p.planMode||'backward')==='backward'?'background:#fef3c7;color:#92400e':'background:#dbeafe;color:#1e40af'};margin-left:4px">${(p.planMode||'backward')==='backward'?'⬅ Backward':'➡ Forward'}</span>`;
+    return `<div style="display:flex;border-bottom:1px solid var(--border);align-items:stretch">
+      <div style="width:240px;flex-shrink:0;padding:6px 10px;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;justify-content:center;cursor:pointer;border-left:4px solid ${p.color}" onclick="showView('project','${p.id}')">
+        <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
+        <div style="font-size:10px;color:var(--muted);display:flex;align-items:center">${modeBadge}${dlBadge}</div>
+      </div>
+      ${cells}
+    </div>`;
+  }).join('');
+  return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);margin-bottom:18px;overflow:auto;max-height:600px">
+      <div style="display:flex;position:sticky;top:0;z-index:10;background:var(--surface2);border-bottom:2px solid var(--border)">
+        <div style="width:240px;flex-shrink:0;padding:8px 10px;font-size:11px;font-weight:700;color:var(--muted);border-right:1px solid var(--border);background:var(--surface2)">PROJEKTAS</div>
+        <div style="display:flex">${headerCells}</div>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+function renderPlanningSection(){
+  const toggleBtn=`<div style="display:flex;gap:4px;background:var(--surface2);padding:3px;border-radius:8px;border:1px solid var(--border)">
+    <button onclick="setPlanView('calendar')" class="btn btn-sm${_planView==='calendar'?' btn-primary':''}" style="font-size:11px">📅 Kalendorius</button>
+    <button onclick="setPlanView('gantt')" class="btn btn-sm${_planView==='gantt'?' btn-primary':''}" style="font-size:11px">📊 Gantt</button>
+  </div>`;
+  const body=_planView==='calendar'?renderPlanningCalendar():renderPlanningGantt();
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:15px;font-weight:600">📋 Planavimas</div>
+        <div style="font-size:11px;color:var(--muted)">Planuokite užduotis pagal montavimo datas. Darbo dienos (be savaitgalių).</div>
+      </div>
+      ${toggleBtn}
+    </div>
+    ${body}`;
+}
+
+
 function renderSchedule(){
   const el=document.getElementById('schedule-content');
   if(!DB.projects.length){el.innerHTML=`<div class="empty-state"><div style="font-size:32px;margin-bottom:10px">📅</div><div>Nėra projektų</div></div>`;return;}
@@ -2148,7 +2426,7 @@ function renderSchedule(){
     </div>
   </div>`;
 
-  el.innerHTML=metricsHtml+tipsHtml+schedHtml+backlogHtml;
+  el.innerHTML=renderPlanningSection()+metricsHtml+tipsHtml+schedHtml+backlogHtml;
 }
 
 function startProject(pid){
@@ -3773,6 +4051,55 @@ function exportNestingCSV(pid, openNesting=false){
   toast('CSV parsisiųstas! Įkelkite į Nesting programą.','success');
   if(openNesting) setTimeout(()=>window.open('https://gervdalius-droid.github.io/nesting/','_blank'),500);
 }
+// Planning modal helpers
+function togglePlanModeFields(){
+  const mode=document.getElementById('ep-planmode')?.value;
+  const sdField=document.getElementById('ep-startdate-field');
+  const dlInput=document.getElementById('ep-deadline');
+  if(sdField)sdField.style.opacity=mode==='forward'?'1':'.4';
+  if(dlInput)dlInput.parentElement.style.opacity=mode==='backward'?'1':'.6';
+}
+function previewPlan(pid){
+  const p=getProject(pid);if(!p)return;
+  // Build temp project with current modal values
+  const tmp={
+    ...p,
+    deadline:document.getElementById('ep-deadline')?.value||p.deadline,
+    startDate:document.getElementById('ep-startdate')?.value||p.startDate,
+    planMode:document.getElementById('ep-planmode')?.value||p.planMode,
+  };
+  const plan=planProjectSteps(tmp);
+  const previewEl=document.getElementById('ep-plan-preview');
+  if(!plan.length){
+    if(previewEl)previewEl.textContent='⚠ Įveskite '+(tmp.planMode==='forward'?'pradžios datą':'terminą');
+    return;
+  }
+  const html=plan.map(pl=>`<div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px"><span style="font-weight:600;color:${pl.color}">${pl.icon} ${pl.label}</span><span style="font-family:var(--mono);color:var(--muted)">${pl.start} → ${pl.end} (${pl.days} d.)</span></div>`).join('');
+  openModal(`<div class="modal-title">📋 Plano peržiūra <button class="modal-close" onclick="closeModal();openEditProjectModal('${pid}')">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Režimas: <strong>${tmp.planMode==='backward'?'⬅ Backward (nuo termino)':'➡ Forward (nuo pradžios)'}</strong></div>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)">${html}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn" style="flex:1" onclick="closeModal();openEditProjectModal('${pid}')">Atgal</button>
+      <button class="btn btn-primary" style="flex:1" onclick="applyPlanFromPreview('${pid}')">📌 Taikyti planą</button>
+    </div>`);
+}
+function applyPlanFromModal(pid){
+  // Save modal first
+  const p=getProject(pid);if(!p)return;
+  p.deadline=document.getElementById('ep-deadline')?.value||p.deadline;
+  p.startDate=document.getElementById('ep-startdate')?.value||p.startDate;
+  p.planMode=document.getElementById('ep-planmode')?.value||p.planMode||'backward';
+  const updated=applyPlanToTasks(pid);
+  if(updated){toast(`📌 Pritaikyta planui: ${updated} užduočių atnaujintos`,'success');save();}
+  else toast('Nieko nepakeista (planas neapibrėžtas?)','');
+}
+function applyPlanFromPreview(pid){
+  const updated=applyPlanToTasks(pid);
+  if(updated)toast(`📌 ${updated} užduočių datos atnaujintos`,'success');
+  save();closeModal();
+  if(DB.currentProjectId===pid)renderProjectView(pid,_projTab);
+  if(DB.currentView==='schedule')renderSchedule();
+}
 function openEditProjectModal(pid){
   const p=getProject(pid);if(!p)return;
   _selColor=p.color;
@@ -3787,8 +4114,32 @@ function openEditProjectModal(pid){
       <div class="form-field"><label class="form-label">Prioritetas</label><select id="ep-prio">${prioOpts}</select></div>
     </div>
     <div class="form-grid-2">
-      <div class="form-field"><label class="form-label">Terminas</label><input type="date" id="ep-deadline" value="${p.deadline||''}"></div>
+      <div class="form-field"><label class="form-label">Terminas (montavimas)</label><input type="date" id="ep-deadline" value="${p.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas vadovas</label><select id="ep-owner">${userOpts}</select></div>
+    </div>
+    <div style="background:var(--blue-bg);border:1px solid rgba(37,99,235,.15);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600">📋 Planavimas</span>
+        <span style="font-size:10px;color:var(--muted)">Darbo dienos (be savaitgalių)</span>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-field" style="margin-bottom:0">
+          <label class="form-label">Režimas</label>
+          <select id="ep-planmode" onchange="togglePlanModeFields()">
+            <option value="backward" ${(p.planMode||'backward')==='backward'?'selected':''}>⬅ Backward (skaičiuoti nuo termino)</option>
+            <option value="forward" ${p.planMode==='forward'?'selected':''}>➡ Forward (skaičiuoti nuo pradžios)</option>
+          </select>
+        </div>
+        <div class="form-field" style="margin-bottom:0" id="ep-startdate-field">
+          <label class="form-label">Pradžios data</label>
+          <input type="date" id="ep-startdate" value="${p.startDate||''}">
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn btn-sm" onclick="previewPlan('${p.id}')">👁 Peržiūrėti planą</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="applyPlanFromModal('${p.id}')">📌 Taikyti planą užduotims</button>
+        <span id="ep-plan-preview" style="font-size:10px;color:var(--muted)"></span>
+      </div>
     </div>
     <div class="form-field" style="margin-bottom:8px">
       <label class="form-label">Pozicijos / Artikulai</label>
@@ -3832,6 +4183,8 @@ async function saveEditProject(pid){
   p.client=document.getElementById('ep-client').value.trim()||'—';
   p.priority=document.getElementById('ep-prio').value;
   p.deadline=document.getElementById('ep-deadline').value;
+  p.planMode=document.getElementById('ep-planmode')?.value||p.planMode||'backward';
+  p.startDate=document.getElementById('ep-startdate')?.value||p.startDate||'';
   p.owner=document.getElementById('ep-owner').value;
   p.notes=document.getElementById('ep-notes').value.trim();
   p.color=_selColor;
