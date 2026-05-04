@@ -1730,7 +1730,162 @@ function renderProjectView(pid,tab){
   else if(_projTab==='drawers')content=renderDrawers(pid);
   else if(_projTab==='files')content=renderFilesTab(pid);
 
-  document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content;
+  document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+renderProjectComments(pid);
+}
+
+// ── PROJECT COMMENTS PANEL (visible under each project tab) ──
+function projectComments(pid){
+  // Returns project-level comments + all task comments for this project
+  const taskIds=projTasks(pid).map(t=>t.id);
+  return DB.comments.filter(c=>c.projectId===pid||taskIds.includes(c.taskId))
+    .sort((a,b)=>(b.created||b.at||'').localeCompare(a.created||a.at||''));
+}
+
+function fmtCommentDate(iso){
+  if(!iso)return '';
+  const d=new Date(iso);const now=new Date();
+  const diffMin=Math.floor((now-d)/60000);
+  if(diffMin<1)return 'ką tik';
+  if(diffMin<60)return diffMin+' min. atgal';
+  const diffHr=Math.floor(diffMin/60);
+  if(diffHr<24)return diffHr+' val. atgal';
+  const diffDay=Math.floor(diffHr/24);
+  if(diffDay<7)return diffDay+' d. atgal';
+  return d.toLocaleDateString('lt-LT')+' '+d.toTimeString().slice(0,5);
+}
+
+function highlightMentions(text){
+  // @Name → styled mention badge
+  return escHtml(text).replace(/@([\wĄČĘĖĮŠŲŪŽąčęėįšųūž]+(?:[ \t][\wĄČĘĖĮŠŲŪŽąčęėįšųūž]+)?)/g,(m,name)=>{
+    const u=USERS.find(x=>x.name.toLowerCase().startsWith(name.toLowerCase()));
+    if(!u)return '<span style="color:var(--blue-t);font-weight:600">@'+escHtml(name)+'</span>';
+    return '<span style="background:'+u.bg+';color:'+u.color+';padding:1px 6px;border-radius:4px;font-weight:600;font-size:11px">@'+escHtml(u.name)+'</span>';
+  });
+}
+
+function renderProjectComments(pid){
+  const comments=projectComments(pid);
+  const userOpts=USERS.map(u=>`<option value="${escHtml(u.name)}">`).join('');
+  const commentList=comments.length?comments.map(c=>{
+    const u=getUser(c.userId);
+    const task=c.taskId?DB.tasks.find(x=>x.id===c.taskId):null;
+    const taskBadge=task?`<span style="background:var(--surface2);color:var(--muted);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:500;margin-left:6px">${getStep(task.stepId).icon} ${escHtml(task.name||'')}</span>`:'';
+    return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="flex-shrink:0">${ava(u?.id||c.userId,32)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-weight:600;font-size:12px">${escHtml(u?.name||'?')}</span>
+          <span style="color:var(--hint);font-size:11px">${fmtCommentDate(c.created||c.at)}</span>
+          ${taskBadge}
+          ${isManager()||c.userId===DB.currentUserId?`<button onclick="deleteComment('${c.id}','${pid}')" style="border:none;background:none;color:var(--red-t);cursor:pointer;font-size:11px;margin-left:auto;opacity:.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5" title="Ištrinti">🗑</button>`:''}
+        </div>
+        <div style="font-size:13px;line-height:1.5;color:var(--text);word-wrap:break-word">${highlightMentions(c.text||'')}</div>
+      </div>
+    </div>`;
+  }).join(''):'<div style="padding:24px;text-align:center;color:var(--hint);font-size:12px">Komentarų nėra. Pradėkite diskusiją!</div>';
+
+  return `
+  <div style="margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--surface2)">
+      <span style="font-size:14px">💬</span>
+      <span style="font-weight:600;font-size:13px">Komentarai</span>
+      <span style="font-size:11px;color:var(--muted)">(${comments.length})</span>
+      <span style="font-size:10px;color:var(--hint);margin-left:auto">Naudokite @ pažymėti komandos narius</span>
+    </div>
+    ${canEdit()?`
+    <div style="padding:12px 14px;background:var(--surface);border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex-shrink:0;margin-top:2px">${ava(DB.currentUserId,28)}</div>
+        <div style="flex:1;position:relative">
+          <textarea id="proj-comment-input-${pid}" placeholder="Rašykite komentarą... (Ctrl+Enter siųsti, @ paminėti)" style="width:100%;min-height:54px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);font-size:12px;resize:vertical;font-family:inherit" oninput="updateMentionHint('${pid}',this)" onkeydown="if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();addProjectComment('${pid}');}"></textarea>
+          <div id="mention-hint-${pid}" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:180px;overflow-y:auto;z-index:100;min-width:180px"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addProjectComment('${pid}')" style="flex-shrink:0;align-self:flex-end">📤 Siųsti</button>
+      </div>
+    </div>`:''}
+    <div style="max-height:480px;overflow-y:auto">${commentList}</div>
+  </div>`;
+}
+
+function addProjectComment(pid){
+  const input=document.getElementById('proj-comment-input-'+pid);
+  if(!input)return;
+  const text=input.value.trim();
+  if(!text)return;
+  const comment={
+    id:uid(),
+    projectId:pid,
+    userId:DB.currentUserId,
+    text,
+    created:new Date().toISOString(),
+  };
+  DB.comments.push(comment);
+  // Parse @ mentions and notify those users
+  const mentions=[...text.matchAll(/@([\wĄČĘĖĮŠŲŪŽąčęėįšųūž]+(?:[ \t][\wĄČĘĖĮŠŲŪŽąčęėįšųūž]+)?)/g)];
+  const proj=getProject(pid);
+  const mentionedIds=new Set();
+  mentions.forEach(m=>{
+    const u=USERS.find(x=>x.name.toLowerCase().startsWith(m[1].toLowerCase()));
+    if(u&&u.id!==DB.currentUserId&&!mentionedIds.has(u.id)){
+      mentionedIds.add(u.id);
+      addNotif('mention',`${curUser().name} jus pažymėjo: ${proj?.name||''}`,text.slice(0,80),pid,u.id);
+    }
+  });
+  if(!mentionedIds.size){
+    // Generic notification to project owner if not the same person
+    if(proj&&proj.owner&&proj.owner!==DB.currentUserId){
+      addNotif('comment',`${curUser().name} paliko komentarą: ${proj.name}`,text.slice(0,80),pid,proj.owner);
+    }
+  }
+  input.value='';
+  save();
+  renderProjectView(pid,_projTab);
+  toast('💬 Komentaras pridėtas','success');
+}
+
+function deleteComment(cid,pid){
+  if(!confirm('Ištrinti komentarą?'))return;
+  DB.comments=DB.comments.filter(c=>c.id!==cid);
+  save();
+  if(pid)renderProjectView(pid,_projTab);
+  toast('Komentaras ištrintas','');
+}
+
+function updateMentionHint(pid,textarea){
+  const hint=document.getElementById('mention-hint-'+pid);
+  if(!hint)return;
+  const val=textarea.value;
+  const cursorPos=textarea.selectionStart;
+  const before=val.slice(0,cursorPos);
+  const m=before.match(/@([\wĄČĘĖĮŠŲŪŽąčęėįšųūž]*)$/);
+  if(!m){hint.style.display='none';return;}
+  const query=m[1].toLowerCase();
+  const matches=USERS.filter(u=>u.name.toLowerCase().includes(query)).slice(0,6);
+  if(!matches.length){hint.style.display='none';return;}
+  hint.innerHTML=matches.map(u=>`
+    <div onclick="insertMention('${pid}','${escHtml(u.name)}')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px" onmouseover="this.style.background='var(--blue-bg)'" onmouseout="this.style.background=''">
+      ${ava(u.id,22)}
+      <span style="font-weight:500">${escHtml(u.name)}</span>
+      <span style="color:var(--hint);font-size:10px;margin-left:auto">${u.role==='manager'?'Vadyba':u.role==='engineer'?'Inžinierius':u.role==='view'?'Peržiūra':'Gamyba'}</span>
+    </div>`).join('');
+  hint.style.display='block';
+  // Position the hint
+  hint.style.top=(textarea.offsetHeight+4)+'px';
+  hint.style.left='0';
+}
+
+function insertMention(pid,name){
+  const input=document.getElementById('proj-comment-input-'+pid);
+  if(!input)return;
+  const cursorPos=input.selectionStart;
+  const before=input.value.slice(0,cursorPos);
+  const after=input.value.slice(cursorPos);
+  const newBefore=before.replace(/@([\wĄČĘĖĮŠŲŪŽąčęėįšųūž]*)$/,'@'+name+' ');
+  input.value=newBefore+after;
+  document.getElementById('mention-hint-'+pid).style.display='none';
+  input.focus();
+  const newPos=newBefore.length;
+  input.setSelectionRange(newPos,newPos);
 }
 
 // ── VIEW 1: STEP GRID (8 steps × 3 columns, tasks sorted by status) ──
@@ -2911,7 +3066,7 @@ function advanceTask(tid){
     updateFloorCard(pid);
   }
 }
-function addNotif(type,title,sub,pid){DB.notifications.unshift({id:uid(),type,title,sub,time:new Date().toISOString(),read:false,projectId:pid});renderSidebar()}
+function addNotif(type,title,sub,pid,userId){DB.notifications.unshift({id:uid(),type,title,sub,time:new Date().toISOString(),read:false,projectId:pid,userId:userId||null});renderSidebar()}
 
 // Patch a single kanban column in-place (no scroll jump)
 function patchKanbanColumn(pid, stepId){
