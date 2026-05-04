@@ -832,7 +832,7 @@ async function saveToCloud(){
     sbSet(wsKey('tasks'),    JSON.stringify(DB.tasks)),
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
-    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus})),
+    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility})),
   ]);
   _lastSavedAt=Date.now();
 }
@@ -868,7 +868,7 @@ async function loadFromCloud(){
     DB.tasks=cloudTasks;
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
-    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};}
+    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};}
     // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     return true;
@@ -1435,6 +1435,48 @@ function renderSidebar(){
   const wcBar=document.getElementById('workspace-code-bar');
   const wcDisp=document.getElementById('ws-code-display');
   if(wcBar&&wcDisp){wcBar.style.display=isManager()&&WORKSPACE_CODE?'block':'none';wcDisp.textContent=WORKSPACE_CODE;}
+  // Apply nav visibility for non-admin roles
+  applyNavVisibility();
+}
+
+// ── Nav visibility config ──
+const NAV_ITEMS=[
+  {id:'nav-floor',     label:'Cecho rodinys',   icon:'▦'},
+  {id:'nav-projects',  label:'Visi projektai',  icon:'📁'},
+  {id:'nav-orders',    label:'Užsakymai',       icon:'📬'},
+  {id:'nav-materials', label:'Medžiagų poreikis',icon:'🪵'},
+  {id:'nav-schedule',  label:'Grafikas / Lean', icon:'📅'},
+  {id:'nav-team',      label:'Komanda',         icon:'👥'},
+  {id:'nav-report',    label:'Ataskaita',       icon:'📊'},
+  {id:'nav-notifs',    label:'Pranešimai',      icon:'🔔'},
+  {id:'nav-import',    label:'Importuoti Excel',icon:'📥'},
+];
+// Default visibility — all on. Admin overrides per role in DB.navVisibility
+const DEFAULT_NAV_VIS={
+  worker:   {'nav-floor':true,'nav-projects':true,'nav-orders':false,'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':false,'nav-notifs':true,'nav-import':false},
+  engineer: {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':true,'nav-import':false},
+  view:     {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':false,'nav-import':false},
+};
+function getNavVis(role,id){
+  const cfg=DB.navVisibility?.[role];
+  if(cfg&&cfg.hasOwnProperty(id))return cfg[id];
+  return DEFAULT_NAV_VIS[role]?.[id]??true;
+}
+function applyNavVisibility(){
+  if(isManager())return; // admin always sees everything
+  const role=currentUserRole;
+  NAV_ITEMS.forEach(item=>{
+    const el=document.getElementById(item.id);
+    if(el)el.style.display=getNavVis(role,item.id)?'':'none';
+  });
+}
+function toggleNavVisibility(role,id){
+  if(!DB.navVisibility)DB.navVisibility={};
+  if(!DB.navVisibility[role])DB.navVisibility[role]={...DEFAULT_NAV_VIS[role]};
+  DB.navVisibility[role][id]=!getNavVis(role,id);
+  save();
+  renderTeam();
+  toast('✓ Atnaujinta');
 }
 
 function toggleMobileMenu(){
@@ -4564,13 +4606,48 @@ function renderTeam(){
       </div>
     </div>`;
 
+  // ── Nav visibility config (admin only) ──
+  const navVisHtml=isManager()?`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-top:20px">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:600">👁 Matomumas darbuotojams</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Nustatykite, kuriuos meniu punktus matys kiekviena rolė. Vadybos rolei matomi visi.</div>
+      </div>
+      <div style="padding:12px 16px;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:480px">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--muted)">Meniu punktas</th>
+              <th style="text-align:center;padding:6px 8px;font-weight:600;color:#4338ca;width:110px">📐 Projektavimas</th>
+              <th style="text-align:center;padding:6px 8px;font-weight:600;color:var(--blue-t);width:90px">🔧 Gamyba</th>
+              <th style="text-align:center;padding:6px 8px;font-weight:600;color:var(--amber-t);width:90px">👁 Peržiūra</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${NAV_ITEMS.map(item=>`
+              <tr style="border-bottom:1px solid var(--border-light,#eee)">
+                <td style="padding:8px;font-weight:500"><span style="display:inline-block;width:18px">${item.icon}</span> ${item.label}</td>
+                ${['engineer','worker','view'].map(role=>{
+                  const on=getNavVis(role,item.id);
+                  return `<td style="text-align:center;padding:6px">
+                    <button onclick="toggleNavVisibility('${role}','${item.id}')" style="border:none;background:none;cursor:pointer;font-size:18px;padding:4px 10px;border-radius:6px;${on?'background:var(--green-bg)':''}">
+                      ${on?'✅':'⬜'}
+                    </button>
+                  </td>`;
+                }).join('')}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`:'';
+
   el.innerHTML=`<div class="section-header">
     <div class="section-title">Komandos nariai (${USERS.length})</div>
     <div style="display:flex;gap:6px">
       ${isManager()?`<button class="btn btn-sm btn-primary" onclick="openAddMemberModal()">+ Narys</button>`:''}
       ${WORKSPACE_CODE?`<button class="btn btn-sm" onclick="loadTeamFromSupabase()">↻ Atnaujinti</button>`:''}
     </div>
-  </div>`+membersHtml+stepDefaultsHtml;
+  </div>`+membersHtml+stepDefaultsHtml+navVisHtml;
 }
 
 function toggleStepDefault(stepId,userId){
