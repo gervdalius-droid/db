@@ -3655,18 +3655,29 @@ async function saveEditProject(pid){
     if(art||desc)lines.push({art,desc,qty,date,qtyDone:0});
   });
   p.lines=lines;
-  // Update qtyOrdered on tasks ONLY if task has no progress yet (fresh task)
-  // Never overwrite progress on tasks that have done work
+  // Merge line changes into existing tasks WITHOUT losing progress
+  // For each task: keep done values, but update qty (ordered) per article
+  // Match by article (or position if no article)
   if(lines.length){
     const total=lines.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
     projTasks(pid).forEach(t=>{
-      const hasProgress=(t.qtyDone&&t.qtyDone>0)||t.status==='done'||t.status==='in-progress'||(t.qtyLines||[]).some(l=>l.done>0);
-      if(hasProgress)return; // never touch tasks with progress
-      if(!t.qtyOrdered||t.qtyOrdered===0){
-        t.qtyOrdered=total;
-        t.qtyDone=0;
-        t.qtyLines=lines.map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
-      }
+      const oldLines=t.qtyLines||[];
+      // Build new qtyLines: take new project lines, look up matching old line by art (or by index fallback) to preserve done
+      const newQtyLines=lines.map((l,i)=>{
+        const newQty=parseInt(l.qty)||0;
+        // Match by article first, then by description, then by position
+        let oldMatch=null;
+        if(l.art)oldMatch=oldLines.find(o=>o.art&&o.art===l.art);
+        if(!oldMatch&&l.desc)oldMatch=oldLines.find(o=>o.desc===l.desc&&!o.art&&!l.art);
+        if(!oldMatch&&i<oldLines.length&&!l.art&&!oldLines[i].art)oldMatch=oldLines[i];
+        const preservedDone=oldMatch?Math.min(oldMatch.done||0,newQty):0;
+        return {art:l.art,desc:l.desc,qty:newQty,done:preservedDone};
+      });
+      t.qtyLines=newQtyLines;
+      t.qtyOrdered=total;
+      t.qtyDone=newQtyLines.reduce((s,l)=>s+(l.done||0),0);
+      // If task was 'done' but new qty exceeds done, mark in-progress
+      if(t.status==='done'&&t.qtyDone<t.qtyOrdered)t.status='in-progress';
     });
   }
   closeModal();
@@ -4006,7 +4017,18 @@ function renderOrders(){
   // Filter
   let filtered=orders;
   if(_ordFilter==='pending')filtered=filtered.filter(o=>o.status==='pending'&&!o.projectId);
-  else if(_ordFilter==='linked')filtered=filtered.filter(o=>o.projectId||o.status==='converted');
+  else if(_ordFilter==='linked')filtered=filtered.filter(o=>{
+    if(!o.projectId&&o.status!=='converted')return false;
+    const pr=o.projectId?DB.projects.find(p=>p.id===o.projectId):null;
+    if(!pr)return o.status==='converted';
+    return pr.status!=='completed'&&pr.status!=='archived'&&projProgress(pr.id)<100;
+  });
+  else if(_ordFilter==='done')filtered=filtered.filter(o=>{
+    if(!o.projectId)return false;
+    const pr=DB.projects.find(p=>p.id===o.projectId);
+    if(!pr)return false;
+    return pr.status==='completed'||pr.status==='archived'||projProgress(pr.id)===100;
+  });
   else if(_ordFilter==='overdue')filtered=filtered.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)<0&&o.status!=='converted');
   else if(_ordFilter==='thisweek')filtered=filtered.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)>=0&&daysUntilDeadline(o.deadline)<=7);
 
@@ -4074,7 +4096,18 @@ function renderOrders(){
   }).join('');
 
   const pendCount=orders.filter(o=>o.status==='pending'&&!o.projectId).length;
-  const linkedCount=orders.filter(o=>o.projectId||o.status==='converted').length;
+  const linkedCount=orders.filter(o=>{
+    if(!o.projectId&&o.status!=='converted')return false;
+    const pr=o.projectId?DB.projects.find(p=>p.id===o.projectId):null;
+    if(!pr)return o.status==='converted';
+    return pr.status!=='completed'&&pr.status!=='archived'&&projProgress(pr.id)<100;
+  }).length;
+  const doneCount=orders.filter(o=>{
+    if(!o.projectId)return false;
+    const pr=DB.projects.find(p=>p.id===o.projectId);
+    if(!pr)return false;
+    return pr.status==='completed'||pr.status==='archived'||projProgress(pr.id)===100;
+  }).length;
   const overdueCount=orders.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)<0&&o.status!=='converted').length;
   const weekCount=orders.filter(o=>o.deadline&&daysUntilDeadline(o.deadline)>=0&&daysUntilDeadline(o.deadline)<=7).length;
 
@@ -4093,7 +4126,8 @@ function renderOrders(){
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'
     +filterBtn('all','Visi',orders.length,'')
     +filterBtn('pending','Laukia',pendCount,'var(--amber-t)')
-    +filterBtn('linked','Susieta',linkedCount,'var(--green-t)')
+    +filterBtn('linked','Vykdoma',linkedCount,'var(--blue-t)')
+    +filterBtn('done','✅ Atlikti',doneCount,'var(--green-t)')
     +filterBtn('thisweek','Šią sav.',weekCount,'var(--blue-t)')
     +filterBtn('overdue','Vėluoja',overdueCount,'var(--red-t)')
     +'</div>'
@@ -4290,100 +4324,141 @@ function buildBackupWorkbook(){
   const wb=XLSX.utils.book_new();
   const today=new Date().toISOString().slice(0,10);
 
-  // Sheet 1: Projects
-  const projData=[['ID','Pavadinimas','Tipas','Klientas','Prioritetas','Statusas','Dizaino fazė','Terminas','Spalva','Atsakingas','Pastabos','Sukurta','Pozicijų sk.','Užduočių sk.','Atlikta %']];
+  // Helper: apply column widths and freeze header row
+  const styleSheet=(ws,colWidths)=>{
+    ws['!cols']=colWidths.map(w=>({wch:w}));
+    ws['!freeze']={xSplit:0,ySplit:1};
+    ws['!autofilter']={ref:ws['!ref']};
+  };
+
+  // ── Sheet 1: Projektai ──
+  const projData=[['ID','Pavadinimas','Tipas','Klientas','Prioritetas','Statusas','Dizaino fazė','Terminas','Atsakingas','Pozicijų','Užduočių','Atlikta %','Pastabos','Sukurta']];
   (DB.projects||[]).forEach(p=>{
     const tasks=projTasks(p.id);
     const owner=getUser(p.owner)?.name||'';
+    const prio=PRIO_LABELS[p.priority||'mid']?.label||'';
+    const statLabel=p.status==='completed'?'✅ Užbaigtas':p.status==='archived'?'📦 Archyvas':'🔄 Aktyvus';
+    const dPhase=p.designStatus==='design'?'📐 Projektavimas':'🏭 Gamyba';
     projData.push([
       p.id,p.name||'',p.type||'projektas',p.client||'',
-      p.priority||'mid',p.status||'active',
-      p.designStatus||'production',
-      p.deadline||'',p.color||'',owner,
-      p.notes||'',fmtDateForBackup(p.created),
+      prio,statLabel,dPhase,
+      p.deadline||'',owner,
       (p.lines||[]).length,tasks.length,projProgress(p.id),
+      p.notes||'',fmtDateForBackup(p.created),
     ]);
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(projData),'Projektai');
+  const ws1=XLSX.utils.aoa_to_sheet(projData);
+  styleSheet(ws1,[12,32,11,22,11,14,18,12,18,9,9,9,30,18]);
+  XLSX.utils.book_append_sheet(wb,ws1,'📁 Projektai');
 
-  // Sheet 2: Tasks
-  const taskData=[['ID','Projektas','Žingsnis','Pavadinimas','Statusas','Atsakingas','Terminas','Užsakyta','Atlikta','Likę','Blokas','Pradėta','Atlikta data','Sukurta']];
+  // ── Sheet 2: Užduotys ──
+  const taskData=[['Projektas','Žingsnis','Užduotis','Statusas','Atsakingas','Užsakyta','Atlikta','Likę','Atlikta %','Terminas','Blokas','Atlikta data','Sukurta']];
   (DB.tasks||[]).forEach(t=>{
     const proj=getProject(t.projectId);
     const step=getStep(t.stepId);
     const ass=getUser(t.assigneeId)?.name||'';
     const left=(t.qtyOrdered||0)-(t.qtyDone||0);
+    const pct=t.qtyOrdered?Math.round((t.qtyDone||0)/t.qtyOrdered*100):(t.status==='done'?100:0);
+    const statLabel=t.status==='done'?'✅ Atlikta':t.status==='in-progress'?'🔄 Vykdoma':'⏳ Laukia';
     taskData.push([
-      t.id,proj?.name||'',step?.label||t.stepId,t.name||'',
-      t.status||'pending',ass,t.deadline||'',
-      t.qtyOrdered||0,t.qtyDone||0,left,
-      t.blocker||'',
-      fmtDateForBackup(t.startedAt),
-      fmtDateForBackup(t.completedAt),
-      fmtDateForBackup(t.created),
+      proj?.name||'',(step?.icon||'')+' '+(step?.label||t.stepId),t.name||'',
+      statLabel,ass,
+      t.qtyOrdered||0,t.qtyDone||0,left,pct,
+      t.deadline||'',t.blocker||'',
+      fmtDateForBackup(t.completedAt),fmtDateForBackup(t.created),
     ]);
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(taskData),'Užduotys');
+  const ws2=XLSX.utils.aoa_to_sheet(taskData);
+  styleSheet(ws2,[26,18,32,13,18,9,9,9,9,12,18,18,18]);
+  XLSX.utils.book_append_sheet(wb,ws2,'✅ Užduotys');
 
-  // Sheet 3: Order lines (per-article qty tracking)
-  const lineData=[['Projektas','Žingsnis','Eil.','Artikulas','Aprašymas','Užsakyta','Atlikta','Likę','Pristatymas']];
+  // ── Sheet 3: Pozicijos (per-article qty tracking) ──
+  const lineData=[['Projektas','Žingsnis','Eil.','Artikulas','Aprašymas','Užsakyta','Atlikta','Likę','Atlikta %','Pristatymas']];
   (DB.tasks||[]).forEach(t=>{
     if(!t.qtyLines||!t.qtyLines.length)return;
     const proj=getProject(t.projectId);
     const step=getStep(t.stepId);
     t.qtyLines.forEach((l,i)=>{
+      const left=(l.qty||0)-(l.done||0);
+      const pct=l.qty?Math.round((l.done||0)/l.qty*100):0;
       lineData.push([
-        proj?.name||'',step?.label||'',i+1,
-        l.art||'',l.desc||'',l.qty||0,l.done||0,
-        (l.qty||0)-(l.done||0),l.date||'',
+        proj?.name||'',(step?.icon||'')+' '+(step?.label||''),i+1,
+        l.art||'',l.desc||'',l.qty||0,l.done||0,left,pct,l.date||'',
       ]);
     });
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(lineData),'Pozicijos');
+  const ws3=XLSX.utils.aoa_to_sheet(lineData);
+  styleSheet(ws3,[26,18,5,15,32,9,9,9,9,12]);
+  XLSX.utils.book_append_sheet(wb,ws3,'📋 Pozicijos');
 
-  // Sheet 4: Orders (Užsakymai)
-  const ordData=[['Užs. nr.','Klientas','Užs. data','Prist. data','Produktas','Statusas','Užsakymo statusas','Susietas projektas','Pastabos','Prioritetas']];
+  // ── Sheet 4: Užsakymai (orders with full status detail) ──
+  const ordData=[['Užs. nr.','Klientas','Užs. data','Prist. data','Produktas','Užsakymo statusas','Eigos statusas','Susietas projektas','Projekto pažanga %','Prioritetas','Pastabos']];
   (DB.orders||[]).forEach(o=>{
     const lp=o.projectId?getProject(o.projectId):null;
+    const projProg=lp?projProgress(lp.id):'';
+    const projStatus=lp?(lp.status==='completed'||lp.status==='archived'||projProgress(lp.id)===100?'✅ Atliktas':'🔄 Vykdoma'):(o.projectId?'❓ Nerastas':'⏳ Laukia');
     ordData.push([
       o.orderNr||'',o.client||'',o.orderDate||'',o.deadline||'',
       (o.lines?.[0]?.desc)||'',
-      o.status||'pending',o.orderStatus||'',
-      lp?.name||'',o.notes||'',o.priority||'mid',
+      o.orderStatus||o.status||'',
+      projStatus,lp?.name||'',projProg,
+      o.priority||'mid',o.notes||'',
     ]);
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ordData),'Užsakymai');
+  const ws4=XLSX.utils.aoa_to_sheet(ordData);
+  styleSheet(ws4,[14,22,12,12,32,16,15,26,11,11,30]);
+  XLSX.utils.book_append_sheet(wb,ws4,'📬 Užsakymai');
 
-  // Sheet 5: Comments
-  const cmtData=[['Užduotis','Projektas','Autorius','Data','Tekstas']];
+  // ── Sheet 5: Komentarai ──
+  const cmtData=[['Projektas','Užduotis','Autorius','Data','Tekstas']];
   (DB.comments||[]).forEach(c=>{
     const t=DB.tasks.find(x=>x.id===c.taskId);
     const proj=t?getProject(t.projectId):null;
     cmtData.push([
-      t?.name||c.taskId,proj?.name||'',
+      proj?.name||'',t?.name||c.taskId,
       getUser(c.userId)?.name||c.userId,
       fmtDateForBackup(c.created||c.at),
       c.text||'',
     ]);
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cmtData),'Komentarai');
+  const ws5=XLSX.utils.aoa_to_sheet(cmtData);
+  styleSheet(ws5,[26,32,18,18,50]);
+  XLSX.utils.book_append_sheet(wb,ws5,'💬 Komentarai');
 
-  // Sheet 6: Team
-  const userData=[['ID','Vardas','El. paštas','Rolė','Spalva']];
-  (USERS||[]).forEach(u=>userData.push([u.id,u.name,u.email||'',u.role||'worker',u.color||'']));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(userData),'Komanda');
+  // ── Sheet 6: Komanda ──
+  const userData=[['Vardas','El. paštas','Rolė','Aktyvių užduočių','Atliktų užduočių']];
+  (USERS||[]).forEach(u=>{
+    const myActive=DB.tasks.filter(t=>(t.assigneeId===u.id||(t.assigneeIds||[]).includes(u.id))&&t.status!=='done').length;
+    const myDone=DB.tasks.filter(t=>(t.assigneeId===u.id||(t.assigneeIds||[]).includes(u.id))&&t.status==='done').length;
+    const roleLbl=u.role==='manager'?'💼 Vadyba':u.role==='engineer'?'📐 Projektavimas':u.role==='view'?'👁 Peržiūra':'🔧 Gamyba';
+    userData.push([u.name,u.email||'',roleLbl,myActive,myDone]);
+  });
+  const ws6=XLSX.utils.aoa_to_sheet(userData);
+  styleSheet(ws6,[22,26,18,12,12]);
+  XLSX.utils.book_append_sheet(wb,ws6,'👥 Komanda');
 
-  // Sheet 7: Meta
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+  // ── Sheet 7: Info ──
+  const infoData=[
+    ['Sistema','Dėdės Baldai gamybos valdymas'],
     ['Eksporto data',today],
-    ['Eksporto laikas',new Date().toISOString()],
+    ['Eksporto laikas',new Date().toISOString().slice(0,19).replace('T',' ')],
     ['Darbo vietos kodas',WORKSPACE_CODE||''],
     ['Eksportavo',CURRENT_USER_NAME||''],
-    ['Projektų skaičius',(DB.projects||[]).length],
-    ['Užduočių skaičius',(DB.tasks||[]).length],
-    ['Užsakymų skaičius',(DB.orders||[]).length],
+    [],
+    ['Statistika',''],
+    ['Iš viso projektų',(DB.projects||[]).length],
+    ['  - aktyvūs',(DB.projects||[]).filter(p=>p.status!=='completed'&&p.status!=='archived').length],
+    ['  - užbaigti',(DB.projects||[]).filter(p=>p.status==='completed'||projProgress(p.id)===100).length],
+    ['Iš viso užduočių',(DB.tasks||[]).length],
+    ['  - atliktos',(DB.tasks||[]).filter(t=>t.status==='done').length],
+    ['  - vykdomos',(DB.tasks||[]).filter(t=>t.status==='in-progress').length],
+    ['  - laukia',(DB.tasks||[]).filter(t=>t.status==='pending').length],
+    ['Užsakymų',(DB.orders||[]).length],
     ['Komandos narių',(USERS||[]).length],
-  ]),'Info');
+  ];
+  const ws7=XLSX.utils.aoa_to_sheet(infoData);
+  styleSheet(ws7,[24,30]);
+  XLSX.utils.book_append_sheet(wb,ws7,'ℹ Info');
 
   return wb;
 }
