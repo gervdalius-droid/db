@@ -288,7 +288,38 @@ span.in-progress-text{color:var(--blue-t)}
 .team-avatar-lg{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
 /* ── material status ── */
 .ms-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.ms-sandely{background:#16a34a}.ms-uzsakyta{background:#d97706}.ms-reikia{background:#dc2626}
+.ms-sandely{background:#16a34a}.ms-uzsakyta{background:#d97706}.ms-reikia{background:#dc2626}.ms-cech{background:#2563eb}
+/* ── WAREHOUSE / SANDĖLIS ── */
+.wh-tabs{display:flex;gap:2px;background:var(--surface2);padding:3px;border-radius:9px;margin-bottom:14px;width:fit-content;flex-wrap:wrap}
+.wh-tab{padding:6px 14px;font-size:11px;font-weight:500;color:var(--muted);border:none;background:transparent;border-radius:7px;cursor:pointer;transition:all .13s}
+.wh-tab:hover{color:var(--text)}
+.wh-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--sh)}
+.wh-stock-row{display:grid;grid-template-columns:1.4fr 60px 95px 75px 80px 85px 110px 110px 75px 100px;align-items:center;gap:0;border-bottom:1px solid var(--border);font-size:11px;min-height:48px}
+.wh-stock-row:last-child{border-bottom:none}
+.wh-stock-row>div{padding:6px 10px}
+.wh-stock-row:hover{background:var(--surface2)}
+.wh-pick-row{display:grid;grid-template-columns:36px 1fr 90px 100px 110px 160px;align-items:center;gap:0;border-bottom:1px solid var(--border);font-size:11px;min-height:46px}
+.wh-pick-row:last-child{border-bottom:none}
+.wh-pick-row>div{padding:7px 10px}
+.wh-pick-row.picked{background:var(--green-bg)}
+.wh-pick-row.shortage{background:var(--red-bg)}
+.wh-pick-row.unmapped{background:var(--blue-bg)}
+.wh-stock-pill{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;min-width:42px;text-align:center}
+.wh-stock-ok{background:var(--green-bg);color:var(--green-t)}
+.wh-stock-low{background:var(--amber-bg);color:var(--amber-t)}
+.wh-stock-none{background:var(--red-bg);color:var(--red-t)}
+.wh-log-row{display:grid;align-items:center;gap:10px;border-bottom:1px solid var(--border);font-size:11px;padding:8px 14px}
+.wh-log-row:last-child{border-bottom:none}
+.wh-log-row:hover{background:var(--surface2)}
+.wh-mov-in{color:var(--green-t);font-weight:600}
+.wh-mov-out{color:var(--blue-t);font-weight:600}
+.wh-mov-adj{color:var(--amber-t);font-weight:600}
+@media(max-width:980px){
+  .wh-stock-row{grid-template-columns:1fr 80px 100px;font-size:11px}
+  .wh-stock-row>div:nth-child(n+4){display:none}
+  .wh-pick-row{grid-template-columns:30px 1fr 80px 130px}
+  .wh-pick-row>div:nth-child(5){display:none}
+}
 /* ── step defaults ── */
 .step-def-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
 .step-def-row:last-child{border-bottom:none}
@@ -537,6 +568,7 @@ span.in-progress-text{color:var(--blue-t)}
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
         <div class="nav-item" onclick="window.open('orders.html','_blank')"><span class="nav-icon">📋</span>Pirkimo užsakymai ↗</div>
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge" id="mat-badge" style="display:none">!</span></div>
+        <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge" id="wh-badge" style="display:none;background:var(--blue)">0</span></div>
         <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span>Grafikas / Lean</div>
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
         <div class="nav-item" id="nav-report" onclick="showView('report')"><span class="nav-icon">📊</span>Ataskaita</div>
@@ -633,6 +665,7 @@ span.in-progress-text{color:var(--blue-t)}
       <div class="view" id="view-team"><div id="team-content"></div></div>
       <div class="view" id="view-report"><div id="report-content"></div></div>
       <div class="view" id="view-materials"><div id="materials-content"></div></div>
+      <div class="view" id="view-warehouse"><div id="warehouse-content"></div></div>
       <div class="view" id="view-notifs">
         <div class="section-header"><div class="section-title">Pranešimai</div><button class="btn btn-sm" onclick="markAllRead()">✓ Žymėti visus</button></div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl)"><div id="notif-list"></div></div>
@@ -664,6 +697,7 @@ let USERS = [];
 let DB = {
   projects:[], tasks:[], comments:[], notifications:[],
   currentUserId:'', orders:[], stepDefaults:{}, matStatus:{}, stepDays:{},
+  warehouse:[], warehouseLog:[], pickStatus:{}, kits:[], cycleCounts:[], fittingAliases:[],
 };
 
 // ══════════════════════════════════════════════
@@ -835,7 +869,7 @@ async function saveToCloud(){
     sbSet(wsKey('tasks'),    JSON.stringify(DB.tasks)),
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
-    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility})),
+    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases})),
   ]);
   _lastSavedAt=Date.now();
 }
@@ -871,7 +905,7 @@ async function loadFromCloud(){
     DB.tasks=cloudTasks;
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
-    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};}
+    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];}
     // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     return true;
@@ -919,6 +953,7 @@ function load(){
     DB.notifications=d.notifications||[];DB.currentUserId=d.currentUserId||'';
     DB.orders=d.orders||[];DB.stepDefaults=d.stepDefaults||{};
     DB.matStatus=d.matStatus||{};DB.stepDays=d.stepDays||{};
+    DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
     return true;
@@ -1363,6 +1398,12 @@ function showView(name,extra){
     if(act)act.innerHTML=`<button class="btn btn-sm" onclick="showView('materials')">↻ Atnaujinti</button>`;
     renderGlobalMaterials();
   }
+  else if(name==='warehouse'){
+    document.getElementById('topbar-title').textContent='🏭 Sandėlis';
+    document.getElementById('topbar-sub').textContent='WMS · Priėmimas · Komplektai · Inventorizacija';
+    if(act)act.innerHTML=isManager()||isEngineer()?`<button class="btn btn-sm" onclick="renderWarehouse()" title="Atnaujinti">↻</button>`:'';
+    renderWarehouse();
+  }
   else if(name==='import'){document.getElementById('topbar-title').textContent='Importuoti Excel';document.getElementById('topbar-sub').textContent='SA_GA_VIRT / RIMANTE_ZAB formatai';}
   else if(name==='report'){
     document.getElementById('topbar-title').textContent='Gamybos Ataskaita';
@@ -1460,6 +1501,7 @@ const NAV_ITEMS=[
   {id:'nav-projects',  label:'Visi projektai',  icon:'📁'},
   {id:'nav-orders',    label:'Užsakymai',       icon:'📬'},
   {id:'nav-materials', label:'Medžiagų poreikis',icon:'🪵'},
+  {id:'nav-warehouse', label:'Sandėlis',          icon:'🏭'},
   {id:'nav-schedule',  label:'Grafikas / Lean', icon:'📅'},
   {id:'nav-team',      label:'Komanda',         icon:'👥'},
   {id:'nav-report',    label:'Ataskaita',       icon:'📊'},
@@ -1468,9 +1510,9 @@ const NAV_ITEMS=[
 ];
 // Default visibility — all on. Admin overrides per role in DB.navVisibility
 const DEFAULT_NAV_VIS={
-  worker:   {'nav-floor':true,'nav-projects':true,'nav-orders':false,'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':false,'nav-notifs':true,'nav-import':false},
-  engineer: {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':true,'nav-import':false},
-  view:     {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':false,'nav-import':false},
+  worker:   {'nav-floor':true,'nav-projects':true,'nav-orders':false,'nav-materials':true,'nav-warehouse':true,'nav-schedule':true,'nav-team':true,'nav-report':false,'nav-notifs':true,'nav-import':false},
+  engineer: {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-warehouse':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':true,'nav-import':false},
+  view:     {'nav-floor':true,'nav-projects':true,'nav-orders':true, 'nav-materials':true,'nav-warehouse':true,'nav-schedule':true,'nav-team':true,'nav-report':true, 'nav-notifs':false,'nav-import':false},
 };
 function getNavVis(role,id){
   const cfg=DB.navVisibility?.[role];
@@ -2723,7 +2765,7 @@ function renderGlobalMaterials(){
   }
 
   // ── Summary across all projects ──
-  let totalM2=0,totalEdge=0,totalCost=0,reikiaCount=0,uzsakytaCount=0,sandelyCount=0;
+  let totalM2=0,totalEdge=0,totalCost=0,reikiaCount=0,uzsakytaCount=0,sandelyCount=0,cechCount=0;
   projs.forEach(p=>{
     const d=p.importData;
     totalM2+=d.stocks.reduce((s,x)=>s+x.m2,0);
@@ -2733,6 +2775,7 @@ function renderGlobalMaterials(){
       const ms=getMatStatus(p.id,i);
       if(ms.status==='reikia')reikiaCount++;
       else if(ms.status==='uzsakyta')uzsakytaCount++;
+      else if(ms.status==='cech')cechCount++;
       else sandelyCount++;
     });
   });
@@ -2750,6 +2793,7 @@ function renderGlobalMaterials(){
       <option value="reikia">🔴 Reikia užsakyti</option>
       <option value="uzsakyta">🟡 Užsakyta</option>
       <option value="sandely">🟢 Sandėlyje</option>
+      <option value="cech">🔵 Cechui išduota</option>
     </select>
     <input id="gmat-search" placeholder="🔍 Ieškoti medžiagos..." style="font-size:11px;padding:4px 10px;max-width:220px" oninput="renderGlobalMaterials()">
   </div>`;
@@ -2792,6 +2836,7 @@ function renderGlobalMaterials(){
             <option value="reikia" ${ms.status==='reikia'?'selected':''}>🔴 Reikia</option>
             <option value="uzsakyta" ${ms.status==='uzsakyta'?'selected':''}>🟡 Užsakyta</option>
             <option value="sandely" ${ms.status==='sandely'?'selected':''}>🟢 Sandėlyje</option>
+            <option value="cech" ${ms.status==='cech'?'selected':''}>🔵 Cechui</option>
           </select>
         </div>
         <div>
@@ -4254,7 +4299,7 @@ function renderMatStatusRow(pid,idx,rowEl){
   const etaWrap=rowEl.querySelector('.ms-eta-wrap');
   if(etaWrap){etaWrap.style.display=ms.status==='uzsakyta'?'flex':'none';const et=rowEl.querySelector('.ms-eta-inp');if(et)et.value=ms.eta;}
 }
-const MS_LABELS={reikia:{label:'Reikia',dot:'ms-reikia',badge:'badge-red'},sandely:{label:'Turim sandėly',dot:'ms-sandely',badge:'badge-green'},uzsakyta:{label:'Užsakyta',dot:'ms-uzsakyta',badge:'badge-amber'}};
+const MS_LABELS={reikia:{label:'Reikia',dot:'ms-reikia',badge:'badge-red'},sandely:{label:'Turim sandėly',dot:'ms-sandely',badge:'badge-green'},uzsakyta:{label:'Užsakyta',dot:'ms-uzsakyta',badge:'badge-amber'},cech:{label:'Cechui išduota',dot:'ms-cech',badge:'badge-blue'}};
 
 // ══════════════════════════════════════════════
 // ORDERS VIEW (Manager-only — pending orders)
@@ -5484,7 +5529,7 @@ function parseXlsx(file,targetPid){
 
 // *** FIXED PARSER — handles both SA_GA_VIRT and RIMANTE_ZAB formats ***
 function parseWorkbook(wb){
-  const data={projectName:'',stocks:[],edgebands:[],parts:[],drawers:[]};
+  const data={projectName:'',stocks:[],edgebands:[],parts:[],drawers:[],hardware:[]};
 
   // ─ PARTLIST ─
   if(wb.SheetNames.includes('PARTLIST')){
@@ -5528,10 +5573,14 @@ function parseWorkbook(wb){
     }
   }
 
-  // ─ HARDWARE_LIST ─ (group TANDEMBOX into assemblies)
+  // ─ HARDWARE_LIST ─ keep raw lines + group TANDEMBOX into assemblies ─
   if(wb.SheetNames.includes('HARDWARE_LIST')){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets['HARDWARE_LIST'],{header:1,defval:null});
-    const hw=rows.filter(r=>r[2]&&r[5]).map(r=>({name:String(r[2]),qty:parseInt(r[5])||1}));
+    const hw=rows.filter(r=>r[2]&&r[5]).map(r=>({name:String(r[2]).trim(),qty:parseInt(r[5])||1}));
+    // Keep the raw, full hardware list — every line, not just runners.
+    // This is what the alias resolver will operate on.
+    data.hardware = hw;
+    // Also build the legacy drawers[] for the existing 🗄 Stalčiai view.
     const runners=hw.filter(h=>h.name.includes('Runner'));
     const byD={};
     runners.forEach(r=>{const m=r.name.match(/Runner (\d+)/);if(m){const dep=parseInt(m[1]);if(!byD[dep])byD[dep]={depth:dep,height:98,qty:Math.ceil(r.qty/2),parts:[]}}});
@@ -5586,8 +5635,2556 @@ function applyImport(data,pid){
 }
 
 // ══════════════════════════════════════════════
-// INIT
+// SANDĖLIS / WAREHOUSE MODULE — WMS best practices edition
 // ══════════════════════════════════════════════
+// Architecture follows the canonical WMS process flow:
+//   Receiving → Putaway → Storage → Reservation → Picking → Staging → Issue → (Return)
+// Plus: cycle counting, ABC classification, reorder points, KPIs, audit trail.
+//
+// Two SKU kinds share one warehouse, one audit log, one kit system:
+//   kind:'sheet'   — panels, MDF, edgebands (m², m). Auto-imported from PARTLIST/SUMMARY.
+//   kind:'fitting' — hardware (hinges, runners, Blum drawer kits, screws, tip-on, lifts).
+//                    Tracked by manufacturer part number (MPN), pcs/packs/pairs.
+//
+// Data model:
+//   DB.warehouse[]  — SKU master
+//     Common: {id, sku, kind, material, supplier, unit, qty, reservedQty,
+//              minQty, maxQty, reorderPoint, abcClass, location:{zone,bin}, cost,
+//              firstReceived, lastReceived, lastIssued,
+//              lastCountDate, lastCountQty, accuracy, barcode, notes, archived}
+//     Sheets add: {thickness, category}     // category = LMDP|MDF|HPL|Briauna|...
+//     Fittings add: {mpn, brand, subcategory,    // Hinge|Runner|Drawer|Lift|Screw|Tip-on|Accessory
+//                    attributes:{...},            // overlay/angle/depth/height/color/softClose/load
+//                    unitsPerPack, pairOf}
+//
+//   DB.warehouseLog[]  — immutable audit trail (unchanged)
+//   DB.kits[]          — work-order pick lists. items[] now includes both sheet AND fitting lines.
+//   DB.cycleCounts[]   — scheduled / completed counts
+
+// ── Blum quick-add catalog (most common parts in LT workshops) ──
+// MPN → defaults. Used by the "+ Naujas SKU" → "Iš Blum katalogo" flow.
+const BLUM_CATALOG = [
+  // CLIP top BLUMOTION soft-close hinges (most common)
+  {mpn:'71B3550',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top BLUMOTION 110° INSET soft-close',         unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'inset',     softClose:true}},
+  {mpn:'71B3650',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top BLUMOTION 110° HALF OVERLAY soft-close',  unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'half',      softClose:true}},
+  {mpn:'71B3690',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top BLUMOTION 110° FULL OVERLAY soft-close',  unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'full',      softClose:true}},
+  {mpn:'71T3550',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top 110° INSET self-close',                    unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'inset',     softClose:false}},
+  {mpn:'71T3650',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top 110° HALF OVERLAY self-close',             unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'half',      softClose:false}},
+  {mpn:'71T3690',  brand:'Blum', subcategory:'Hinge',   name:'CLIP top 110° FULL OVERLAY self-close',             unit:'vnt', unitsPerPack:1, attributes:{angle:110, overlay:'full',      softClose:false}},
+  {mpn:'38N355C.08',brand:'Blum',subcategory:'Hinge',   name:'Compact 38N 1/2 OVERLAY soft-close (face frame)',   unit:'vnt', unitsPerPack:1, attributes:{angle:107, overlay:'half',      softClose:true}},
+  {mpn:'175H7100', brand:'Blum', subcategory:'Hinge',   name:'CLIP mounting plate 0mm screw-on',                  unit:'vnt', unitsPerPack:1, attributes:{type:'plate', height:0}},
+  {mpn:'175H7130', brand:'Blum', subcategory:'Hinge',   name:'CLIP mounting plate 3mm screw-on',                  unit:'vnt', unitsPerPack:1, attributes:{type:'plate', height:3}},
+  // TANDEM undermount runners (most common depths)
+  {mpn:'563H3050B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 30cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:300, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'563H3810B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 38cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:380, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'563H4500B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 45cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:450, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'563H5000B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 50cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:500, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'563H5500B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 55cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:550, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'563H6000B',brand:'Blum', subcategory:'Runner',  name:'TANDEM 563H BLUMOTION 60cm soft-close (pair)',      unit:'pora',unitsPerPack:1, pairOf:true, attributes:{depth:600, system:'TANDEM',  softClose:true,  load:30}},
+  {mpn:'T51.1700S',brand:'Blum', subcategory:'Runner',  name:'TANDEM front locking clips (pair)',                 unit:'pora',unitsPerPack:1, pairOf:true, attributes:{system:'TANDEM', type:'lockingClip'}},
+  // TANDEMBOX (M height — most common)
+  {mpn:'378M5002SA',brand:'Blum',subcategory:'Drawer',  name:'TANDEMBOX antaro M 50cm side (pair)',               unit:'pora',unitsPerPack:1, pairOf:true, attributes:{system:'TANDEMBOX', height:'M', depth:500}},
+  {mpn:'378M5502SA',brand:'Blum',subcategory:'Drawer',  name:'TANDEMBOX antaro M 55cm side (pair)',               unit:'pora',unitsPerPack:1, pairOf:true, attributes:{system:'TANDEMBOX', height:'M', depth:550}},
+  {mpn:'Z36M1000', brand:'Blum', subcategory:'Drawer',  name:'TANDEMBOX antaro 1m gallery rail',                  unit:'vnt', unitsPerPack:1, attributes:{system:'TANDEMBOX', type:'gallery'}},
+  // LEGRABOX (newer, growing share)
+  {mpn:'770M5002S',brand:'Blum', subcategory:'Drawer',  name:'LEGRABOX pure M 50cm drawer sides (pair)',          unit:'pora',unitsPerPack:1, pairOf:true, attributes:{system:'LEGRABOX', height:'M', depth:500}},
+  {mpn:'770M5502S',brand:'Blum', subcategory:'Drawer',  name:'LEGRABOX pure M 55cm drawer sides (pair)',          unit:'pora',unitsPerPack:1, pairOf:true, attributes:{system:'LEGRABOX', height:'M', depth:550}},
+  // AVENTOS lifts
+  {mpn:'20S2C00.05',brand:'Blum',subcategory:'Lift',    name:'AVENTOS HK-S lift mechanism (light)',               unit:'vnt', unitsPerPack:1, attributes:{system:'AVENTOS', type:'HK-S'}},
+  // TIP-ON (touch latch)
+  {mpn:'956A1004', brand:'Blum', subcategory:'Tip-on',  name:'TIP-ON for doors short version',                    unit:'vnt', unitsPerPack:1, attributes:{system:'TIP-ON'}},
+  // Common screws
+  {mpn:'660.0950', brand:'Blum', subcategory:'Screw',   name:'EURO screw 6.3×9.5mm (box of 1000)',                unit:'vnt', unitsPerPack:1000, attributes:{type:'EURO', size:'6.3x9.5'}},
+];
+
+const FITTING_SUBCATEGORIES = ['Hinge','Runner','Drawer','Lift','Tip-on','Screw','Accessory'];
+const FITTING_SUBCAT_LABELS = {
+  Hinge:'Vyriai', Runner:'Bėgeliai', Drawer:'Stalčių sistemos',
+  Lift:'Pakėlimo mechanizmai', 'Tip-on':'TIP-ON / TIP-ON BLUMOTION',
+  Screw:'Varžtai / smulkmena', Accessory:'Aksesuarai',
+};
+const FITTING_SUBCAT_ICONS = {
+  Hinge:'🔩', Runner:'⫶⫶', Drawer:'🗄', Lift:'⬆',
+  'Tip-on':'👆', Screw:'🔧', Accessory:'📎',
+};
+
+// ── Module state ──────────────────────────────────────────────
+let _whTab = 'dashboard'; // dashboard | inbound | stock | kits | counts | log
+let _whKitId = '';
+let _whFilter = { search:'', class:'', lowOnly:false, location:'', kind:'', subcategory:'' };
+let _whStockSubtab = 'all'; // all | sheets | fittings
+
+const WH_REASONS = {
+  receive:    'Pristatymas iš tiekėjo',
+  return:     'Grąžinta į sandėlį',
+  damaged:    'Pažeista / brokas',
+  miscount:   'Inventorizacija — skirtumas',
+  correction: 'Įvedimo klaidos taisymas',
+  loss:       'Praradimas',
+  found:      'Rasta papildomai',
+  other:      'Kita',
+};
+const KIT_STATUS = {
+  draft:    {label:'Juodraštis',     color:'var(--muted)',     bg:'var(--surface3)'},
+  reserved: {label:'Rezervuota',     color:'var(--purple-t)',  bg:'var(--purple-bg)'},
+  picking:  {label:'Komplektuojama', color:'var(--amber-t)',   bg:'var(--amber-bg)'},
+  staged:   {label:'Paruošta',       color:'var(--blue-t)',    bg:'var(--blue-bg)'},
+  issued:   {label:'Išduota cechui', color:'var(--green-t)',   bg:'var(--green-bg)'},
+  cancelled:{label:'Atšaukta',       color:'var(--red-t)',     bg:'var(--red-bg)'},
+};
+
+function whUid(){return 'w'+Math.random().toString(36).slice(2,9);}
+function whNow(){return new Date().toISOString();}
+function whUser(){return curUser()?.name||'sistema';}
+function whFmt(n,d=2){return (Number(n)||0).toFixed(d);}
+function whNorm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+
+// SKU generator — short stable code
+function whGenSku(material, thickness, kind){
+  if(kind==='fitting'){
+    // For fittings, prefer MPN as SKU. Caller supplies it via material if no MPN.
+    return String(material||'FIT').replace(/[^A-Za-z0-9._-]/g,'').slice(0,16).toUpperCase()||'FIT';
+  }
+  const base = String(material||'').replace(/[^A-Za-z0-9]/g,'').slice(0,6).toUpperCase()||'MAT';
+  const t = parseInt(thickness)||18;
+  return `${base}-${t}`;
+}
+
+function whFindBySku(sku){return DB.warehouse.find(w=>w.sku===sku);}
+function whFindByMpn(mpn){
+  if(!mpn) return null;
+  const n = String(mpn).toUpperCase();
+  return DB.warehouse.find(w=>w.kind==='fitting' && String(w.mpn||'').toUpperCase()===n);
+}
+function whFindByMaterial(material, thickness){
+  const n=whNorm(material), t=parseInt(thickness)||18;
+  return DB.warehouse.find(w=>(w.kind||'sheet')==='sheet' && whNorm(w.material)===n && (parseInt(w.thickness)||18)===t);
+}
+function whAvailable(item){return Math.max(0, (item?.qty||0) - (item?.reservedQty||0));}
+function whValue(item){return (item?.qty||0) * (item?.cost||0);}
+function whIsFitting(item){return item?.kind==='fitting';}
+function whIsSheet(item){return !item?.kind || item?.kind==='sheet';}
+
+// ── ALIAS RESOLVER ────────────────────────────────────────────
+// Maps loose XLSM hardware names to fitting SKUs.
+// Three sources of truth, checked in priority order:
+//   1. DB.fittingAliases[]         — workshop-wide rules (preferred, durable)
+//   2. fittingItem.aliases[]       — names stored on the SKU itself
+//   3. fittingItem.distCode        — distributor part number (e.g. Blulita BL-RUN-...)
+//   4. fittingItem.mpn             — manufacturer part number
+//   5. Attribute heuristic         — last resort: depth/system match for runners
+//
+// DB.fittingAliases[] entries: {id, pattern, sku, qtyMultiplier, partType, createdBy, ts}
+//   pattern        — case-insensitive substring or simple regex (string)
+//   sku            — target warehouse SKU
+//   qtyMultiplier  — convert XLSM qty to SKU unit (e.g. 0.5 if XLSM lists 2 rails per drawer
+//                    but SKU is sold as a pair). Defaults to 1.
+//   partType       — 'runner' | 'side' | 'hinge' | 'screw' | 'connector' | 'other' (informational)
+
+function whAliasNorm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+
+function whFindByDistCode(code){
+  if(!code) return null;
+  const n = String(code).toUpperCase();
+  return DB.warehouse.find(w=>w.kind==='fitting' && String(w.distCode||'').toUpperCase()===n);
+}
+
+// Find the workshop-wide alias rule that matches this XLSM line, if any.
+function whMatchAliasRule(name){
+  if(!name) return null;
+  const norm = whAliasNorm(name);
+  // Exact match first (faster + more confident)
+  const exact = (DB.fittingAliases||[]).find(a=>whAliasNorm(a.pattern)===norm);
+  if(exact) return exact;
+  // Substring / contains match
+  return (DB.fittingAliases||[]).find(a=>{
+    const p = whAliasNorm(a.pattern);
+    return p && norm.includes(p);
+  });
+}
+
+// Find a fitting SKU whose own .aliases[] contains this name.
+function whFindBySkuAlias(name){
+  if(!name) return null;
+  const norm = whAliasNorm(name);
+  return DB.warehouse.find(w=>
+    w.kind==='fitting' &&
+    Array.isArray(w.aliases) &&
+    w.aliases.some(a=>{
+      const an = whAliasNorm(a);
+      return an && (an===norm || norm.includes(an));
+    })
+  );
+}
+
+// Master resolver. Returns {sku, item, source, confidence, qtyMultiplier} or null.
+//   source: 'rule' | 'sku-alias' | 'distCode' | 'mpn' | 'attribute' | null
+function whResolveHardwareLine(name, hint){
+  if(!name) return null;
+
+  // 1. Workshop-wide alias rule
+  const rule = whMatchAliasRule(name);
+  if(rule){
+    const item = whFindBySku(rule.sku);
+    if(item) return {sku:item.sku, item, source:'rule', confidence:1.0,
+                     qtyMultiplier: rule.qtyMultiplier || 1, partType: rule.partType};
+  }
+
+  // 2. SKU's own aliases
+  const skuMatch = whFindBySkuAlias(name);
+  if(skuMatch) return {sku:skuMatch.sku, item:skuMatch, source:'sku-alias', confidence:0.95, qtyMultiplier:1};
+
+  // 3. Distributor code or MPN appearing literally in the name.
+  //    First try the whole normalized string (handles dashes inside codes like BL-RUN-50-30),
+  //    then fall back to tokens (handles cases where the code is one word inside a longer name).
+  const upper = String(name).toUpperCase();
+  // Whole-string contains check
+  for(const w of DB.warehouse){
+    if(w.kind!=='fitting' || w.archived) continue;
+    if(w.distCode && upper.includes(w.distCode)){
+      return {sku:w.sku, item:w, source:'distCode', confidence:0.9, qtyMultiplier:1};
+    }
+    if(w.mpn && upper.includes(w.mpn)){
+      return {sku:w.sku, item:w, source:'mpn', confidence:0.85, qtyMultiplier:1};
+    }
+  }
+  // Token-level fallback for unusual separators
+  const tokens = upper.split(/[\s,/.()]+/).filter(t=>t.length>=4);
+  for(const t of tokens){
+    const byDist = whFindByDistCode(t);
+    if(byDist) return {sku:byDist.sku, item:byDist, source:'distCode', confidence:0.9, qtyMultiplier:1};
+    const byMpn = whFindByMpn(t);
+    if(byMpn) return {sku:byMpn.sku, item:byMpn, source:'mpn', confidence:0.85, qtyMultiplier:1};
+  }
+
+  // 4. Attribute heuristic — only if hint provides a hardware type guess
+  if(hint?.type === 'runner'){
+    const m = String(name).match(/(\d{3,4})/);
+    if(m){
+      const depth = parseInt(m[1]);
+      const item = DB.warehouse.find(w=>
+        w.kind==='fitting' && w.subcategory==='Runner' &&
+        (w.attributes?.depth === depth)
+      );
+      if(item) return {sku:item.sku, item, source:'attribute', confidence:0.6, qtyMultiplier:0.5}; // 0.5: XLSM lists pieces, SKU is a pair
+    }
+  }
+
+  return null;
+}
+
+function whAddAliasRule(pattern, sku, qtyMultiplier, partType){
+  if(!pattern || !sku) return null;
+  const item = whFindBySku(sku);
+  if(!item){ toast('SKU nerastas','error'); return null; }
+  if(!DB.fittingAliases) DB.fittingAliases=[];
+  // De-duplicate exact matches
+  const existing = DB.fittingAliases.find(a=>whAliasNorm(a.pattern)===whAliasNorm(pattern));
+  if(existing){
+    existing.sku = sku;
+    existing.qtyMultiplier = qtyMultiplier || 1;
+    existing.partType = partType || existing.partType;
+    save();
+    return existing;
+  }
+  const rule = {
+    id: whUid(),
+    pattern: pattern.trim(),
+    sku,
+    qtyMultiplier: qtyMultiplier || 1,
+    partType: partType || 'other',
+    createdBy: whUser(),
+    ts: whNow(),
+  };
+  DB.fittingAliases.push(rule);
+  save();
+  return rule;
+}
+
+function whDeleteAliasRule(id){
+  if(!confirm('Ištrinti susiejimo taisyklę?')) return;
+  DB.fittingAliases = (DB.fittingAliases||[]).filter(a=>a.id!==id);
+  save();
+  renderWarehouse();
+}
+
+// ══════════════════════════════════════════════
+// CATALOG IMPORT — bulk-load fittings from an Excel file (LoMag export, supplier list, etc.)
+// ══════════════════════════════════════════════
+
+// Categorize a Lithuanian product name into one of the FITTING_SUBCATEGORIES.
+// Order matters — the most specific patterns are checked first.
+function whCategorizeFitting(name){
+  const n = String(name||'').toLowerCase();
+
+  // Hinges (lankstas / vyris)
+  if(/\blankst|vyris|clip top|clip plokštel|kryžmin/.test(n)) return 'Hinge';
+  // Plokštelė often = mounting plate, which is a hinge component
+  if(/plokštel/.test(n) && /(clip|hinge|lankst|tandem)/.test(n)) return 'Hinge';
+
+  // Lifts (AVENTOS, pakėlimo mechanizmas)
+  if(/aventos|pakėlim|mechanizmas|jėgos mech/.test(n)) return 'Lift';
+
+  // Tip-on push systems
+  if(/tip[\s\-]?on|atmetiklis|atmetiklio|adapter/.test(n)) return 'Tip-on';
+
+  // Runners / slides (bėgeliai)
+  if(/bėgel|slide|tandem (?:tip|bė)|560h|563h|550h|578\.|tandem ti/.test(n)) return 'Runner';
+
+  // Drawer kits / sides (tandembox / antaro / stalčiaus šonas)
+  if(/tandembox|antaro|stalčiaus šonas|stalčiams|stalčiaus|nugarėl|reilingas/.test(n)) return 'Drawer';
+
+  // Screws & fasteners
+  if(/varžt|screw|laikiklis$|laikikliai|fasado tvirt|tvirt|ekscentrik/.test(n)) return 'Screw';
+
+  // Default
+  return 'Accessory';
+}
+
+// Extract attributes (depth, angle, system, softClose) from a Lithuanian Blum product name.
+function whExtractAttrs(name, subcategory){
+  const n = String(name||'');
+  const nl = n.toLowerCase();
+  const attrs = {};
+  // Depth — look for 3-4 digit number near "mm" or after "ilgio"/"NL"
+  const depthMatch = n.match(/(\d{3,4})\s*mm|nl\s*(\d{3,4})|(\d{3,4})\s*ilgio/i);
+  if(depthMatch){
+    attrs.depth = parseInt(depthMatch[1]||depthMatch[2]||depthMatch[3]);
+  } else {
+    // Bare 450 / 500 / 550 next to TANDEM/ANTARO/etc.
+    const bareDepth = n.match(/\b(\d{3,4})\b/);
+    if(bareDepth && /tandem|antaro|tandembox|tip[\s\-]?on/i.test(n)){
+      const d = parseInt(bareDepth[1]);
+      if(d>=200 && d<=800) attrs.depth = d;
+    }
+  }
+  // Load (kg)
+  const loadMatch = n.match(/(\d{2,3})\s*kg/i);
+  if(loadMatch) attrs.load = parseInt(loadMatch[1]);
+  // Angle (hinges)
+  const angleMatch = n.match(/(\d{2,3})\s*°/);
+  if(angleMatch) attrs.angle = parseInt(angleMatch[1]);
+  // System name
+  if(/tandembox/i.test(n)) attrs.system = 'TANDEMBOX';
+  else if(/tandem/i.test(n)) attrs.system = 'TANDEM';
+  else if(/aventos/i.test(n)) attrs.system = 'AVENTOS';
+  else if(/clip top/i.test(n)) attrs.system = 'CLIP top';
+  else if(/clip/i.test(n)) attrs.system = 'CLIP';
+  else if(/modul/i.test(n)) attrs.system = 'MODUL';
+  // Soft-close
+  if(/blumotion|švelnu|soft[\s\-]?close/i.test(nl)) attrs.softClose = true;
+  // Color
+  if(/balt|silk white|sw\b/i.test(nl)) attrs.color = 'Silk White';
+  else if(/orion grey|tamsiai pilk|og\b/i.test(nl)) attrs.color = 'Orion Grey';
+  else if(/deep grey|dg\b/i.test(nl)) attrs.color = 'Deep Grey';
+  // Side (left/right)
+  if(/\bkair[ėy]\b|\.l\b/i.test(nl)) attrs.side = 'left';
+  else if(/\bdešin[ėy]\b|\.r\b/i.test(nl)) attrs.side = 'right';
+  return attrs;
+}
+
+// Parse an XLSX file the user uploads. Auto-detect column layout — supports the LoMag
+// "Prekės (švarūs)" layout and a generic "name + MPN + description" layout.
+function whParseCatalogXlsx(arrayBuffer){
+  const wb = XLSX.read(arrayBuffer, {type:'array'});
+  // Try sheets in priority order: the curated Prekės sheet first, then any sheet whose
+  // first row looks like our expected header.
+  const candidates = [
+    '🔩 Prekės (švarūs)',
+    'Prekės',
+    'Towar (prekės/prekiniai)',
+    'Towar',
+    'Items',
+    ...wb.SheetNames,
+  ];
+  let sheet = null, sheetName = null;
+  for(const name of candidates){
+    if(wb.SheetNames.includes(name)){ sheet = wb.Sheets[name]; sheetName = name; break; }
+  }
+  if(!sheet) throw new Error('Excel byloje nėra žinomų lapų');
+
+  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:null});
+  // Find header row — scan first 10 rows for one where DIFFERENT cells contain
+  // "pavadinim" and "mpn"/"kodas". Avoid false-positive on description rows that mention
+  // both terms in a single sentence.
+  let headerIdx = -1;
+  for(let i=0; i<Math.min(10, rows.length); i++){
+    const cells = (rows[i]||[]).map(c=>String(c||'').toLowerCase().trim());
+    const hasName = cells.some(c=>c && /^(?:#?\s*)?(pavadinim|name|produkt)/.test(c));
+    const hasMpn  = cells.some(c=>c && /^(mpn|kodas|sku|nr\.|part)/.test(c));
+    if(hasName && hasMpn){ headerIdx = i; break; }
+  }
+  if(headerIdx < 0){
+    // Fallback: scan more leniently — find any row with "pavadinim" cell
+    for(let i=0; i<Math.min(10, rows.length); i++){
+      const cells = (rows[i]||[]).map(c=>String(c||'').toLowerCase().trim());
+      if(cells.some(c=>/^pavadinim/.test(c))){ headerIdx = i; break; }
+    }
+  }
+  if(headerIdx < 0) headerIdx = 0;
+  const header = (rows[headerIdx]||[]).map(c=>String(c||'').toLowerCase().trim());
+  // Find column indices
+  const findCol = patterns => {
+    for(let i=0; i<header.length; i++){
+      for(const p of patterns){
+        if(p.test(header[i])) return i;
+      }
+    }
+    return -1;
+  };
+  const colName = findCol([/pavadinim/, /name/, /produkt/]);
+  const colMpn  = findCol([/^mpn/, /^kodas$/, /^sku$/, /\bnr\.?$/, /part.*num/]);
+  const colDesc = findCol([/aprašym/, /descrip/]);
+  if(colName < 0 || colMpn < 0){
+    throw new Error('Nepavyko aptikti būtinų stulpelių (pavadinimas, MPN). Patikrinkite, kad pirmoje eilutėje yra antraštės.');
+  }
+
+  const items = [];
+  for(let i=headerIdx+1; i<rows.length; i++){
+    const r = rows[i] || [];
+    const name = r[colName] ? String(r[colName]).trim() : '';
+    const mpn  = r[colMpn]  ? String(r[colMpn]).trim().toUpperCase() : '';
+    const desc = colDesc>=0 && r[colDesc] ? String(r[colDesc]).trim() : '';
+    if(!name && !mpn) continue;
+    // Skip if name looks like a heading row ("LoMag duomenų bazės eksportas")
+    if(name.length > 100 && !mpn) continue;
+
+    // Detect the LoMag swap (item 67): name field has the MPN, MPN field has the description
+    let realName = name, realMpn = mpn, realDesc = desc;
+    const looksLikeMpn = s => /^[A-Z0-9.\-_]{3,30}$/.test(s) && /\d/.test(s);
+    if(looksLikeMpn(name) && !looksLikeMpn(mpn) && mpn.length > name.length){
+      realName = mpn;
+      realMpn = name.toUpperCase();
+      realDesc = desc;
+    }
+
+    items.push({
+      sourceRow: i+1,
+      name: realName,
+      mpn: realMpn,
+      description: realDesc,
+    });
+  }
+  return {sheetName, items, header, colMap:{name:colName, mpn:colMpn, desc:colDesc}};
+}
+
+// Open the catalog import modal — file picker step
+function openCatalogImportModal(){
+  if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">📥 Importuoti furnitūros katalogą</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Pasirinkite Excel bylą su prekių sąrašu (Pavadinimas + MPN)</div>
+      <div style="background:var(--blue-bg);border:1px solid var(--blue-t);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--blue-t);margin-bottom:14px;line-height:1.5">
+        💡 Tinka:<br>
+        • LoMag duomenų bazės eksportas (lapas <strong>"🔩 Prekės (švarūs)"</strong>)<br>
+        • Tiekėjo katalogas su stulpeliais "Pavadinimas" ir "MPN"<br>
+        • Bet koks Excel su antraščių eilute viršuje<br>
+        <br>
+        Pridėtos pozicijos bus su <strong>kiekiu = 0</strong>. Realius likučius įvesite vėliau per inventorizaciją.
+      </div>
+      <div>
+        <input type="file" id="cat-import-file" accept=".xlsx,.xls,.xlsm" style="width:100%;padding:8px;border:1px dashed var(--border);border-radius:8px;cursor:pointer">
+      </div>
+      <div id="cat-import-status" style="font-size:11px;color:var(--muted);margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" id="cat-import-go" onclick="catImportLoad()">Toliau →</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Step 2: parse the file and show preview
+function catImportLoad(){
+  const file = document.getElementById('cat-import-file')?.files?.[0];
+  if(!file){ toast('Pasirinkite bylą','error'); return; }
+  const status = document.getElementById('cat-import-status');
+  if(status) status.textContent = 'Skaitoma...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = whParseCatalogXlsx(e.target.result);
+      if(!parsed.items.length){ toast('Byloje nerasta pozicijų','error'); return; }
+      whCloseModal();
+      catImportShowPreview(parsed);
+    } catch(err){
+      console.error(err);
+      if(status) status.innerHTML = `<span style="color:var(--red-t)">❌ ${escHtml(err.message)}</span>`;
+    }
+  };
+  reader.onerror = () => { if(status) status.textContent = 'Klaida skaitant bylą'; };
+  reader.readAsArrayBuffer(file);
+}
+
+// Cache the parsed data for the preview/submit step
+let _catImportData = null;
+
+function catImportShowPreview(parsed){
+  // Build enriched items: add subcategory + attributes + dedup status
+  const enriched = parsed.items.map((it, idx) => {
+    const subcategory = whCategorizeFitting(it.name);
+    const attributes = whExtractAttrs(it.name, subcategory);
+    // Suggest distCode = MPN by default (user can edit later)
+    const distCode = it.mpn;
+    // Check if a SKU with this MPN/distCode already exists
+    const existing = DB.warehouse.find(w =>
+      w.kind==='fitting' && (
+        (w.mpn && w.mpn === it.mpn) ||
+        (w.distCode && w.distCode === distCode) ||
+        (w.sku && w.sku === distCode)
+      )
+    );
+    return {
+      idx, ...it,
+      subcategory, attributes, distCode,
+      include: !existing,  // skip duplicates by default
+      existing: existing ? existing.sku : null,
+    };
+  });
+
+  _catImportData = {parsed, enriched};
+
+  const totalNew = enriched.filter(e => !e.existing).length;
+  const totalDup = enriched.filter(e => e.existing).length;
+
+  // Render the preview table
+  const subcatOptions = sub => FITTING_SUBCATEGORIES.map(s =>
+    `<option value="${s}" ${sub===s?'selected':''}>${FITTING_SUBCAT_ICONS[s]||''} ${FITTING_SUBCAT_LABELS[s]||s}</option>`
+  ).join('');
+
+  const tableRows = enriched.map(e => {
+    const dupBadge = e.existing
+      ? `<span style="background:var(--amber-bg);color:var(--amber-t);padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600">jau yra</span>`
+      : '';
+    const attrsStr = formatFittingAttrs(e.attributes) || '';
+    return `<tr style="border-bottom:1px solid var(--border)" data-idx="${e.idx}">
+      <td style="padding:5px 7px;text-align:center"><input type="checkbox" ${e.include?'checked':''} ${e.existing?'':''} onchange="catImportToggle(${e.idx},this.checked)"></td>
+      <td style="padding:5px 7px;font-family:var(--mono);font-size:10px">${escHtml(e.mpn)} ${dupBadge}</td>
+      <td style="padding:5px 7px;font-size:11px">${escHtml(e.name).slice(0,80)}</td>
+      <td style="padding:5px 7px">
+        <select onchange="catImportSetSubcat(${e.idx},this.value)" style="font-size:10px;padding:2px 4px;width:100%">
+          ${subcatOptions(e.subcategory)}
+        </select>
+      </td>
+      <td style="padding:5px 7px;font-size:9px;color:var(--hint)">${attrsStr}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:1000px;max-width:98vw;max-height:92vh;overflow:hidden;box-shadow:var(--sh3);display:flex;flex-direction:column">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">📥 Patvirtinkite importą</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Lapas: <strong>${escHtml(parsed.sheetName)}</strong> · ${parsed.items.length} pozicijos</div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+        <div class="summary-card"><div class="summary-label">Iš viso</div><div class="summary-value">${parsed.items.length}</div></div>
+        <div class="summary-card"><div class="summary-label">Naujos</div><div class="summary-value" style="color:var(--green-t)">${totalNew}</div></div>
+        <div class="summary-card"><div class="summary-label">Jau yra</div><div class="summary-value" style="color:var(--amber-t)">${totalDup}</div></div>
+        <div class="summary-card"><div class="summary-label">Pradinis kiekis</div><div class="summary-value" style="color:var(--muted)">0</div></div>
+      </div>
+
+      <div style="background:var(--surface2);padding:8px 10px;border-radius:6px;font-size:10px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <button class="btn btn-xs" onclick="catImportToggleAll(true)">☑ Žymėti visas</button>
+        <button class="btn btn-xs" onclick="catImportToggleAll(false)">☐ Nuimti žymes</button>
+        <button class="btn btn-xs" onclick="catImportToggleNew()">Tik naujas</button>
+        <span style="margin-left:auto">Patvirtindami sukursite SKU su <strong>distCode = MPN</strong>, <strong>kiekis = 0</strong>, ir originalų pavadinimą kaip aliasą</span>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead style="background:var(--surface2);position:sticky;top:0;z-index:1">
+            <tr>
+              <th style="padding:6px 7px;text-align:center;width:30px">✓</th>
+              <th style="padding:6px 7px;text-align:left;width:140px">MPN</th>
+              <th style="padding:6px 7px;text-align:left">Pavadinimas</th>
+              <th style="padding:6px 7px;text-align:left;width:140px">Grupė</th>
+              <th style="padding:6px 7px;text-align:left;width:200px">Atributai</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;align-items:center">
+        <span id="cat-import-count" style="font-size:11px;color:var(--muted);margin-right:auto">${totalNew} pozicijos pasirinktos importavimui</span>
+        <button class="btn" onclick="whCloseModal();_catImportData=null">Atšaukti</button>
+        <button class="btn btn-primary" onclick="catImportSubmit()">📥 Importuoti pasirinktas</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function catImportToggle(idx, checked){
+  if(!_catImportData) return;
+  const e = _catImportData.enriched.find(x=>x.idx===idx);
+  if(e){ e.include = checked; catImportUpdateCount(); }
+}
+function catImportSetSubcat(idx, sub){
+  if(!_catImportData) return;
+  const e = _catImportData.enriched.find(x=>x.idx===idx);
+  if(e) e.subcategory = sub;
+}
+function catImportToggleAll(state){
+  if(!_catImportData) return;
+  _catImportData.enriched.forEach(e => { e.include = state; });
+  // Re-render checkboxes
+  document.querySelectorAll('#wh-modal-bg input[type="checkbox"]').forEach((cb, i) => {
+    if(_catImportData.enriched[i]) cb.checked = state;
+  });
+  catImportUpdateCount();
+}
+function catImportToggleNew(){
+  if(!_catImportData) return;
+  _catImportData.enriched.forEach(e => { e.include = !e.existing; });
+  document.querySelectorAll('#wh-modal-bg tbody tr').forEach((tr, i) => {
+    const cb = tr.querySelector('input[type="checkbox"]');
+    if(cb && _catImportData.enriched[i]) cb.checked = _catImportData.enriched[i].include;
+  });
+  catImportUpdateCount();
+}
+function catImportUpdateCount(){
+  if(!_catImportData) return;
+  const n = _catImportData.enriched.filter(e=>e.include).length;
+  const el = document.getElementById('cat-import-count');
+  if(el) el.textContent = `${n} pozicijos pasirinktos importavimui`;
+}
+
+function catImportSubmit(){
+  if(!_catImportData){ toast('Nėra duomenų','error'); return; }
+  const toImport = _catImportData.enriched.filter(e => e.include);
+  if(!toImport.length){ toast('Niekas nepasirinkta','error'); return; }
+  if(!confirm(`Sukurti ${toImport.length} naujų SKU su kiekiu 0?\n\nTai negrįžtamas veiksmas (galite ištrinti pavienius SKU vėliau).`)) return;
+
+  let created = 0, aliased = 0, skipped = 0;
+  for(const e of toImport){
+    // Skip if duplicate appeared during the import (race) — paranoid check
+    if(DB.warehouse.find(w => w.kind==='fitting' && (w.mpn===e.mpn || w.distCode===e.distCode))){
+      skipped++;
+      continue;
+    }
+    const data = {
+      kind: 'fitting',
+      sku: e.distCode || e.mpn,        // distCode is primary; in this dataset they're the same
+      distCode: e.distCode,
+      mpn: e.mpn,
+      brand: 'Blum',                   // LoMag dataset is all Blum; user can edit individual SKUs
+      subcategory: e.subcategory,
+      material: e.name,                // The Lithuanian name becomes the friendly material name
+      unit: e.subcategory==='Runner' ? 'pora' : 'vnt',
+      pairOf: e.subcategory==='Runner',
+      attributes: e.attributes || {},
+      unitsPerPack: 1,
+      minQty: 0,
+      reorderPoint: 0,
+      maxQty: 0,
+      cost: 0,
+      supplier: 'Blum',
+      notes: e.description ? `Importuota iš LoMag.\n${e.description}` : 'Importuota iš LoMag (kiekis = 0).',
+      location: {zone:'', bin:''},
+      barcode: '',
+      aliases: [e.name],               // Original Lithuanian name as alias for XLSM matching
+    };
+    const item = whCreateItem(data);
+    item.qty = 0;  // explicit
+    // Auto-create alias rule for the Lithuanian name
+    if(e.name) whAddAliasRule(e.name, item.sku, 1, e.subcategory.toLowerCase());
+    created++;
+    aliased++;
+  }
+  save();
+  whCloseModal();
+  _catImportData = null;
+  const msg = `✓ Importuota ${created} SKU (+${aliased} aliasų)${skipped?` · ${skipped} praleista (jau egzistavo)`:''}`;
+  toast(msg, 'success');
+  renderWarehouse();
+}
+
+// ── Audit log helper ─────────────────────────────────────────
+function whLog(entry){
+  if(!DB.warehouseLog) DB.warehouseLog=[];
+  const item = entry.itemId ? DB.warehouse.find(w=>w.id===entry.itemId) : null;
+  DB.warehouseLog.push({
+    id: whUid(),
+    ts: whNow(),
+    user: whUser(),
+    balanceAfter: item ? item.qty : null,
+    ...entry,
+  });
+}
+
+// ══════════════════════════════════════════════
+// INBOUND — receiving against expected ('uzsakyta')
+// ══════════════════════════════════════════════
+// Aggregates all project lines marked 'uzsakyta' as expected receipts.
+function whExpectedReceipts(){
+  const expected = []; // {key, projectId, projectName, projectColor, stockIdx, material, thickness, supplier, m2, eta, ageDays}
+  DB.projects.forEach(p=>{
+    if(p.status==='archived') return;
+    (p.importData?.stocks||[]).forEach((s,i)=>{
+      const ms = getMatStatus(p.id, i);
+      if(ms.status!=='uzsakyta') return;
+      const days = ms.eta ? Math.round((new Date(ms.eta) - Date.now())/86400000) : null;
+      expected.push({
+        key: matStatusKey(p.id, i),
+        projectId: p.id, projectName: p.name, projectColor: p.color,
+        stockIdx: i,
+        material: s.material, thickness: s.thickness, supplier: s.supplier,
+        m2: s.m2, cost: s.cost, eta: ms.eta, ageDays: days,
+      });
+    });
+  });
+  return expected;
+}
+
+// Receive: add to stock + flip project status from 'uzsakyta' to 'sandely'
+function whReceive(items, refNumber, note){
+  // items: [{key, projectId, stockIdx, material, thickness, supplier, qty, unit, location, cost}]
+  if(!items||!items.length) return 0;
+  let received = 0;
+  items.forEach(it=>{
+    if(!it.qty || it.qty<=0) return;
+    let item = whFindByMaterial(it.material, it.thickness);
+    if(!item){
+      item = whCreateItem({
+        material: it.material, thickness: it.thickness,
+        supplier: it.supplier, unit: it.unit||'m²',
+        cost: it.cost||0, location: it.location||'',
+      });
+    }
+    item.qty += parseFloat(it.qty);
+    item.lastReceived = whNow();
+    if(!item.firstReceived) item.firstReceived = whNow();
+    if(it.cost && (!item.cost || it.cost > 0)) item.cost = parseFloat(it.cost); // refresh cost
+    if(it.location) item.location = parseLocation(it.location);
+    whLog({
+      type:'receive', itemId:item.id, sku:item.sku,
+      material:item.material, qty:parseFloat(it.qty), unit:item.unit,
+      projectId: it.projectId, projectName: getProject(it.projectId)?.name||'',
+      reason: WH_REASONS.receive, refNumber: refNumber||'', note: note||'',
+      toLoc: locToStr(item.location),
+    });
+    // Flip project line from uzsakyta → sandely
+    if(it.key){
+      const existing = DB.matStatus[it.key]||{};
+      DB.matStatus[it.key] = {...existing, status:'sandely', receivedAt:whNow()};
+    }
+    received++;
+  });
+  save();
+  return received;
+}
+
+function whCreateItem(data){
+  const kind = data.kind || 'sheet';
+  const item = {
+    id: whUid(),
+    sku: data.sku || whGenSku(data.mpn || data.material, data.thickness, kind),
+    kind,
+    material: data.material || (kind==='fitting' ? (data.name || data.mpn || '?') : '?'),
+    supplier: data.supplier || (data.brand || '—'),
+    unit: data.unit || (kind==='fitting' ? 'vnt' : 'm²'),
+    qty: 0,
+    reservedQty: 0,
+    minQty: parseFloat(data.minQty)||0,
+    maxQty: parseFloat(data.maxQty)||0,
+    reorderPoint: parseFloat(data.reorderPoint)||0,
+    abcClass: data.abcClass || 'C',
+    location: parseLocation(data.location),
+    cost: parseFloat(data.cost)||0,
+    firstReceived: null,
+    lastReceived: null,
+    lastIssued: null,
+    lastCountDate: null,
+    lastCountQty: null,
+    accuracy: null,
+    barcode: data.barcode||'',
+    notes: data.notes||'',
+    archived: false,
+  };
+  if(kind === 'sheet'){
+    item.thickness = parseInt(data.thickness)||18;
+    item.category  = data.category || categorizeFromName(data.material);
+  } else { // fitting
+    item.mpn          = String(data.mpn||'').toUpperCase();
+    item.distCode     = String(data.distCode||'').toUpperCase(); // your distributor's code (Blulita)
+    item.brand        = data.brand || 'Blum';
+    item.subcategory  = data.subcategory || 'Accessory';
+    item.attributes   = data.attributes || {};
+    item.unitsPerPack = parseInt(data.unitsPerPack)||1;
+    item.pairOf       = !!data.pairOf;
+    item.aliases      = Array.isArray(data.aliases) ? data.aliases.filter(Boolean) : []; // XLSM/import names this SKU also matches
+  }
+  // Ensure unique SKU (append -2, -3, etc. if collision)
+  let n=1;
+  const baseSku = item.sku;
+  while(DB.warehouse.some(w=>w.sku===item.sku)) item.sku = `${baseSku}-${++n}`;
+  DB.warehouse.push(item);
+  return item;
+}
+
+function categorizeFromName(name){
+  const n=String(name||'').toLowerCase();
+  if(n.includes('mdf')||n.includes('plaušas')) return 'MDF';
+  if(n.includes('briauna')||/\bedge\b/.test(n)) return 'Briauna';
+  if(n.includes('hpl')||n.includes('laminat')) return 'HPL';
+  if(n.includes('faner')) return 'Fanera';
+  if(n.includes('plywood')||n.includes('osb')) return 'Plokštė';
+  if(n.includes('akril')||n.includes('akmuo')) return 'Akmuo';
+  return 'LMDP';
+}
+
+function parseLocation(s){
+  if(!s) return {zone:'',bin:''};
+  if(typeof s==='object') return {zone:s.zone||'',bin:s.bin||''};
+  // Accept "A-12" or "A · 12" or "A 12" or just "A12"
+  const m = String(s).match(/^([A-Za-z]+)[\s·\-_]*(.*)$/);
+  if(m) return {zone:m[1].toUpperCase(), bin:m[2].trim()};
+  return {zone:'', bin:String(s)};
+}
+function locToStr(loc){
+  if(!loc) return '';
+  if(typeof loc==='string') return loc;
+  if(!loc.zone && !loc.bin) return '';
+  return loc.zone + (loc.bin?'·'+loc.bin:'');
+}
+
+// ══════════════════════════════════════════════
+// KITS / PICK LISTS — work order driven
+// ══════════════════════════════════════════════
+// A kit = the BOM filtered for one project, materialized as a pick list with state.
+
+function kitFindForProject(pid){return DB.kits.find(k=>k.projectId===pid && k.status!=='cancelled' && k.status!=='issued');}
+function kitGet(id){return DB.kits.find(k=>k.id===id);}
+
+function kitCreate(pid){
+  const p = getProject(pid); if(!p) return null;
+  const stocks = p.importData?.stocks||[];
+  const drawers = p.importData?.drawers||[];
+  if(!stocks.length && !drawers.length){ toast('Šiame projekte nėra medžiagų ar furnitūros sąrašo','error'); return null; }
+  const existing = kitFindForProject(pid);
+  if(existing){ toast('Šiam projektui jau yra atviras komplektas','error'); return existing; }
+
+  // Sheet items (panels, edgebands)
+  const sheetItems = stocks.map((s,i)=>{
+    const stockItem = whFindByMaterial(s.material, s.thickness);
+    return {
+      kitItemId: whUid(),
+      kind:'sheet',
+      stockIdx: i,
+      sku: stockItem?.sku || whGenSku(s.material, s.thickness, 'sheet'),
+      material: s.material,
+      thickness: s.thickness,
+      need: s.m2 || 0,
+      reserved: 0, picked: 0, issued: 0,
+      location: stockItem ? locToStr(stockItem.location) : '',
+      sub: null,
+    };
+  });
+
+  // Fitting items — resolved from the raw HARDWARE_LIST via the alias system.
+  // Falls back to the legacy drawer-attribute matching for older imports without `hardware[]`.
+  const fittingItems = [];
+  const hardware = p.importData?.hardware || [];
+
+  if(hardware.length){
+    // Modern path: every line in HARDWARE_LIST gets a kit row.
+    // Resolved lines map to a real SKU. Unresolved lines stay in the kit as
+    // "needs mapping" so the user sees them and can link them with one click.
+    hardware.forEach((hw, idx)=>{
+      // Hint type-guess from the name so the attribute heuristic can kick in if no rule exists yet.
+      let typeHint = 'other';
+      const lower = hw.name.toLowerCase();
+      if(lower.includes('runner')) typeHint = 'runner';
+      else if(lower.includes('hinge') || lower.includes('vyris')) typeHint = 'hinge';
+      else if(lower.includes('side')) typeHint = 'side';
+      else if(lower.includes('screw') || lower.includes('varžt')) typeHint = 'screw';
+      else if(lower.includes('connector') || lower.includes('conn.')) typeHint = 'connector';
+
+      const resolved = whResolveHardwareLine(hw.name, {type:typeHint});
+      const adjustedQty = hw.qty * (resolved?.qtyMultiplier || 1);
+
+      fittingItems.push({
+        kitItemId: whUid(),
+        kind:'fitting',
+        // Source data — preserved verbatim so the user can always see what came from XLSM
+        sourceName: hw.name,
+        sourceQty: hw.qty,
+        partType: resolved?.partType || typeHint,
+        // Resolved SKU (or null if unmapped — needs user action)
+        sku: resolved?.sku || '',
+        mpn: resolved?.item?.mpn || '',
+        distCode: resolved?.item?.distCode || '',
+        material: resolved?.item?.material || hw.name,  // show the SKU's friendly name when known, else XLSM name
+        need: adjustedQty,
+        reserved: 0, picked: 0, issued: 0,
+        location: resolved?.item ? locToStr(resolved.item.location) : '',
+        sub: null,
+        autoSku: !resolved,
+        resolveSource: resolved?.source || null,
+        resolveConfidence: resolved?.confidence || 0,
+      });
+    });
+  } else {
+    // Legacy path: old imports that only have `drawers[]` (no raw hardware list).
+    // Expand each drawer into runner + sides via attribute matching.
+    drawers.forEach(dr=>{
+      const depth = dr.depth || 500;
+      const runner = DB.warehouse.find(w=>
+        w.kind==='fitting' && w.subcategory==='Runner' &&
+        (w.attributes?.depth === depth)
+      );
+      fittingItems.push({
+        kitItemId: whUid(),
+        kind:'fitting',
+        sourceName: `Runner ${depth}mm (${dr.qty} stalč.)`,
+        sourceQty: dr.qty,
+        partType: 'runner',
+        sku: runner?.sku || '',
+        mpn: runner?.mpn || '',
+        distCode: runner?.distCode || '',
+        material: runner?.material || `TANDEM runner ${depth}mm (pora)`,
+        need: dr.qty,
+        reserved:0, picked:0, issued:0,
+        location: runner ? locToStr(runner.location) : '',
+        sub: null,
+        autoSku: !runner,
+        resolveSource: runner ? 'attribute' : null,
+        resolveConfidence: runner ? 0.6 : 0,
+      });
+    });
+  }
+
+  const kit = {
+    id: whUid(),
+    projectId: pid,
+    projectName: p.name,
+    status: 'draft',
+    items: [...sheetItems, ...fittingItems],
+    createdBy: whUser(),
+    createdAt: whNow(),
+    releasedAt: null,
+    stagedAt: null,
+    issuedAt: null,
+    stagingArea: '',
+    accuracy: null,
+    notes: '',
+  };
+  if(!DB.kits) DB.kits=[];
+  DB.kits.push(kit);
+  save();
+  return kit;
+}
+
+// Pre-flight check — what's available, what's short, what to substitute
+function kitAvailability(kit){
+  return kit.items.map(it=>{
+    let item = null;
+    if(it.kind==='fitting'){
+      // Unmapped lines have empty sku — attempt a fresh resolve in case the user added a SKU/alias since kit creation.
+      if(it.sku) item = whFindBySku(it.sku);
+      if(!item && it.mpn) item = whFindByMpn(it.mpn);
+      if(!item && it.distCode) item = whFindByDistCode(it.distCode);
+      if(!item && it.sourceName){
+        const fresh = whResolveHardwareLine(it.sourceName, {type:it.partType});
+        if(fresh){ item = fresh.item; /* don't mutate the kit here — render only */ }
+      }
+    } else {
+      item = whFindBySku(it.sku) || whFindByMaterial(it.material, it.thickness);
+    }
+    const onHand = item?.qty||0;
+    const reservedElsewhere = (item?.reservedQty||0) - it.reserved;
+    const truly = Math.max(0, onHand - reservedElsewhere);
+    return {
+      ...it,
+      onHand, reservedElsewhere, available: truly,
+      shortBy: it.sku ? Math.max(0, it.need - truly) : 0,  // unmapped lines aren't "short" — they're unmapped
+      ok: !!item && truly >= it.need,
+      itemId: item?.id||null,
+      // Make resolved SKU/material visible for unmapped lines that resolve fresh
+      resolvedSku: item?.sku || null,
+      resolvedMaterial: item?.material || null,
+    };
+  });
+}
+
+// Try to resolve all unmapped fitting lines in a kit using the current alias rules.
+// Mutates the kit. Returns the count of newly resolved lines.
+function kitResolveAll(kitId){
+  const kit = kitGet(kitId); if(!kit) return 0;
+  let resolved = 0;
+  kit.items.forEach(it=>{
+    if(it.kind!=='fitting' || it.sku) return;
+    const r = whResolveHardwareLine(it.sourceName, {type:it.partType});
+    if(r){
+      it.sku = r.sku;
+      it.mpn = r.item.mpn || '';
+      it.distCode = r.item.distCode || '';
+      it.material = r.item.material || it.sourceName;
+      it.location = locToStr(r.item.location);
+      it.need = it.sourceQty * (r.qtyMultiplier||1);
+      it.autoSku = false;
+      it.resolveSource = r.source;
+      it.resolveConfidence = r.confidence;
+      resolved++;
+    }
+  });
+  if(resolved>0) save();
+  return resolved;
+}
+
+// Manually link an unmapped kit line to a SKU. Optionally creates a workshop-wide alias rule.
+function kitLinkItem(kitId, kitItemId, sku, qtyMultiplier, createRule){
+  const kit = kitGet(kitId); if(!kit) return;
+  const it = kit.items.find(x=>x.kitItemId===kitItemId); if(!it) return;
+  const item = whFindBySku(sku); if(!item){ toast('SKU nerastas','error'); return; }
+  it.sku = item.sku;
+  it.mpn = item.mpn || '';
+  it.distCode = item.distCode || '';
+  it.material = item.material;
+  it.location = locToStr(item.location);
+  const mult = parseFloat(qtyMultiplier) || 1;
+  it.need = it.sourceQty * mult;
+  it.autoSku = false;
+  it.resolveSource = 'rule';
+  it.resolveConfidence = 1.0;
+  if(createRule && it.sourceName){
+    whAddAliasRule(it.sourceName, sku, mult, it.partType);
+    // Also re-resolve OTHER unmapped lines in this kit that match the new rule
+    kit.items.forEach(other=>{
+      if(other===it || other.kind!=='fitting' || other.sku) return;
+      if(whAliasNorm(other.sourceName) === whAliasNorm(it.sourceName)){
+        other.sku = item.sku; other.mpn = item.mpn||''; other.distCode = item.distCode||'';
+        other.material = item.material; other.location = locToStr(item.location);
+        other.need = other.sourceQty * mult;
+        other.autoSku = false; other.resolveSource = 'rule'; other.resolveConfidence = 1.0;
+      }
+    });
+  }
+  save();
+  renderWarehouse();
+  toast(`✓ Susieta su ${item.sku}`,'success');
+}
+
+// Reserve — soft-allocate stock to this kit (prevents another kit from grabbing it)
+function kitReserve(kitId){
+  const kit = kitGet(kitId); if(!kit) return;
+  if(kit.status!=='draft' && kit.status!=='reserved'){ toast('Komplektas jau perduotas','error'); return; }
+  const avail = kitAvailability(kit);
+  let allOk=true, reservedCount=0;
+  avail.forEach(a=>{
+    if(!a.itemId){ allOk=false; return; }
+    const item = DB.warehouse.find(w=>w.id===a.itemId);
+    const already = a.reserved||0;
+    const wantMore = Math.min(a.need - already, a.available);
+    if(wantMore<=0) return;
+    item.reservedQty = (item.reservedQty||0) + wantMore;
+    const itm = kit.items.find(x=>x.kitItemId===a.kitItemId);
+    if(itm) itm.reserved = (itm.reserved||0) + wantMore;
+    if(itm.reserved < itm.need) allOk=false;
+    reservedCount++;
+    whLog({type:'reserve', itemId:item.id, sku:item.sku, material:item.material,
+      qty:wantMore, unit:item.unit, kitId:kit.id, projectId:kit.projectId, projectName:kit.projectName,
+      note:`Rezervuota komplektui`});
+  });
+  kit.status = 'reserved';
+  kit.releasedAt = whNow();
+  save();
+  toast(`✓ Rezervuota ${reservedCount} pozicijų${allOk?'':' (kai kurių trūksta)'}`, allOk?'success':'');
+  renderWarehouse();
+}
+
+// Pick — physically retrieved by worker; decrements actual qty AND reservation
+function kitPickItem(kitId, kitItemId, qty){
+  const kit = kitGet(kitId); if(!kit) return;
+  const it = kit.items.find(x=>x.kitItemId===kitItemId); if(!it) return;
+  let item;
+  if(it.kind==='fitting'){
+    item = whFindBySku(it.sku) || (it.mpn ? whFindByMpn(it.mpn) : null);
+  } else {
+    item = whFindBySku(it.sku) || whFindByMaterial(it.material, it.thickness);
+  }
+  if(!item){ toast('SKU nerastas sandėly — pridėkite atsargą','error'); return; }
+  const remaining = it.need - it.picked;
+  const want = Math.min(parseFloat(qty)||remaining, remaining, item.qty);
+  if(want<=0){ toast('Nieko surinkti','error'); return; }
+  item.qty = Math.max(0, item.qty - want);
+  item.reservedQty = Math.max(0, (item.reservedQty||0) - want);
+  item.lastIssued = whNow();
+  it.picked = (it.picked||0) + want;
+  it.reserved = Math.max(0, (it.reserved||0) - want);
+  whLog({type:'pick', itemId:item.id, sku:item.sku, material:item.material,
+    qty:want, unit:item.unit, kitId:kit.id, projectId:kit.projectId, projectName:kit.projectName,
+    fromLoc: locToStr(item.location),
+    note:`Surinkta komplektui`});
+  if(kit.status==='reserved' || kit.status==='draft') kit.status='picking';
+  if(kit.items.every(x=>x.picked>=x.need)) kit.status='staged', kit.stagedAt=whNow();
+  save();
+  renderWarehouse();
+  toast(`✓ Surinkta ${whFmt(want)} ${item.unit}`,'success');
+}
+
+// Issue — physically transfer the picked kit to workshop floor
+function kitIssue(kitId){
+  const kit = kitGet(kitId); if(!kit) return;
+  if(kit.status==='issued'){ toast('Jau išduota','error'); return; }
+  const totalPicked = kit.items.reduce((s,x)=>s+x.picked,0);
+  if(totalPicked<=0){ toast('Nieko nesurinkta','error'); return; }
+  const totalNeed = kit.items.reduce((s,x)=>s+x.need,0);
+  const accuracy = totalNeed>0 ? totalPicked/totalNeed*100 : 100;
+  if(accuracy<100){
+    if(!confirm(`Komplektas paruoštas tik ${whFmt(accuracy,0)}%. Vis tiek išduoti cechui?`)) return;
+  }
+  kit.items.forEach(it=>{
+    if(it.picked<=0) return;
+    it.issued = (it.issued||0) + it.picked;
+    let item;
+    if(it.kind==='fitting'){
+      item = whFindBySku(it.sku) || (it.mpn ? whFindByMpn(it.mpn) : null);
+    } else {
+      item = whFindBySku(it.sku) || whFindByMaterial(it.material, it.thickness);
+    }
+    whLog({type:'issue', itemId:item?.id, sku:it.sku, material:it.material,
+      qty:it.picked, unit:item?.unit||(it.kind==='fitting'?'vnt':'m²'), kitId:kit.id,
+      projectId:kit.projectId, projectName:kit.projectName,
+      note:`Išduota cechui (komplektas)`});
+    // Sheet items also flip the project's matStatus to 'cech'.
+    // Fittings don't have matStatus; their issuance is fully tracked by kit + log.
+    if(it.kind!=='fitting' && it.stockIdx!=null){
+      const key = matStatusKey(kit.projectId, it.stockIdx);
+      const existing = DB.matStatus[key]||{};
+      DB.matStatus[key] = {...existing, status:'cech', issuedAt:whNow(), issuedQty:it.picked};
+    }
+  });
+  kit.status = 'issued';
+  kit.issuedAt = whNow();
+  kit.accuracy = accuracy;
+  save();
+  renderWarehouse();
+  toast(`✓ Komplektas išduotas (${whFmt(accuracy,0)}% pilnumas)`,'success');
+}
+
+function kitReturn(kitId, kitItemId, qty, reason){
+  const kit = kitGet(kitId); if(!kit) return;
+  const it = kit.items.find(x=>x.kitItemId===kitItemId); if(!it) return;
+  let item;
+  if(it.kind==='fitting'){
+    item = whFindBySku(it.sku) || (it.mpn ? whFindByMpn(it.mpn) : null);
+  } else {
+    item = whFindBySku(it.sku) || whFindByMaterial(it.material, it.thickness);
+  }
+  if(!item){ toast('SKU nerastas','error'); return; }
+  const want = Math.min(parseFloat(qty)||0, it.issued||it.picked||0);
+  if(want<=0) return;
+  item.qty += want;
+  it.issued = Math.max(0, (it.issued||0) - want);
+  it.picked = Math.max(0, (it.picked||0) - want);
+  whLog({type:'return', itemId:item.id, sku:item.sku, material:item.material,
+    qty:want, unit:item.unit, kitId:kit.id, projectId:kit.projectId, projectName:kit.projectName,
+    reason: reason || WH_REASONS.return, toLoc:locToStr(item.location)});
+  // Sheet items: restore project status if everything returned
+  if(it.kind!=='fitting' && it.stockIdx!=null && (it.issued||0)<=0 && (it.picked||0)<=0){
+    const key = matStatusKey(kit.projectId, it.stockIdx);
+    const existing = DB.matStatus[key]||{};
+    DB.matStatus[key] = {...existing, status:'sandely'};
+  }
+  save();
+  renderWarehouse();
+  toast(`✓ Grąžinta ${whFmt(want)} ${item.unit}`,'success');
+}
+
+function kitCancel(kitId){
+  const kit = kitGet(kitId); if(!kit) return;
+  if(kit.status==='issued'){ toast('Negalima atšaukti — jau išduota','error'); return; }
+  if(!confirm(`Atšaukti komplektą "${kit.projectName}"? Rezervacijos bus atlaisvintos.`)) return;
+  kit.items.forEach(it=>{
+    let item;
+    if(it.kind==='fitting'){
+      item = whFindBySku(it.sku) || (it.mpn ? whFindByMpn(it.mpn) : null);
+    } else {
+      item = whFindBySku(it.sku) || whFindByMaterial(it.material, it.thickness);
+    }
+    if(it.reserved>0){
+      if(item){
+        item.reservedQty = Math.max(0, (item.reservedQty||0) - it.reserved);
+        whLog({type:'unreserve', itemId:item.id, sku:item.sku, material:item.material,
+          qty:it.reserved, unit:item.unit, kitId:kit.id, projectId:kit.projectId, projectName:kit.projectName,
+          note:'Komplektas atšauktas'});
+      }
+    }
+    it.reserved=0;
+    if(it.picked > it.issued){
+      const back = it.picked - it.issued;
+      if(item){
+        item.qty += back;
+        whLog({type:'return', itemId:item.id, sku:item.sku, material:item.material,
+          qty:back, unit:item.unit, kitId:kit.id, projectId:kit.projectId, projectName:kit.projectName,
+          note:'Grąžinta — komplektas atšauktas'});
+      }
+      it.picked = it.issued;
+    }
+  });
+  kit.status='cancelled';
+  save();
+  renderWarehouse();
+  toast('Komplektas atšauktas');
+}
+
+// ══════════════════════════════════════════════
+// CYCLE COUNTING (perpetual inventory discipline)
+// ══════════════════════════════════════════════
+function cycleCount(itemId, countedQty, note){
+  const item = DB.warehouse.find(w=>w.id===itemId); if(!item) return;
+  const expected = item.qty;
+  const counted = parseFloat(countedQty);
+  const variance = counted - expected;
+  const accuracy = expected>0 ? Math.max(0, 100 - Math.abs(variance)/expected*100) : 100;
+  item.qty = Math.max(0, counted);
+  item.lastCountDate = whNow();
+  item.lastCountQty = counted;
+  item.accuracy = accuracy;
+  if(!DB.cycleCounts) DB.cycleCounts=[];
+  DB.cycleCounts.push({
+    id:whUid(), ts:whNow(), itemId,
+    expectedQty:expected, countedQty:counted, variance,
+    user:whUser(), note:note||'',
+  });
+  whLog({type:'count', itemId:item.id, sku:item.sku, material:item.material,
+    qty:variance, unit:item.unit, reason:WH_REASONS.miscount, note:note||''});
+  save();
+  return {variance, accuracy};
+}
+
+// Pick the next item that is most overdue for counting (ABC-weighted)
+function nextCountSuggestion(){
+  const intervals = {A:30, B:90, C:180}; // days between counts by ABC class
+  const now = Date.now();
+  return [...DB.warehouse]
+    .filter(w=>!w.archived)
+    .map(w=>{
+      const interval = intervals[w.abcClass||'C'] * 86400000;
+      const last = w.lastCountDate ? new Date(w.lastCountDate).getTime() : 0;
+      const overdue = (now - last) - interval;
+      return {item:w, overdue};
+    })
+    .sort((a,b)=>b.overdue-a.overdue)
+    .filter(x=>x.overdue>0)
+    .slice(0,10);
+}
+
+// ── ABC classification — auto by value contribution, computed per kind ──
+function recomputeABC(){
+  const items = DB.warehouse.filter(w=>!w.archived);
+  ['sheet','fitting'].forEach(kind=>{
+    const kindItems = items.filter(w=>(w.kind||'sheet')===kind);
+    const sorted = [...kindItems].sort((a,b)=>whValue(b)-whValue(a));
+    const totalValue = sorted.reduce((s,w)=>s+whValue(w),0);
+    let cum=0;
+    sorted.forEach(w=>{
+      cum += whValue(w);
+      const pct = totalValue>0 ? cum/totalValue*100 : 0;
+      w.abcClass = pct<=70 ? 'A' : (pct<=90 ? 'B' : 'C');
+    });
+  });
+  save();
+  toast('✓ ABC klasifikacija atnaujinta','success');
+  renderWarehouse();
+}
+
+// ══════════════════════════════════════════════
+// MANUAL ADJUSTMENTS
+// ══════════════════════════════════════════════
+function whAdjust(itemId, deltaQty, reason, note){
+  const item = DB.warehouse.find(w=>w.id===itemId); if(!item) return;
+  const delta = parseFloat(deltaQty);
+  item.qty = Math.max(0, item.qty + delta);
+  whLog({type:'adjust', itemId:item.id, sku:item.sku, material:item.material,
+    qty:delta, unit:item.unit, reason:reason||WH_REASONS.correction, note:note||''});
+  save();
+}
+
+function whArchive(itemId){
+  const item = DB.warehouse.find(w=>w.id===itemId); if(!item) return;
+  if(item.qty>0 && !confirm(`Archyvuoti "${item.material}"? Likutis: ${whFmt(item.qty)} ${item.unit}`)) return;
+  item.archived = true;
+  save();
+  renderWarehouse();
+  toast('Įrašas archyvuotas');
+}
+
+// ══════════════════════════════════════════════
+// SYNC FROM PROJECT MATERIALS (one-time bootstrap)
+// ══════════════════════════════════════════════
+function syncWarehouseFromMaterials(){
+  if(!isManager()&&!isEngineer()) return;
+  let added=0, found=0;
+  DB.projects.forEach(p=>{
+    if(p.status==='archived') return;
+    (p.importData?.stocks||[]).forEach((s,i)=>{
+      const ms = getMatStatus(p.id, i);
+      if(ms.status!=='sandely') return;
+      const existing = whFindByMaterial(s.material, s.thickness);
+      if(existing){ found++; return; }
+      const item = whCreateItem({
+        material: s.material, thickness: s.thickness,
+        supplier: s.supplier, unit:'m²',
+        cost: s.cost && s.m2 ? s.cost/s.m2 : 0,
+      });
+      item.qty = s.m2||0;
+      item.firstReceived = whNow();
+      item.lastReceived = whNow();
+      whLog({type:'receive', itemId:item.id, sku:item.sku, material:item.material,
+        qty:s.m2||0, unit:'m²', projectId:p.id, projectName:p.name,
+        reason:'Pirminis importas iš projekto medžiagų sąrašo'});
+      added++;
+    });
+  });
+  recomputeABC();
+  toast(`✓ Sinchronizuota: +${added} naujų SKU, ${found} jau buvo`,'success');
+  renderWarehouse();
+}
+
+// ══════════════════════════════════════════════
+// KPIs / DASHBOARD
+// ══════════════════════════════════════════════
+function whKPIs(){
+  const items = DB.warehouse.filter(w=>!w.archived);
+  const sheets = items.filter(w=>w.kind!=='fitting');
+  const fittings = items.filter(w=>w.kind==='fitting');
+  const totalSkus = items.length;
+  const sheetSkus = sheets.length;
+  const fittingSkus = fittings.length;
+  const totalValue = items.reduce((s,w)=>s+whValue(w),0);
+  const totalQty = sheets.reduce((s,w)=>s+(w.unit==='m²'?w.qty:0),0);
+  const fittingPieces = fittings.reduce((s,w)=>s+(w.qty||0),0);
+  const reserved = items.reduce((s,w)=>s+(w.reservedQty||0),0);
+  const stockoutCount = items.filter(w=>w.qty<=0).length;
+  const lowCount = items.filter(w=>w.reorderPoint>0 && w.qty<=w.reorderPoint && w.qty>0).length;
+  const overstockCount = items.filter(w=>w.maxQty>0 && w.qty>w.maxQty).length;
+
+  const recentCounts = (DB.cycleCounts||[]).slice(-50);
+  const avgAccuracy = recentCounts.length
+    ? recentCounts.reduce((s,c)=>{
+        const acc = c.expectedQty>0 ? Math.max(0,100-Math.abs(c.variance)/c.expectedQty*100) : 100;
+        return s+acc;
+      },0)/recentCounts.length
+    : null;
+
+  const ninetyDaysAgo = Date.now() - 90*86400000;
+  const issuedQty = (DB.warehouseLog||[]).filter(l=>l.type==='issue' && new Date(l.ts).getTime()>ninetyDaysAgo)
+    .reduce((s,l)=>s+(l.qty||0),0);
+  const turnover = totalQty>0 ? (issuedQty / totalQty * 4) : 0;
+
+  const overdueCount = nextCountSuggestion().length;
+
+  const expected = whExpectedReceipts();
+  const expectedSum = expected.reduce((s,e)=>s+(e.m2||0),0);
+
+  const openKits = (DB.kits||[]).filter(k=>['draft','reserved','picking','staged'].includes(k.status));
+  const shortKits = openKits.filter(k=>{
+    const av = kitAvailability(k);
+    return av.some(a=>a.shortBy>0);
+  }).length;
+
+  // Fitting-specific: how many open kits have unmapped fitting lines (autoSku flag)?
+  const unmappedFittingKits = openKits.filter(k=>k.items.some(it=>it.kind==='fitting'&&it.autoSku)).length;
+
+  return {totalSkus, sheetSkus, fittingSkus, totalValue, totalQty, fittingPieces, reserved,
+    stockoutCount, lowCount, overstockCount,
+    avgAccuracy, turnover, overdueCount, expectedCount:expected.length, expectedSum,
+    openKitsCount:openKits.length, shortKitsCount:shortKits, unmappedFittingKits};
+}
+
+// ══════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════
+function renderWarehouse(){
+  const el = document.getElementById('warehouse-content');
+  if(!el) return;
+  // Auto-recompute ABC if stale (only on significant value changes)
+  // - cheap operation, don't gate it
+  const tabs = `<div class="wh-tabs">
+    <button class="wh-tab ${_whTab==='dashboard'?'active':''}" onclick="_whTab='dashboard';renderWarehouse()">📊 Apžvalga</button>
+    <button class="wh-tab ${_whTab==='inbound'?'active':''}" onclick="_whTab='inbound';renderWarehouse()">📥 Priėmimas</button>
+    <button class="wh-tab ${_whTab==='stock'?'active':''}" onclick="_whTab='stock';renderWarehouse()">🏭 Atsargos</button>
+    <button class="wh-tab ${_whTab==='kits'?'active':''}" onclick="_whTab='kits';renderWarehouse()">📦 Komplektai → cechas</button>
+    <button class="wh-tab ${_whTab==='counts'?'active':''}" onclick="_whTab='counts';renderWarehouse()">📋 Inventorizacija</button>
+    <button class="wh-tab ${_whTab==='log'?'active':''}" onclick="_whTab='log';renderWarehouse()">📜 Žurnalas</button>
+  </div>`;
+  let body='';
+  if(_whTab==='dashboard') body = renderWhDashboard();
+  else if(_whTab==='inbound') body = renderWhInbound();
+  else if(_whTab==='stock') body = renderWhStock();
+  else if(_whTab==='kits') body = renderWhKits();
+  else if(_whTab==='counts') body = renderWhCounts();
+  else body = renderWhLog();
+  el.innerHTML = tabs + body;
+}
+
+// ── Dashboard ─────────────────────────────────────────
+function renderWhDashboard(){
+  const k = whKPIs();
+  const mgr = isManager();
+  const cards = [
+    ['Pozicijos (SKU)', k.totalSkus, 'var(--blue)', `🪵 ${k.sheetSkus} · 🔩 ${k.fittingSkus}`],
+    ['Sandėlio vertė', mgr ? '€'+whFmt(k.totalValue,0) : '—', 'var(--green-t)', mgr?`${whFmt(k.totalQty,0)} m² · ${whFmt(k.fittingPieces,0)} vnt.`:''],
+    ['Rezervuota', whFmt(k.reserved,1), 'var(--purple-t)', `${k.openKitsCount} atviri komplektai`],
+    ['🔴 Tuščios pozicijos', k.stockoutCount, k.stockoutCount?'var(--red-t)':'var(--green-t)', 'reikia užsakyti'],
+    ['🟠 Žemiau ROP', k.lowCount, k.lowCount?'var(--amber-t)':'var(--green-t)', 'reikia papildyti'],
+    ['📥 Laukiami pristatymai', k.expectedCount, 'var(--blue-t)', whFmt(k.expectedSum,0)+' m²'],
+    ['📋 Inventorizacija', k.overdueCount, k.overdueCount?'var(--amber-t)':'var(--green-t)', 'pasenusių pozicijų'],
+    ['🎯 Tikslumas (90d)', k.avgAccuracy!=null ? whFmt(k.avgAccuracy,0)+'%' : '—', 'var(--purple-t)', 'pagal skaičiavimus'],
+  ];
+  const cardsHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+    ${cards.map(([lbl,val,col,sub])=>`
+      <div class="summary-card">
+        <div class="summary-label">${lbl}</div>
+        <div class="summary-value" style="color:${col}">${val}</div>
+        ${sub?`<div style="font-size:10px;color:var(--hint);margin-top:2px">${sub}</div>`:''}
+      </div>
+    `).join('')}
+  </div>`;
+
+  // Alerts panel
+  const alerts = [];
+  if(k.stockoutCount>0) alerts.push({lvl:'red', icon:'🔴', txt:`${k.stockoutCount} pozicijos su nuline atsarga — reikia užsakyti`, action:`onclick="_whTab='stock';_whFilter.lowOnly=true;renderWarehouse()"`, btn:'Peržiūrėti'});
+  if(k.lowCount>0) alerts.push({lvl:'amber', icon:'🟠', txt:`${k.lowCount} pozicijos žemiau užsakymo taško`, action:`onclick="_whTab='stock';_whFilter.lowOnly=true;renderWarehouse()"`, btn:'Sąrašas'});
+  if(k.expectedCount>0) alerts.push({lvl:'blue', icon:'📥', txt:`${k.expectedCount} pristatymai laukiami iš tiekėjų`, action:`onclick="_whTab='inbound';renderWarehouse()"`, btn:'Priėmimas'});
+  if(k.shortKitsCount>0) alerts.push({lvl:'red', icon:'⚠', txt:`${k.shortKitsCount} komplektai negalimi (trūksta medžiagų)`, action:`onclick="_whTab='kits';renderWarehouse()"`, btn:'Komplektai'});
+  if(k.unmappedFittingKits>0) alerts.push({lvl:'amber', icon:'🔩', txt:`${k.unmappedFittingKits} komplektuose furnitūra be SKU — pridėkite Blum bėgelius / vyrius į sandėlį`, action:`onclick="_whStockSubtab='fittings';_whTab='stock';renderWarehouse()"`, btn:'Furnitūra'});
+  if(k.overdueCount>0) alerts.push({lvl:'amber', icon:'📋', txt:`${k.overdueCount} pozicijos pasenusios — laikas inventorizacijai`, action:`onclick="_whTab='counts';renderWarehouse()"`, btn:'Skaičiuoti'});
+  const colorMap={red:'var(--red-t)',amber:'var(--amber-t)',blue:'var(--blue-t)',green:'var(--green-t)'};
+  const bgMap={red:'var(--red-bg)',amber:'var(--amber-bg)',blue:'var(--blue-bg)',green:'var(--green-bg)'};
+
+  const alertsHtml = alerts.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);margin-bottom:14px">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600">⚠ Įspėjimai ir veiksmai</div>
+    ${alerts.map(a=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);background:${bgMap[a.lvl]}">
+      <span style="font-size:16px">${a.icon}</span>
+      <div style="flex:1;font-size:12px;color:${colorMap[a.lvl]}">${a.txt}</div>
+      <button class="btn btn-sm" ${a.action}>${a.btn} →</button>
+    </div>`).join('')}
+  </div>` : `<div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:var(--rl);padding:14px;margin-bottom:14px;font-size:12px;color:var(--green-t)">✓ Visos atsargos tvarkingai. Aktyvių įspėjimų nėra.</div>`;
+
+  // ABC distribution chart
+  const items = DB.warehouse.filter(w=>!w.archived);
+  const abcCounts = {A:0,B:0,C:0};
+  items.forEach(w=>{abcCounts[w.abcClass||'C']++;});
+  const abcValues = {A:0,B:0,C:0};
+  items.forEach(w=>{abcValues[w.abcClass||'C']+=whValue(w);});
+  const totalV = abcValues.A+abcValues.B+abcValues.C;
+  const abcRow = (cls,col)=>{
+    const cnt=abcCounts[cls], val=abcValues[cls];
+    const pctC = items.length?cnt/items.length*100:0;
+    const pctV = totalV>0?val/totalV*100:0;
+    return `<div style="display:grid;grid-template-columns:30px 60px 1fr 80px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-weight:700;color:${col};font-size:13px">${cls}</span>
+      <span style="font-size:11px;color:var(--muted)">${cnt} SKU</span>
+      <div style="background:var(--surface3);border-radius:5px;height:10px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${pctV}%;background:${col}"></div>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;text-align:right">${mgr?'€'+whFmt(val,0):whFmt(pctV,0)+'%'}</span>
+    </div>`;
+  };
+  const abcCard = items.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);padding:14px;flex:1">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:600">ABC klasifikacija (pagal ${mgr?'vertę':'kiekį'})</div>
+      ${(isManager()||isEngineer())?`<button class="btn btn-xs" onclick="recomputeABC()" title="Perskaičiuoti pagal dabartinę vertę">↻ Perskaičiuoti</button>`:''}
+    </div>
+    ${abcRow('A','#dc2626')}
+    ${abcRow('B','#d97706')}
+    ${abcRow('C','#16a34a')}
+    <div style="font-size:10px;color:var(--hint);margin-top:8px;line-height:1.5">A — 70% vertės, B — 90%, C — likę. A klasės pozicijos skaičiuojamos kas 30d, B kas 90d, C kas 180d.</div>
+  </div>` : '';
+
+  // Recent activity (last 8 from log)
+  const recent = (DB.warehouseLog||[]).slice(-8).reverse();
+  const recentCard = recent.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);padding:14px;flex:1">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Paskutinis judėjimas</div>
+    ${recent.map(l=>{
+      const dt = new Date(l.ts).toLocaleTimeString('lt-LT',{hour:'2-digit',minute:'2-digit'});
+      const dd = new Date(l.ts).toLocaleDateString('lt-LT',{month:'2-digit',day:'2-digit'});
+      const t = whLogTypeLabel(l.type);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11px;border-bottom:1px solid var(--border)">
+        <span style="color:var(--hint);font-size:10px;min-width:62px">${dd} ${dt}</span>
+        <span style="min-width:80px">${t}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.material||l.sku||'')}</span>
+        <span style="font-family:var(--mono);font-weight:600;color:${(l.qty||0)>=0?'var(--green-t)':'var(--red-t)'}">${(l.qty||0)>=0?'+':''}${whFmt(l.qty,1)}</span>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
+  return cardsHtml + alertsHtml + `<div style="display:flex;gap:14px;flex-wrap:wrap">${abcCard}${recentCard}</div>`;
+}
+
+function whLogTypeLabel(type){
+  const map = {
+    receive:  '<span class="wh-mov-in">📥 Priėmimas</span>',
+    putaway:  '<span class="wh-mov-in">📦 Padėta</span>',
+    reserve:  '<span style="color:var(--purple-t);font-weight:600">🔒 Rezerv.</span>',
+    unreserve:'<span style="color:var(--muted)">🔓 Atlaisv.</span>',
+    pick:     '<span class="wh-mov-out">✋ Surinkta</span>',
+    issue:    '<span class="wh-mov-out">→ Cechas</span>',
+    return:   '<span class="wh-mov-in">↩ Grąžinta</span>',
+    adjust:   '<span class="wh-mov-adj">⚖ Koreg.</span>',
+    count:    '<span class="wh-mov-adj">📋 Skaič.</span>',
+  };
+  return map[type] || type;
+}
+
+// ── Inbound / Receiving ──────────────────────────────
+function renderWhInbound(){
+  if(!isManager()&&!isEngineer()){
+    return `<div class="empty-state">Tik vadybininkai ir inžinieriai gali registruoti pristatymus</div>`;
+  }
+  const expected = whExpectedReceipts().sort((a,b)=>{
+    if(a.eta && b.eta) return a.eta.localeCompare(b.eta);
+    if(a.eta) return -1; if(b.eta) return 1;
+    return 0;
+  });
+
+  const overdueCount = expected.filter(e=>e.ageDays!==null && e.ageDays<0).length;
+  const todayCount = expected.filter(e=>e.ageDays===0).length;
+  const totalQty = expected.reduce((s,e)=>s+(e.m2||0),0);
+
+  const summary = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="summary-card"><div class="summary-label">Laukiamų pristatymų</div><div class="summary-value" style="color:var(--blue)">${expected.length}</div></div>
+    <div class="summary-card"><div class="summary-label">⏰ Vėluoja</div><div class="summary-value" style="color:${overdueCount?'var(--red-t)':'var(--green-t)'}">${overdueCount}</div></div>
+    <div class="summary-card"><div class="summary-label">📅 Šiandien</div><div class="summary-value" style="color:var(--amber-t)">${todayCount}</div></div>
+    <div class="summary-card"><div class="summary-label">Iš viso m²</div><div class="summary-value" style="color:var(--purple-t)">${whFmt(totalQty,0)}</div></div>
+  </div>`;
+
+  if(!expected.length){
+    return summary + `<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">📥</div><div style="font-weight:600;margin-bottom:5px">Nėra laukiamų pristatymų</div><div style="font-size:12px;color:var(--hint)">Pažymėkite medžiagas kaip "Užsakyta" projektuose — atsiras čia</div></div>`;
+  }
+
+  // Group by supplier for ASN-style receiving
+  const bySupplier = {};
+  expected.forEach(e=>{
+    const k = e.supplier||'—';
+    if(!bySupplier[k]) bySupplier[k]=[];
+    bySupplier[k].push(e);
+  });
+
+  const supplierCards = Object.entries(bySupplier).map(([sup,items])=>{
+    const totalM2 = items.reduce((s,x)=>s+x.m2,0);
+    const rows = items.map(e=>{
+      let etaBadge = '';
+      if(e.ageDays===null) etaBadge = '<span style="font-size:10px;color:var(--hint)">be ETA</span>';
+      else if(e.ageDays<0) etaBadge = `<span style="font-size:10px;color:var(--red-t);font-weight:600">⏰ vėluoja ${-e.ageDays}d</span>`;
+      else if(e.ageDays===0) etaBadge = `<span style="font-size:10px;color:var(--amber-t);font-weight:600">📅 šiandien</span>`;
+      else etaBadge = `<span style="font-size:10px;color:var(--muted)">po ${e.ageDays}d</span>`;
+      return `<div class="wh-pick-row">
+        <div style="text-align:center"><input type="checkbox" data-rcv="row" id="rcv-cb-${e.key}" data-key="${e.key}" data-pid="${e.projectId}" data-idx="${e.stockIdx}" data-mat="${escHtml(e.material)}" data-th="${e.thickness}" data-sup="${escHtml(sup)}" data-cost="${e.cost && e.m2 ? e.cost/e.m2 : 0}" style="width:16px;height:16px;cursor:pointer"></div>
+        <div>
+          <div style="font-weight:500">${escHtml(e.material)}</div>
+          <div style="font-size:9px;color:var(--hint)">${e.thickness}mm · <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${e.projectColor};margin-right:3px"></span>${escHtml(e.projectName)}</div>
+        </div>
+        <div style="text-align:right;font-family:var(--mono);font-weight:600">${whFmt(e.m2)}</div>
+        <div><input type="number" step="0.01" id="rcv-qty-${e.key}" placeholder="${whFmt(e.m2)}" value="${whFmt(e.m2)}" style="font-size:10px;padding:3px 7px;text-align:right"></div>
+        <div><input type="text" id="rcv-loc-${e.key}" placeholder="A-12" style="font-size:10px;padding:3px 7px"></div>
+        <div style="text-align:center">${etaBadge}</div>
+      </div>`;
+    }).join('');
+    return `<div class="wh-rcv-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:12px">
+      <div style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600">📥 ${escHtml(sup)}</div>
+          <div style="font-size:10px;color:var(--muted)">${items.length} pozicijos · ${whFmt(totalM2,1)} m²</div>
+        </div>
+        <button class="btn btn-sm" onclick="this.closest('.wh-rcv-card').querySelectorAll('input[data-rcv=row]').forEach(el=>{el.checked=true})" style="font-size:10px">☑ Visus</button>
+      </div>
+      <div style="background:var(--surface2);padding:5px 14px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:36px 1fr 90px 110px 110px 80px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint)">
+        <div></div><div>Medžiaga / projektas</div><div style="text-align:right">Užsakyta m²</div><div>Gauta m²</div><div>Vieta</div><div style="text-align:center">ETA</div>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  const actionBar = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <input id="rcv-ref" placeholder="Važtaraščio nr." style="font-size:12px;padding:6px 10px;max-width:180px">
+    <input id="rcv-note" placeholder="Pastaba" style="font-size:12px;padding:6px 10px;max-width:280px">
+    <div style="flex:1"></div>
+    <button class="btn btn-primary" onclick="submitReceiving()">✓ Priimti pažymėtus</button>
+  </div>`;
+
+  return summary + actionBar + supplierCards;
+}
+
+function submitReceiving(){
+  const checks = document.querySelectorAll('input[data-rcv="row"]');
+  const items = [];
+  checks.forEach(c=>{
+    if(!c.checked) return;
+    const key = c.dataset.key;
+    const qty = document.getElementById('rcv-qty-'+key)?.value;
+    const loc = document.getElementById('rcv-loc-'+key)?.value;
+    if(!qty || parseFloat(qty)<=0) return;
+    items.push({
+      key, projectId: c.dataset.pid, stockIdx: parseInt(c.dataset.idx),
+      material: c.dataset.mat, thickness: parseInt(c.dataset.th), supplier: c.dataset.sup,
+      qty: parseFloat(qty), unit:'m²', location: loc, cost: parseFloat(c.dataset.cost)||0,
+    });
+  });
+  if(!items.length){ toast('Pažymėkite bent vieną poziciją','error'); return; }
+  const ref = document.getElementById('rcv-ref')?.value;
+  const note = document.getElementById('rcv-note')?.value;
+  const n = whReceive(items, ref, note);
+  toast(`✓ Priimta ${n} pozicijos`,'success');
+  renderWarehouse();
+}
+
+// ── Stock ─────────────────────────────────────────────
+function renderWhStock(){
+  const items = DB.warehouse.filter(w=>!w.archived);
+  const search = (document.getElementById('wh-search')?.value||'').toLowerCase();
+  const cls = document.getElementById('wh-class-filter')?.value||'';
+  const subcatFilter = document.getElementById('wh-subcat-filter')?.value||'';
+  const lowOnly = _whFilter.lowOnly;
+
+  // Sub-tab filter
+  const kindFilter = _whStockSubtab; // 'all' | 'sheets' | 'fittings'
+  let filtered = items.filter(w=>{
+    if(kindFilter==='sheets'   && w.kind==='fitting') return false;
+    if(kindFilter==='fittings' && w.kind!=='fitting') return false;
+    if(search && !whNorm(w.material).includes(search) && !whNorm(w.sku).includes(search) && !whNorm(w.mpn||'').includes(search)) return false;
+    if(cls && w.abcClass!==cls) return false;
+    if(subcatFilter && w.subcategory!==subcatFilter) return false;
+    if(lowOnly && !(w.qty<=0 || (w.reorderPoint>0 && w.qty<=w.reorderPoint))) return false;
+    return true;
+  }).sort((a,b)=>{
+    // Within fittings, group by subcategory; sheets sort by ABC then material
+    if(a.kind==='fitting' && b.kind==='fitting'){
+      const sc = (a.subcategory||'').localeCompare(b.subcategory||'');
+      if(sc) return sc;
+      return (a.material||'').localeCompare(b.material||'');
+    }
+    const cmp = (a.abcClass||'C').localeCompare(b.abcClass||'C');
+    if(cmp) return cmp;
+    return a.material.localeCompare(b.material);
+  });
+  const mgr = isManager();
+
+  const k = whKPIs();
+  const sheetCount = items.filter(w=>w.kind!=='fitting').length;
+  const fittingCount = items.filter(w=>w.kind==='fitting').length;
+
+  const subtabs = `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="wh-tab ${_whStockSubtab==='all'?'active':''}" onclick="_whStockSubtab='all';renderWarehouse()">📦 Visos (${items.length})</button>
+    <button class="wh-tab ${_whStockSubtab==='sheets'?'active':''}" onclick="_whStockSubtab='sheets';renderWarehouse()">🪵 Plokštės (${sheetCount})</button>
+    <button class="wh-tab ${_whStockSubtab==='fittings'?'active':''}" onclick="_whStockSubtab='fittings';renderWarehouse()">🔩 Furnitūra (${fittingCount})</button>
+  </div>`;
+
+  const summary = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="summary-card"><div class="summary-label">SKU</div><div class="summary-value" style="color:var(--blue)">${k.totalSkus}</div></div>
+    <div class="summary-card"><div class="summary-label">Plokštės m²</div><div class="summary-value" style="color:var(--purple-t)">${whFmt(k.totalQty,0)}</div></div>
+    ${mgr?`<div class="summary-card"><div class="summary-label">Vertė</div><div class="summary-value" style="color:var(--green-t)">€${whFmt(k.totalValue,0)}</div></div>`:'<div class="summary-card"><div class="summary-label">Rezervuota</div><div class="summary-value" style="color:var(--purple-t)">'+whFmt(k.reserved,1)+'</div></div>'}
+    <div class="summary-card"><div class="summary-label">Žemiau ROP</div><div class="summary-value" style="color:${k.lowCount?'var(--amber-t)':'var(--green-t)'}">${k.lowCount}</div></div>
+  </div>`;
+
+  // Build subcategory filter only when fittings are visible
+  const showSubcatFilter = kindFilter==='fittings' || (kindFilter==='all' && fittingCount>0);
+  const subcatOpts = showSubcatFilter
+    ? `<select id="wh-subcat-filter" onchange="renderWarehouse()" style="font-size:11px;padding:5px 10px;width:auto">
+        <option value="">Visos furnit. grupės</option>
+        ${FITTING_SUBCATEGORIES.map(s=>`<option value="${s}" ${subcatFilter===s?'selected':''}>${FITTING_SUBCAT_ICONS[s]||''} ${FITTING_SUBCAT_LABELS[s]||s}</option>`).join('')}
+       </select>`
+    : '';
+
+  const filters = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <input id="wh-search" placeholder="🔍 Medžiaga, SKU, MPN..." value="${escHtml(search)}" style="font-size:11px;padding:5px 10px;max-width:240px" oninput="renderWarehouse()">
+    <select id="wh-class-filter" onchange="renderWarehouse()" style="font-size:11px;padding:5px 10px;width:auto">
+      <option value="">Visos ABC klasės</option>
+      <option value="A" ${cls==='A'?'selected':''}>A — kritinė</option>
+      <option value="B" ${cls==='B'?'selected':''}>B — vidutinė</option>
+      <option value="C" ${cls==='C'?'selected':''}>C — žema</option>
+    </select>
+    ${subcatOpts}
+    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer">
+      <input type="checkbox" ${lowOnly?'checked':''} onchange="_whFilter.lowOnly=this.checked;renderWarehouse()" style="cursor:pointer"> Tik žemiau ROP
+    </label>
+    <div style="flex:1"></div>
+    ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="recomputeABC()">↻ ABC</button>`:''}
+    ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="syncWarehouseFromMaterials()" title="Importuoti plokštes su statusu Sandėlyje iš projektų">↻ Sync plokštes</button>`:''}
+    ${(isManager()||isEngineer())&&kindFilter==='fittings'?`<button class="btn btn-sm" onclick="openCatalogImportModal()" title="Importuoti furnitūros katalogą iš Excel (LoMag, tiekėjo lapas, ir pan.)">📥 Importuoti katalogą</button>`:''}
+    ${(isManager()||isEngineer())?`<button class="btn btn-sm btn-primary" onclick="openWhAddModal('${kindFilter==='fittings'?'fitting':'sheet'}')">+ Naujas SKU</button>`:''}
+  </div>`;
+
+  if(!filtered.length){
+    const emptyMsg = kindFilter==='fittings' ? 'Nepridėtos furnitūros pozicijos' : (kindFilter==='sheets' ? 'Nėra plokščių sandėly' : 'Sandėlis tuščias');
+    const helper = kindFilter==='fittings'
+      ? `<div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-primary" onclick="openCatalogImportModal()">📥 Importuoti iš Excel</button><button class="btn" onclick="openWhAddModal('fitting')">+ Pridėti rankiniu būdu</button></div>`
+      : `<button class="btn btn-primary" onclick="syncWarehouseFromMaterials()">↻ Importuoti iš projektų</button>`;
+    return subtabs + summary + filters + `<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">${kindFilter==='fittings'?'🔩':'🏭'}</div><div style="font-weight:600;margin-bottom:5px">${items.length?'Nėra atitinkančių pozicijų':emptyMsg}</div><div style="font-size:12px;color:var(--hint);margin-bottom:14px">${items.length?'Pakeiskite filtrus':'Pridėkite SKU rankiniu būdu'}</div>${(isManager()||isEngineer())&&!items.length?helper:''}</div>`;
+  }
+
+  // Table renders polymorphically — fitting rows get fitting columns, sheet rows get sheet columns.
+  // To keep visual alignment we use one wide schema and let irrelevant cells render '—'.
+  const header = `<div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:0 14px">
+    <div class="wh-stock-row" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);min-height:32px">
+      <div>SKU / Pavadinimas</div>
+      <div style="text-align:center">Klasė</div>
+      <div style="text-align:right">Likutis</div>
+      <div style="text-align:right">Rezerv.</div>
+      <div style="text-align:right">Galima</div>
+      <div style="text-align:right">ROP / Min</div>
+      <div>Vieta</div>
+      <div>Tiekėjas / Brand</div>
+      ${mgr?'<div style="text-align:right">€/vnt</div>':''}
+      <div style="text-align:center">Veiks.</div>
+    </div>
+  </div>`;
+
+  const rows = filtered.map(w=>{
+    const isFit = w.kind==='fitting';
+    const avail = whAvailable(w);
+    let stockClass = 'wh-stock-ok';
+    if(w.qty<=0) stockClass='wh-stock-none';
+    else if(w.reorderPoint>0 && w.qty<=w.reorderPoint) stockClass='wh-stock-low';
+    const abcCol = w.abcClass==='A'?'#dc2626':(w.abcClass==='B'?'#d97706':'#16a34a');
+    const editable = isManager()||isEngineer();
+    const lastCount = w.lastCountDate ? new Date(w.lastCountDate).toLocaleDateString('lt-LT',{month:'2-digit',day:'2-digit'}) : '—';
+
+    // Type-specific subline
+    let subline;
+    if(isFit){
+      const aliasCount = (w.aliases||[]).length;
+      const ruleCount = (DB.fittingAliases||[]).filter(a=>a.sku===w.sku).length;
+      const linkBadge = (aliasCount||ruleCount)
+        ? `<span title="XLSM aliasų: ${aliasCount} · taisyklių: ${ruleCount}" style="display:inline-block;background:var(--blue-bg);color:var(--blue-t);padding:1px 5px;border-radius:3px;font-weight:600;margin-left:3px">🔗 ${Math.max(aliasCount, ruleCount)}</span>`
+        : '';
+      subline = `<div style="font-size:9px;color:var(--hint);margin-top:2px"><span style="display:inline-block;background:var(--purple-bg);color:var(--purple-t);padding:1px 5px;border-radius:3px;font-weight:600;margin-right:4px">${FITTING_SUBCAT_ICONS[w.subcategory]||'🔩'} ${escHtml(w.subcategory||'Aks.')}</span>${w.mpn&&w.mpn!==w.sku?'MPN '+escHtml(w.mpn):''}${formatFittingAttrs(w.attributes)}${linkBadge}</div>`;
+    } else {
+      subline = `<div style="font-size:9px;color:var(--hint)">${w.thickness||18}mm · ${escHtml(w.category||'—')}</div>`;
+    }
+
+    // SKU display: for fittings with distCode, show distCode as primary green pill
+    const skuCell = isFit && w.distCode
+      ? `<div><span style="display:inline-block;background:var(--green-bg);color:var(--green-t);padding:2px 7px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:700">${escHtml(w.distCode)}</span>${w.sku!==w.distCode?`<span style="font-family:var(--mono);font-size:9px;color:var(--hint);margin-left:5px">${escHtml(w.sku)}</span>`:''}</div>`
+      : `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:600">${escHtml(w.sku)}</div>`;
+
+    const supplierCell = isFit
+      ? `<div style="font-size:10px;font-weight:500">${escHtml(w.brand||'—')}</div><div style="font-size:9px;color:var(--hint)">${escHtml(w.supplier||'')}</div>`
+      : `<div style="font-size:10px">${escHtml(w.supplier||'—')}</div>`;
+
+    // Fittings: show pack info under qty if applicable
+    const qtyDisplay = isFit && w.unitsPerPack>1
+      ? `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,0)}</span><div style="font-size:9px;color:var(--hint)">${w.unit} · ${Math.floor(w.qty/w.unitsPerPack)} pak.</div>`
+      : `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,isFit?0:2)}</span><div style="font-size:9px;color:var(--hint)">${w.unit}</div>`;
+
+    const actions = editable?`
+      <button class="btn btn-xs" title="Redaguoti" onclick="openWhEditModal('${w.id}')">✎</button>
+      <button class="btn btn-xs" title="Inventorizacija" onclick="openWhCountModal('${w.id}')">📋</button>
+      <button class="btn btn-xs btn-danger" title="Archyvuoti" onclick="whArchive('${w.id}')">×</button>
+    `:'';
+    return `<div class="wh-stock-row">
+      <div>
+        ${skuCell}
+        <div style="font-weight:500;margin-top:2px">${escHtml(w.material)}</div>
+        ${subline}
+      </div>
+      <div style="text-align:center"><span style="background:${abcCol};color:#fff;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">${w.abcClass||'C'}</span></div>
+      <div style="text-align:right">${qtyDisplay}</div>
+      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:${(w.reservedQty||0)>0?'var(--purple-t)':'var(--hint)'}">${(w.reservedQty||0)>0?whFmt(w.reservedQty,isFit?0:2):'—'}</div>
+      <div style="text-align:right;font-family:var(--mono);font-weight:600;font-size:11px">${whFmt(avail,isFit?0:2)}</div>
+      <div style="text-align:right;font-size:10px;color:var(--muted)">${w.reorderPoint?whFmt(w.reorderPoint,0):'—'}<div style="font-size:9px;color:var(--hint)">/${w.minQty?whFmt(w.minQty,0):'—'}</div></div>
+      <div style="font-size:10px"><div style="font-weight:500">${escHtml(locToStr(w.location)||'—')}</div><div style="font-size:9px;color:var(--hint)">skaič.: ${lastCount}</div></div>
+      <div style="overflow:hidden">${supplierCell}</div>
+      ${mgr?`<div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--green-t)">€${whFmt(w.cost,2)}</div>`:''}
+      <div style="text-align:center;display:flex;gap:3px;justify-content:center">${actions}</div>
+    </div>`;
+  }).join('');
+
+  const card = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">${header}${rows}</div>`;
+  return subtabs + summary + filters + card;
+}
+
+// Render a few key fitting attributes inline (compact)
+function formatFittingAttrs(attrs){
+  if(!attrs || typeof attrs!=='object') return '';
+  const parts = [];
+  if(attrs.angle) parts.push(attrs.angle+'°');
+  if(attrs.overlay) parts.push(attrs.overlay);
+  if(attrs.depth) parts.push(attrs.depth+'mm');
+  if(attrs.height && typeof attrs.height==='string') parts.push('H:'+attrs.height);
+  if(attrs.system) parts.push(attrs.system);
+  if(attrs.softClose===true) parts.push('soft');
+  if(attrs.load) parts.push(attrs.load+'kg');
+  return parts.length ? ' · ' + parts.join(' · ') : '';
+}
+
+// ── Kits ──────────────────────────────────────────────
+function renderWhKits(){
+  const projs = DB.projects.filter(p=>p.status!=='archived' && p.importData?.stocks?.length && canSeeProject(p));
+  if(!projs.length){
+    return `<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">📦</div><div style="font-weight:600">Nėra projektų su medžiagomis</div><div style="font-size:12px;color:var(--hint);margin-top:5px">Importuokite Excel į projektą — atsiras čia</div></div>`;
+  }
+
+  // Project picker
+  if(!_whKitId || !DB.kits?.find(k=>k.id===_whKitId)){
+    // Default to first project's open kit, or none
+    const first = projs[0];
+    const k = kitFindForProject(first.id);
+    _whKitId = k?.id||'';
+  }
+
+  // Header: list of kits + "new kit" controls
+  const allKits = (DB.kits||[]).filter(k=>{
+    const p = getProject(k.projectId);
+    return p && canSeeProject(p);
+  }).sort((a,b)=>{
+    const order = ['picking','reserved','staged','draft','issued','cancelled'];
+    return order.indexOf(a.status)-order.indexOf(b.status) || (b.createdAt||'').localeCompare(a.createdAt||'');
+  });
+
+  const projsWithoutKit = projs.filter(p=>!kitFindForProject(p.id));
+  const newKitOpts = projsWithoutKit.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+
+  const kitTabs = allKits.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);padding:10px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Komplektai (${allKits.length})</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${allKits.map(k=>{
+        const st = KIT_STATUS[k.status];
+        const active = k.id===_whKitId;
+        return `<button onclick="_whKitId='${k.id}';renderWarehouse()" style="background:${active?'var(--blue-bg)':st.bg};color:${active?'var(--blue-t)':st.color};border:1px solid ${active?'var(--blue)':'var(--border2)'};border-radius:7px;padding:5px 11px;font-size:11px;cursor:pointer;font-weight:${active?'600':'500'};transition:all .12s">
+          ${escHtml(k.projectName.split('—')[0].trim().slice(0,30))} · ${st.label}
+        </button>`;
+      }).join('')}
+      ${(isManager()||isEngineer())&&projsWithoutKit.length?`
+        <span style="margin-left:8px;color:var(--hint);font-size:11px">|</span>
+        <select id="new-kit-proj" style="font-size:11px;padding:5px 8px;width:auto"><option value="">+ Naujas komplektas...</option>${newKitOpts}</select>
+        <button class="btn btn-sm btn-primary" onclick="const v=document.getElementById('new-kit-proj').value;if(v){const k=kitCreate(v);if(k){_whKitId=k.id;renderWarehouse();}}">Sukurti</button>
+      `:''}
+    </div>
+  </div>` : `<div class="empty-state" style="padding:30px"><div style="font-weight:600;margin-bottom:5px">Nėra komplektų</div><div style="font-size:11px;color:var(--hint);margin-bottom:14px">Sukurkite komplektą iš projekto medžiagų sąrašo</div>${(isManager()||isEngineer())&&projsWithoutKit.length?`<div style="display:flex;gap:6px;justify-content:center"><select id="new-kit-proj" style="font-size:12px;padding:6px 10px;width:auto;max-width:280px"><option value="">Pasirinkite projektą...</option>${newKitOpts}</select><button class="btn btn-primary" onclick="const v=document.getElementById('new-kit-proj').value;if(v){const k=kitCreate(v);if(k){_whKitId=k.id;renderWarehouse();}}">+ Sukurti</button></div>`:''}</div>`;
+
+  if(!_whKitId) return kitTabs;
+
+  // Render selected kit
+  const kit = kitGet(_whKitId);
+  if(!kit) return kitTabs;
+  const proj = getProject(kit.projectId);
+  const st = KIT_STATUS[kit.status];
+  const avail = kitAvailability(kit);
+  const sheetItemCount = kit.items.filter(x=>x.kind!=='fitting').length;
+  const fittingItemCount = kit.items.filter(x=>x.kind==='fitting').length;
+  const unmappedCount = avail.filter(a=>a.kind==='fitting' && !a.sku).length;
+  const totalNeed = kit.items.reduce((s,x)=>s+x.need,0);
+  const totalReserved = kit.items.reduce((s,x)=>s+(x.reserved||0),0);
+  const totalPicked = kit.items.reduce((s,x)=>s+(x.picked||0),0);
+  const totalIssued = kit.items.reduce((s,x)=>s+(x.issued||0),0);
+  const shortageCount = avail.filter(a=>a.sku && a.shortBy>0).length;
+  const pickedPct = totalNeed>0 ? totalPicked/totalNeed*100 : 0;
+
+  const cards = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="summary-card"><div class="summary-label">Pozicijų</div><div class="summary-value" style="color:var(--blue)">${kit.items.length}</div><div style="font-size:10px;color:var(--hint);margin-top:2px">🪵 ${sheetItemCount} · 🔩 ${fittingItemCount}</div></div>
+    <div class="summary-card"><div class="summary-label">Surinkta</div><div class="summary-value" style="color:var(--green-t)">${whFmt(pickedPct,0)}%</div><div style="font-size:10px;color:var(--hint);margin-top:2px">${kit.items.filter(x=>x.picked>=x.need).length}/${kit.items.length} pozicijų</div></div>
+    <div class="summary-card"><div class="summary-label">${unmappedCount?'Nesusieta':'Trūksta'}</div><div class="summary-value" style="color:${unmappedCount?'var(--blue-t)':(shortageCount?'var(--red-t)':'var(--green-t)')}">${unmappedCount||shortageCount}</div><div style="font-size:10px;color:var(--hint);margin-top:2px">${unmappedCount?'reikia susieti su SKU':'pozicijų sandėly'}</div></div>
+    <div class="summary-card"><div class="summary-label">Statusas</div><div style="margin-top:4px"><span style="background:${st.bg};color:${st.color};padding:5px 11px;border-radius:6px;font-size:13px;font-weight:600">${st.label}</span></div></div>
+  </div>`;
+
+  // Kit progress workflow visualization
+  const stages = [
+    {id:'draft', icon:'📝', label:'Juodraštis'},
+    {id:'reserved', icon:'🔒', label:'Rezervuota'},
+    {id:'picking', icon:'✋', label:'Komplektuojama'},
+    {id:'staged', icon:'📦', label:'Paruošta'},
+    {id:'issued', icon:'🏭', label:'Cechui'},
+  ];
+  const curIdx = stages.findIndex(s=>s.id===kit.status);
+  const flow = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);padding:14px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Komplekto eiga</div>
+    <div style="display:flex;align-items:center;gap:0">
+      ${stages.map((s,i)=>{
+        const done = i<curIdx, cur = i===curIdx;
+        const bg = done ? 'var(--green-bg)' : (cur ? 'var(--blue-bg)' : 'var(--surface2)');
+        const col = done ? 'var(--green-t)' : (cur ? 'var(--blue-t)' : 'var(--hint)');
+        const ts = s.id==='draft'?kit.createdAt : s.id==='reserved'?kit.releasedAt : s.id==='staged'?kit.stagedAt : s.id==='issued'?kit.issuedAt : null;
+        const tsStr = ts ? new Date(ts).toLocaleString('lt-LT',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+        return `${i>0?`<div style="flex:0.5;height:2px;background:${done||cur?col:'var(--border)'}"></div>`:''}
+        <div style="flex:1;text-align:center;background:${bg};color:${col};padding:8px 4px;border-radius:7px">
+          <div style="font-size:18px">${s.icon}</div>
+          <div style="font-size:10px;font-weight:600">${s.label}</div>
+          ${tsStr?`<div style="font-size:9px;color:var(--hint);margin-top:2px">${tsStr}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  // Kit actions bar
+  const canEdit2 = canEdit() && kit.status!=='issued' && kit.status!=='cancelled';
+  const actions = canEdit2 ? `<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    ${unmappedCount>0 ? `<button class="btn btn-primary" onclick="(function(){const n=kitResolveAll('${kit.id}');toast(n>0?'✓ Susieta '+n+' eil. (yra naujų taisyklių)':'Niekas nesusieta — pridėkite SKU/aliasus pirma','success');renderWarehouse();})()" title="Pakartotinai paleisti automatinį susiejimą — pasitelkia visas šiuo metu galiojančias taisykles">🔍 Susieti automatiškai (${unmappedCount})</button>` : ''}
+    ${kit.status==='draft' ? `<button class="btn btn-primary" onclick="kitReserve('${kit.id}')">🔒 Rezervuoti atsargas</button>` : ''}
+    ${kit.status==='reserved' || kit.status==='picking' ? `<button class="btn btn-primary" onclick="pickAllAvailable('${kit.id}')">✋ Surinkti viską galima</button>` : ''}
+    ${(kit.status==='staged' || (kit.status==='picking' && totalPicked>0)) ? `<button class="btn btn-primary" onclick="kitIssue('${kit.id}')">🏭 Išduoti cechui</button>` : ''}
+    <button class="btn btn-danger" onclick="kitCancel('${kit.id}')">× Atšaukti komplektą</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-sm" onclick="showView('project','${kit.projectId}')">Atidaryti projektą →</button>
+  </div>` : '';
+
+  // Pick list table
+  const header = `<div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:0 14px">
+    <div class="wh-pick-row" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);min-height:30px">
+      <div></div>
+      <div>SKU / Medžiaga</div>
+      <div style="text-align:right">Reikia</div>
+      <div style="text-align:right">Sandėly</div>
+      <div>Vieta</div>
+      <div style="text-align:center">Surinkti</div>
+    </div>
+  </div>`;
+
+  const rows = avail.map(a=>{
+    const isFit = a.kind==='fitting';
+    const isUnmapped = isFit && !a.sku;
+    const checkbox = a.picked >= a.need
+      ? '<span style="font-size:18px;color:var(--green-t)">✓</span>'
+      : (isUnmapped ? '<span style="font-size:14px;color:var(--blue-t)">🔗</span>'
+        : (a.shortBy>0 ? '<span style="font-size:14px;color:var(--red-t)">⚠</span>'
+          : '<span style="font-size:14px;color:var(--hint)">○</span>'));
+    let rowClass = 'wh-pick-row';
+    if(a.picked>=a.need) rowClass += ' picked';
+    else if(isUnmapped) rowClass += ' unmapped';
+    else if(a.shortBy>0) rowClass += ' shortage';
+
+    let stockPill;
+    if(isUnmapped) stockPill = `<span class="wh-stock-pill" style="background:var(--blue-bg);color:var(--blue-t)">susieti</span>`;
+    else if(a.available>=a.need) stockPill = `<span class="wh-stock-pill wh-stock-ok">${whFmt(a.available)}</span>`;
+    else if(a.available>0) stockPill = `<span class="wh-stock-pill wh-stock-low">${whFmt(a.available)}</span>`;
+    else stockPill = `<span class="wh-stock-pill wh-stock-none">0</span>`;
+
+    let action;
+    if(isUnmapped){
+      action = canEdit2
+        ? `<button class="btn btn-xs btn-primary" onclick="openKitLinkModal('${kit.id}','${a.kitItemId}')" title="Susieti šią eilutę su sandėlio SKU">🔗 Susieti</button>`
+        : '<span style="font-size:10px;color:var(--blue-t)">nesusieta</span>';
+    } else if(a.picked>=a.need){
+      action = `<span style="font-size:10px;color:var(--green-t);font-weight:600">✓ ${whFmt(a.picked)} surinkta</span>`;
+      if(canEdit2 && kit.status!=='issued') action += ` <button class="btn btn-xs" onclick="kitReturn('${kit.id}','${a.kitItemId}',${a.picked},'')" title="Grąžinti į sandėlį">↩</button>`;
+    } else if(canEdit2){
+      const max = Math.min(a.available, a.need - a.picked);
+      const dis = max<=0 ? 'disabled style="opacity:.4"' : '';
+      const hasPart = a.picked > 0;
+      action = `${hasPart?`<span style="font-size:10px;color:var(--amber-t);margin-right:5px">${whFmt(a.picked)}/${whFmt(a.need)}</span>`:''}<button class="btn btn-xs btn-primary" ${dis} onclick="kitPickItem('${kit.id}','${a.kitItemId}',${max})">✋ +${whFmt(max,1)}</button>`;
+    } else {
+      action = '<span style="font-size:10px;color:var(--hint)">—</span>';
+    }
+
+    const reservedBadge = a.reserved>0 ? `<div style="font-size:9px;color:var(--purple-t);margin-top:2px">🔒 rez. ${whFmt(a.reserved)}</div>` : '';
+
+    let identityLine = '', subline = '';
+    if(isFit){
+      if(isUnmapped){
+        identityLine = `<div style="font-family:var(--mono);font-size:10px;color:var(--blue-t);font-weight:600">⚠ NESUSIETA SU SKU</div>`;
+        subline = `<div style="font-size:9px;color:var(--hint)">XLSM: <em>${escHtml(a.sourceName)}</em>${a.sourceQty?` × ${a.sourceQty}`:''}</div>`;
+      } else {
+        const codeBits = [];
+        if(a.distCode) codeBits.push(`<span style="background:var(--green-bg);color:var(--green-t);padding:1px 5px;border-radius:3px;font-weight:600">${escHtml(a.distCode)}</span>`);
+        if(a.mpn) codeBits.push(`MPN ${escHtml(a.mpn)}`);
+        identityLine = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:600">${escHtml(a.sku)}</div>`;
+        subline = `<div style="font-size:9px;color:var(--hint)">${codeBits.join(' · ')}${a.sourceName && whAliasNorm(a.sourceName)!==whAliasNorm(a.material) ? ` · <em title="Iš XLSM">${escHtml(a.sourceName.slice(0,30))}</em>` : ''}</div>`;
+      }
+    } else {
+      identityLine = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:600">${escHtml(a.sku)}</div>`;
+      subline = `<div style="font-size:9px;color:var(--hint)">${a.thickness}mm</div>`;
+    }
+
+    return `<div class="${rowClass}">
+      <div style="text-align:center">${checkbox}</div>
+      <div>
+        ${identityLine}
+        <div style="font-weight:500">${escHtml(a.material)}</div>
+        ${subline}
+        ${reservedBadge}
+      </div>
+      <div style="text-align:right;font-family:var(--mono);font-weight:600">${whFmt(a.need)}${isFit && a.sourceQty && a.need!==a.sourceQty?`<div style="font-size:9px;color:var(--hint);font-weight:400">XLSM: ${a.sourceQty}</div>`:''}</div>
+      <div style="text-align:right">${stockPill}</div>
+      <div style="font-size:10px">${escHtml(a.location||'—')}</div>
+      <div style="text-align:center">${action}</div>
+    </div>`;
+  }).join('');
+
+  const tableCard = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      ${proj?`<div style="width:10px;height:10px;border-radius:50%;background:${proj.color};flex-shrink:0"></div>`:''}
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${escHtml(kit.projectName)}</div>
+        <div style="font-size:10px;color:var(--muted)">${escHtml(proj?.client||'')} · sukurta ${new Date(kit.createdAt).toLocaleDateString('lt-LT')} · ${escHtml(kit.createdBy)}</div>
+      </div>
+      <div style="font-size:10px;color:var(--hint)">Komplekto ID: <span style="font-family:var(--mono)">${kit.id}</span></div>
+    </div>
+    ${header}${rows}
+  </div>`;
+
+  return kitTabs + cards + flow + actions + tableCard;
+}
+
+function pickAllAvailable(kitId){
+  const kit = kitGet(kitId); if(!kit) return;
+  const avail = kitAvailability(kit);
+  const todo = avail.filter(a=>a.sku && a.picked<a.need && a.available>0);
+  if(!todo.length){ toast('Nieko surinkti'); return; }
+  todo.forEach(a=>{
+    const want = Math.min(a.available, a.need - a.picked);
+    if(want>0) kitPickItem(kitId, a.kitItemId, want);
+  });
+}
+
+function openKitLinkModal(kitId, kitItemId){
+  if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
+  const kit = kitGet(kitId); if(!kit) return;
+  const it = kit.items.find(x=>x.kitItemId===kitItemId); if(!it) return;
+
+  // Suggest fittings whose attributes plausibly match the source name (depth, system, type)
+  const fittings = DB.warehouse.filter(w=>w.kind==='fitting' && !w.archived);
+  const lower = (it.sourceName||'').toLowerCase();
+  const dm = (it.sourceName||'').match(/(\d{3,4})/);
+  const sourceDepth = dm ? parseInt(dm[1]) : null;
+  const scoreFit = w=>{
+    let s=0;
+    // Type compatibility
+    if(it.partType==='runner' && w.subcategory==='Runner') s+=3;
+    if(it.partType==='side' && w.subcategory==='Drawer') s+=3;
+    if(it.partType==='hinge' && w.subcategory==='Hinge') s+=3;
+    if(it.partType==='screw' && w.subcategory==='Screw') s+=3;
+    // Depth match
+    if(sourceDepth && w.attributes?.depth===sourceDepth) s+=2;
+    // Code mentioned in name
+    if(w.distCode && lower.includes(w.distCode.toLowerCase())) s+=4;
+    if(w.mpn && lower.includes(w.mpn.toLowerCase())) s+=3;
+    return s;
+  };
+  const sorted = [...fittings].sort((a,b)=>scoreFit(b)-scoreFit(a));
+  const opts = sorted.map(w=>{
+    const score = scoreFit(w);
+    const code = w.distCode || w.mpn || w.sku;
+    const tag = score>=3 ? ' ⭐' : '';
+    return `<option value="${escHtml(w.sku)}"${score>=3?' style="background:#fff8e1"':''}>${escHtml(code)} — ${escHtml(w.material).slice(0,60)}${tag}</option>`;
+  }).join('');
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">🔗 Susieti su sandėlio SKU</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Komplekto eilutė iš XLSM</div>
+      <div style="background:var(--blue-bg);border:1px solid var(--blue-t);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:10px;color:var(--blue-t);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Iš XLSM HARDWARE_LIST</div>
+        <div style="font-size:13px;font-weight:600">${escHtml(it.sourceName)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Kiekis: <strong>${it.sourceQty}</strong>${it.partType?' · tipas: '+it.partType:''}</div>
+      </div>
+
+      ${fittings.length ? `
+      <div style="display:grid;gap:10px">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pasirinkite SKU iš sandėlio</label>
+          <select id="link-sku" style="margin-top:4px;font-family:var(--mono);font-size:12px">
+            <option value="">— pasirinkti —</option>
+            ${opts}
+          </select>
+          <div style="font-size:10px;color:var(--hint);margin-top:3px">⭐ pažymėti — sistemos siūlomi pagal atributus</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kiekio koeficientas</label>
+            <input id="link-mult" type="number" step="0.01" value="1" style="margin-top:4px">
+            <div style="font-size:9px;color:var(--hint);margin-top:3px">Pvz. 0.5 jei XLSM rodo 2 bėgelius (vnt.), o sandėly 1 pora = 2 vnt.</div>
+          </div>
+          <div style="display:flex;align-items:center;padding-top:18px">
+            <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="link-rule" checked style="cursor:pointer;width:16px;height:16px">
+              <div>
+                <div style="font-weight:600">Sukurti taisyklę</div>
+                <div style="font-size:9px;color:var(--hint);font-weight:400">Visos ateities XLSM eilutės su šiuo pavadinimu automatiškai susies su šiuo SKU</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal();openWhAddModal('fitting');toast('Sukurkite naują SKU ir grįžkite susieti')">+ Sukurti naują SKU</button>
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="submitKitLink('${kitId}','${kitItemId}')">Susieti</button>
+      </div>
+      ` : `
+      <div style="padding:20px;text-align:center;background:var(--surface2);border-radius:8px;margin:10px 0">
+        <div style="font-size:14px;margin-bottom:6px">Sandėly dar nėra furnitūros pozicijų</div>
+        <div style="font-size:11px;color:var(--hint);margin-bottom:14px">Pirma sukurkite SKU (su Blulita kodu), tada grįžkite čia susieti.</div>
+        <button class="btn btn-primary" onclick="whCloseModal();openWhAddModal('fitting')">+ Sukurti naują SKU</button>
+      </div>
+      `}
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function submitKitLink(kitId, kitItemId){
+  const sku = document.getElementById('link-sku')?.value;
+  const mult = document.getElementById('link-mult')?.value || '1';
+  const createRule = document.getElementById('link-rule')?.checked;
+  if(!sku){ toast('Pasirinkite SKU','error'); return; }
+  whCloseModal();
+  kitLinkItem(kitId, kitItemId, sku, mult, createRule);
+}
+
+// ── Cycle Counts ──────────────────────────────────────
+function renderWhCounts(){
+  const items = DB.warehouse.filter(w=>!w.archived);
+  const overdue = nextCountSuggestion();
+  const counts = (DB.cycleCounts||[]).slice(-50).reverse();
+
+  const summary = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="summary-card"><div class="summary-label">Pasenusios pozicijos</div><div class="summary-value" style="color:${overdue.length?'var(--amber-t)':'var(--green-t)'}">${overdue.length}</div><div style="font-size:10px;color:var(--hint);margin-top:2px">reikia perskaičiuoti</div></div>
+    <div class="summary-card"><div class="summary-label">Skaičiavimai (50d)</div><div class="summary-value" style="color:var(--blue)">${counts.length}</div></div>
+    <div class="summary-card"><div class="summary-label">Vidutinis tikslumas</div><div class="summary-value" style="color:var(--purple-t)">${(()=>{
+      if(!counts.length) return '—';
+      const acc = counts.reduce((s,c)=>s+(c.expectedQty>0?Math.max(0,100-Math.abs(c.variance)/c.expectedQty*100):100),0)/counts.length;
+      return whFmt(acc,0)+'%';
+    })()}</div></div>
+    <div class="summary-card"><div class="summary-label">Niekad neskaičiuotos</div><div class="summary-value" style="color:var(--amber-t)">${items.filter(w=>!w.lastCountDate).length}</div></div>
+  </div>`;
+
+  const todoCard = overdue.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);margin-bottom:14px">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px">
+      📋 Reikia inventorizacijos <span style="font-size:10px;color:var(--muted);font-weight:400">(pagal ABC ciklą: A=30d, B=90d, C=180d)</span>
+    </div>
+    ${overdue.slice(0,12).map(({item,overdue})=>{
+      const days = Math.round(overdue/86400000);
+      const abcCol = item.abcClass==='A'?'#dc2626':(item.abcClass==='B'?'#d97706':'#16a34a');
+      return `<div style="display:grid;grid-template-columns:50px 1fr 80px 100px 110px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px">
+        <span style="background:${abcCol};color:#fff;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;text-align:center">${item.abcClass||'C'}</span>
+        <div>
+          <div style="font-weight:500">${escHtml(item.material)}</div>
+          <div style="font-size:9px;color:var(--hint)">${escHtml(item.sku)} · ${item.thickness}mm · ${escHtml(locToStr(item.location)||'—')}</div>
+        </div>
+        <div style="text-align:right;font-family:var(--mono);font-weight:600">${whFmt(item.qty)} ${item.unit}</div>
+        <div style="font-size:10px;color:var(--amber-t)">vėluoja ${days}d</div>
+        ${(isManager()||isEngineer())?`<button class="btn btn-sm btn-primary" onclick="openWhCountModal('${item.id}')">📋 Skaičiuoti</button>`:''}
+      </div>`;
+    }).join('')}
+  </div>` : `<div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:var(--rl);padding:14px;margin-bottom:14px;font-size:12px;color:var(--green-t)">✓ Visos pozicijos inventorizuotos pagal grafiką.</div>`;
+
+  const historyCard = counts.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh)">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600">Skaičiavimo istorija</div>
+    <div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:5px 14px;display:grid;grid-template-columns:120px 1fr 80px 80px 80px 1fr;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);gap:10px">
+      <div>Data / vartotojas</div><div>Medžiaga</div><div style="text-align:right">Sistema</div><div style="text-align:right">Suskaič.</div><div style="text-align:right">Skirtumas</div><div>Pastaba</div>
+    </div>
+    ${counts.slice(0,30).map(c=>{
+      const it = DB.warehouse.find(w=>w.id===c.itemId);
+      const dt = new Date(c.ts).toLocaleString('lt-LT',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const vCol = Math.abs(c.variance)<0.01 ? 'var(--green-t)' : (c.variance>0?'var(--amber-t)':'var(--red-t)');
+      return `<div style="display:grid;grid-template-columns:120px 1fr 80px 80px 80px 1fr;gap:10px;padding:7px 14px;border-bottom:1px solid var(--border);font-size:11px;align-items:center">
+        <div><div style="font-size:10px">${dt}</div><div style="font-size:9px;color:var(--hint)">${escHtml(c.user||'?')}</div></div>
+        <div>${escHtml(it?.material||'?')}</div>
+        <div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted)">${whFmt(c.expectedQty)}</div>
+        <div style="text-align:right;font-family:var(--mono);font-weight:600">${whFmt(c.countedQty)}</div>
+        <div style="text-align:right;font-family:var(--mono);font-weight:600;color:${vCol}">${c.variance>=0?'+':''}${whFmt(c.variance)}</div>
+        <div style="font-size:10px;color:var(--muted)">${escHtml(c.note||'')}</div>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
+  return summary + todoCard + historyCard;
+}
+
+// ── Log ───────────────────────────────────────────────
+function renderWhLog(){
+  const log = [...(DB.warehouseLog||[])].sort((a,b)=>b.ts.localeCompare(a.ts));
+  const typeFilter = document.getElementById('wh-log-type')?.value || '';
+  const filtered = typeFilter ? log.filter(l=>l.type===typeFilter) : log;
+  const display = filtered.slice(0, 200);
+
+  const filters = `<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+    <select id="wh-log-type" onchange="renderWarehouse()" style="font-size:11px;padding:5px 10px;width:auto">
+      <option value="">Visi judėjimai (${log.length})</option>
+      <option value="receive" ${typeFilter==='receive'?'selected':''}>📥 Priėmimas</option>
+      <option value="reserve" ${typeFilter==='reserve'?'selected':''}>🔒 Rezervavimas</option>
+      <option value="pick" ${typeFilter==='pick'?'selected':''}>✋ Surinkimas</option>
+      <option value="issue" ${typeFilter==='issue'?'selected':''}>→ Cechas</option>
+      <option value="return" ${typeFilter==='return'?'selected':''}>↩ Grąžinimas</option>
+      <option value="adjust" ${typeFilter==='adjust'?'selected':''}>⚖ Koregavimas</option>
+      <option value="count" ${typeFilter==='count'?'selected':''}>📋 Skaičiavimas</option>
+    </select>
+    <span style="font-size:11px;color:var(--hint)">Rodomi naujausi 200 įrašų</span>
+  </div>`;
+
+  if(!display.length){
+    return filters + `<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">📜</div><div style="font-weight:600">Žurnalas tuščias</div></div>`;
+  }
+
+  const header = `<div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:7px 14px;display:grid;grid-template-columns:130px 110px 1fr 90px 90px 1.5fr;gap:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint)">
+    <div>Data / vartotojas</div><div>Tipas</div><div>SKU / medžiaga</div><div style="text-align:right">Kiekis</div><div style="text-align:right">Likutis</div><div>Detalės</div>
+  </div>`;
+
+  const rows = display.map(l=>{
+    const dt = new Date(l.ts).toLocaleString('lt-LT',{year:'2-digit',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const sign = (l.qty||0)>=0 ? '+' : '';
+    const col = (l.qty||0)>0 ? 'var(--green-t)' : (l.qty<0 ? 'var(--red-t)' : 'var(--muted)');
+    const proj = l.projectName ? `<span style="display:inline-block;background:var(--surface2);padding:1px 6px;border-radius:4px;font-size:10px">${escHtml(l.projectName.slice(0,30))}</span>` : '';
+    const ref = l.refNumber ? `<span style="font-family:var(--mono);font-size:10px;color:var(--blue-t)">${escHtml(l.refNumber)}</span>` : '';
+    const reason = l.reason ? `<span style="color:var(--hint);font-size:10px">${escHtml(l.reason)}</span>` : '';
+    const fromTo = (l.fromLoc || l.toLoc) ? `<span style="font-size:10px;color:var(--muted)">${l.fromLoc?'⇐ '+escHtml(l.fromLoc):''}${l.toLoc?' ⇒ '+escHtml(l.toLoc):''}</span>` : '';
+    return `<div class="wh-log-row" style="grid-template-columns:130px 110px 1fr 90px 90px 1.5fr">
+      <div><div style="font-size:10px">${dt}</div><div style="font-size:9px;color:var(--hint)">${escHtml(l.user||'?')}</div></div>
+      <div>${whLogTypeLabel(l.type)}</div>
+      <div><div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${escHtml(l.sku||'')}</div><div style="font-size:11px">${escHtml(l.material||'')}</div></div>
+      <div style="text-align:right;font-family:var(--mono);font-weight:600;color:${col}">${sign}${whFmt(l.qty)} ${escHtml(l.unit||'')}</div>
+      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:var(--muted)">${l.balanceAfter!=null?whFmt(l.balanceAfter):'—'}</div>
+      <div style="font-size:10px;display:flex;flex-direction:column;gap:2px">${[proj,ref,reason,fromTo,l.note?escHtml(l.note):''].filter(Boolean).join('<br>')}</div>
+    </div>`;
+  }).join('');
+
+  return filters + `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">${header}${rows}</div>`;
+}
+
+// ══════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════
+function whCloseModal(){document.getElementById('wh-modal-bg')?.remove();}
+
+function openWhAddModal(presetKind){
+  if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
+  const kind = presetKind || 'sheet';
+  // Kind toggle + (for fittings) Blum catalog quick-pick
+  const isFit = kind==='fitting';
+  const catalogOpts = isFit
+    ? `<select id="wh-catalog" onchange="whFillFromCatalog(this.value)" style="margin-top:4px;font-size:12px">
+        <option value="">— Pasirinkite iš Blum katalogo (arba įveskite rankiniu būdu) —</option>
+        ${BLUM_CATALOG.map((b,i)=>`<option value="${i}">${escHtml(b.brand)} ${escHtml(b.mpn)} — ${escHtml(b.name)}</option>`).join('')}
+       </select>`
+    : '';
+
+  const fittingFields = isFit ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">⭐ Vidinis kodas (Blulita) *</label>
+        <input id="wh-distcode" placeholder="pvz. BL-RUN-50-30" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase;background:var(--green-bg)">
+        <div style="font-size:9px;color:var(--green-t);margin-top:3px">Tavo / tiekėjo kodas — bus pagrindinis SKU</div>
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Gamintojo nr. (MPN)</label>
+        <input id="wh-mpn" placeholder="pvz. 71B3690" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase">
+        <div style="font-size:9px;color:var(--hint);margin-top:3px">Originalus Blum/Hettich/Hafele</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Gamintojas</label><input id="wh-brand" value="Blum" style="margin-top:4px"></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Grupė</label>
+        <select id="wh-subcat" style="margin-top:4px">
+          ${FITTING_SUBCATEGORIES.map(s=>`<option value="${s}">${FITTING_SUBCAT_ICONS[s]||''} ${FITTING_SUBCAT_LABELS[s]||s}</option>`).join('')}
+        </select>
+      </div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vienetas</label>
+        <select id="wh-unit"><option value="vnt">vnt</option><option value="pora">pora</option><option value="kompl">kompl.</option><option value="m">m</option></select>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">XLSM aliasai (po vieną į eilutę)</label>
+      <textarea id="wh-aliases" placeholder="Runner 500 30Kg&#10;TANDEM 500 30Kg&#10;Bėgelis 500 30kg" style="margin-top:4px;min-height:60px;font-size:11px;font-family:var(--mono)"></textarea>
+      <div style="font-size:9px;color:var(--hint);margin-top:3px">Pavadinimai, kuriais ši pozicija žinoma XLSM HARDWARE_LIST eilutėse. Susiejimas vyks automatiškai importavus.</div>
+    </div>
+    <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vnt. pakuotėje</label><input id="wh-units-per-pack" type="number" value="1" min="1" style="margin-top:4px;max-width:120px"></div>
+  ` : `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Storis (mm)</label><input id="wh-th" type="number" value="18" style="margin-top:4px"></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vienetas</label><select id="wh-unit" style="margin-top:4px"><option value="m²">m²</option><option value="lakštas">lakštas</option><option value="m">m</option></select></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kategorija</label><input id="wh-cat" placeholder="LMDP" style="margin-top:4px"></div>
+    </div>
+  `;
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="font-size:15px;font-weight:600">+ Naujas SKU</div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:2px;background:var(--surface2);padding:3px;border-radius:8px">
+          <button class="wh-tab ${kind==='sheet'?'active':''}" onclick="whCloseModal();openWhAddModal('sheet')">🪵 Plokštė</button>
+          <button class="wh-tab ${kind==='fitting'?'active':''}" onclick="whCloseModal();openWhAddModal('fitting')">🔩 Furnitūra</button>
+        </div>
+      </div>
+      ${catalogOpts}
+      <div style="display:grid;gap:10px;margin-top:10px">
+        <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
+        ${fittingFields}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pradinis kiekis</label><input id="wh-qty" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="wh-min" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">ROP (užsak. taškas)</label><input id="wh-rop" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px" title="Reorder Point — žemiau šio kiekio bus įspėjimas"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Tiekėjas</label><input id="wh-sup" placeholder="—" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/vnt</label><input id="wh-cost" type="number" step="0.01" value="0" style="margin-top:4px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — zona</label><input id="wh-zone" placeholder="${isFit?'B':'A'}" style="margin-top:4px;text-transform:uppercase"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — lentyna</label><input id="wh-bin" placeholder="${isFit?'3.2':'12'}" style="margin-top:4px"></div>
+        </div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Brūkšninis kodas</label><input id="wh-bc" placeholder="(pasirinktinai)" style="margin-top:4px"></div>
+      </div>
+      <input type="hidden" id="wh-kind" value="${kind}">
+      <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="submitWhAdd()">Pridėti SKU</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(()=>document.getElementById(isFit?'wh-mpn':'wh-mat')?.focus(),50);
+}
+
+// Auto-fill the form fields from a Blum catalog entry
+function whFillFromCatalog(idx){
+  if(idx==='') return;
+  const b = BLUM_CATALOG[parseInt(idx)];
+  if(!b) return;
+  const set = (id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
+  set('wh-mpn', b.mpn);
+  set('wh-brand', b.brand);
+  set('wh-mat', b.name);
+  set('wh-subcat', b.subcategory);
+  set('wh-unit', b.unit||'vnt');
+  set('wh-units-per-pack', b.unitsPerPack||1);
+  // Stash attributes on the form via a data attribute on the kind hidden input
+  const kindInput = document.getElementById('wh-kind');
+  if(kindInput) kindInput.dataset.attrs = JSON.stringify(b.attributes||{});
+  if(kindInput) kindInput.dataset.pairOf = b.pairOf?'1':'0';
+}
+
+function submitWhAdd(){
+  const kindInput = document.getElementById('wh-kind');
+  const kind = kindInput?.value || 'sheet';
+  const mat = document.getElementById('wh-mat').value.trim();
+  if(!mat){ toast('Įveskite pavadinimą','error'); return; }
+
+  const data = {
+    kind,
+    material: mat,
+    unit: document.getElementById('wh-unit').value,
+    minQty: document.getElementById('wh-min').value,
+    reorderPoint: document.getElementById('wh-rop').value,
+    supplier: document.getElementById('wh-sup').value.trim(),
+    cost: document.getElementById('wh-cost').value,
+    location: {zone:document.getElementById('wh-zone').value.trim().toUpperCase(), bin:document.getElementById('wh-bin').value.trim()},
+    barcode: document.getElementById('wh-bc').value.trim(),
+  };
+
+  if(kind==='fitting'){
+    const distCode = document.getElementById('wh-distcode').value.trim().toUpperCase();
+    const mpn = document.getElementById('wh-mpn').value.trim().toUpperCase();
+    if(!distCode && !mpn){ toast('Reikalingas vidinis kodas (Blulita) arba MPN','error'); return; }
+    data.distCode = distCode;
+    data.mpn = mpn;
+    data.brand = document.getElementById('wh-brand').value.trim() || 'Blum';
+    data.subcategory = document.getElementById('wh-subcat').value;
+    data.unitsPerPack = parseInt(document.getElementById('wh-units-per-pack').value)||1;
+    try { data.attributes = JSON.parse(kindInput.dataset.attrs||'{}'); } catch(e){ data.attributes = {}; }
+    data.pairOf = kindInput.dataset.pairOf==='1';
+    // Parse aliases textarea — one per line
+    const aliasText = document.getElementById('wh-aliases').value;
+    data.aliases = aliasText.split('\n').map(s=>s.trim()).filter(Boolean);
+    // Prefer distCode as SKU; fall back to MPN
+    data.sku = distCode || mpn;
+    if(!data.supplier || data.supplier==='—') data.supplier = data.brand;
+  } else {
+    data.thickness = document.getElementById('wh-th').value;
+    data.category  = document.getElementById('wh-cat').value.trim();
+  }
+
+  const item = whCreateItem(data);
+  const initQty = parseFloat(document.getElementById('wh-qty').value)||0;
+  if(initQty>0){
+    item.qty = initQty;
+    item.firstReceived = whNow();
+    item.lastReceived = whNow();
+    whLog({type:'receive', itemId:item.id, sku:item.sku, material:item.material,
+      qty:initQty, unit:item.unit, reason:'Pirminis įvedimas', toLoc:locToStr(item.location)});
+  }
+  // Auto-create alias rules for each alias the user entered
+  if(kind==='fitting' && data.aliases?.length){
+    data.aliases.forEach(a=>{
+      if(a) whAddAliasRule(a, item.sku, 1, data.subcategory.toLowerCase()==='runner'?'runner':(data.subcategory.toLowerCase()==='hinge'?'hinge':'other'));
+    });
+  }
+  save();
+  whCloseModal();
+  toast(`✓ SKU sukurtas: ${item.sku}${data.aliases?.length?` (+${data.aliases.length} aliasų)`:''}`,'success');
+  renderWarehouse();
+}
+
+function openWhEditModal(itemId){
+  const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
+  const isFit = w.kind==='fitting';
+  // Find which alias rules currently route to this SKU (for inline display)
+  const linkedRules = isFit ? (DB.fittingAliases||[]).filter(a=>a.sku===w.sku) : [];
+
+  const fittingHeader = isFit ? `
+    <div style="background:var(--purple-bg);border:1px solid var(--purple-t);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--purple-t);margin-bottom:10px">
+      <div style="font-weight:600;margin-bottom:3px">${FITTING_SUBCAT_ICONS[w.subcategory]||'🔩'} ${escHtml(FITTING_SUBCAT_LABELS[w.subcategory]||w.subcategory||'Furnitūra')} — ${escHtml(w.brand||'')}</div>
+      <div style="font-family:var(--mono);font-size:10px">${w.unitsPerPack>1?w.unitsPerPack+' vnt./pak.':''}${w.pairOf?' · pora':''}</div>
+      ${formatFittingAttrs(w.attributes) ? '<div style="font-size:10px;margin-top:2px">Atributai:'+formatFittingAttrs(w.attributes)+'</div>' : ''}
+    </div>
+  ` : '';
+
+  const fittingFields = isFit ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">⭐ Vidinis kodas (Blulita)</label>
+        <input id="we-distcode" value="${escHtml(w.distCode||'')}" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase;background:var(--green-bg)">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Gamintojo nr. (MPN)</label>
+        <input id="we-mpn" value="${escHtml(w.mpn||'')}" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase">
+      </div>
+    </div>
+    <div>
+      <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">XLSM aliasai (po vieną į eilutę)</label>
+      <textarea id="we-aliases" placeholder="Runner 500 30Kg&#10;TANDEM 500 30Kg" style="margin-top:4px;min-height:60px;font-size:11px;font-family:var(--mono)">${escHtml((w.aliases||[]).join('\n'))}</textarea>
+      <div style="font-size:9px;color:var(--hint);margin-top:3px">Pavadinimai, kuriais ši pozicija žinoma XLSM HARDWARE_LIST eilutėse. Bus naudojami automatiniam susiejimui.</div>
+    </div>
+    ${linkedRules.length ? `
+    <div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Aktyvios susiejimo taisyklės (${linkedRules.length})</div>
+      <div style="background:var(--surface2);border-radius:8px;padding:8px;max-height:140px;overflow-y:auto">
+        ${linkedRules.map(r=>`<div style="display:flex;align-items:center;gap:6px;padding:5px 7px;font-size:11px;border-radius:6px" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+          <span style="font-family:var(--mono);font-size:10px;background:var(--blue-bg);color:var(--blue-t);padding:2px 6px;border-radius:3px">${escHtml(r.partType||'other')}</span>
+          <span style="flex:1;font-family:var(--mono);font-size:10px">${escHtml(r.pattern)}</span>
+          ${r.qtyMultiplier!==1?`<span style="color:var(--amber-t);font-size:9px;font-weight:600">×${r.qtyMultiplier}</span>`:''}
+          <button class="btn btn-xs btn-danger" onclick="whDeleteAliasRule('${r.id}');whCloseModal();openWhEditModal('${itemId}')" title="Šalinti taisyklę">×</button>
+        </div>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--hint);margin-top:4px">Taisyklės kuriamos automatiškai pridedant aliasą arba susiejant kit eilutę su šiuo SKU.</div>
+    </div>
+    ` : ''}
+  ` : '';
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">Redaguoti SKU</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:var(--mono)">${escHtml(w.sku)} · ${escHtml(w.material)}</div>
+      ${fittingHeader}
+      <div style="display:grid;gap:10px">
+        ${fittingFields}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="we-min" type="number" step="${isFit?'1':'0.01'}" value="${w.minQty}" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">ROP</label><input id="we-rop" type="number" step="${isFit?'1':'0.01'}" value="${w.reorderPoint||0}" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Maks.</label><input id="we-max" type="number" step="${isFit?'1':'0.01'}" value="${w.maxQty||0}" style="margin-top:4px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — zona</label><input id="we-zone" value="${escHtml(w.location?.zone||'')}" style="margin-top:4px;text-transform:uppercase"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — lentyna</label><input id="we-bin" value="${escHtml(w.location?.bin||'')}" style="margin-top:4px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Tiekėjas</label><input id="we-sup" value="${escHtml(w.supplier||'')}" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/${escHtml(w.unit)}</label><input id="we-cost" type="number" step="0.01" value="${w.cost||0}" style="margin-top:4px"></div>
+        </div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pastabos</label><textarea id="we-notes" style="margin-top:4px;min-height:50px">${escHtml(w.notes||'')}</textarea></div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
+        <div style="background:var(--surface2);padding:10px 12px;border-radius:8px;font-size:11px">
+          Likutis: <strong style="font-family:var(--mono)">${whFmt(w.qty,isFit?0:2)} ${w.unit}</strong> · Rezerv.: <strong style="font-family:var(--mono);color:var(--purple-t)">${whFmt(w.reservedQty||0,isFit?0:2)}</strong>
+          <div style="font-size:10px;color:var(--hint);margin-top:3px">Kiekio koregavimui naudokite "Inventorizacija" arba "Priėmimas"</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="submitWhEdit('${itemId}')">Išsaugoti</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function submitWhEdit(itemId){
+  const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
+  const isFit = w.kind==='fitting';
+  w.minQty = parseFloat(document.getElementById('we-min').value)||0;
+  w.reorderPoint = parseFloat(document.getElementById('we-rop').value)||0;
+  w.maxQty = parseFloat(document.getElementById('we-max').value)||0;
+  w.location = {zone:document.getElementById('we-zone').value.trim().toUpperCase(), bin:document.getElementById('we-bin').value.trim()};
+  w.supplier = document.getElementById('we-sup').value.trim() || w.supplier;
+  w.cost = parseFloat(document.getElementById('we-cost').value)||0;
+  w.notes = document.getElementById('we-notes').value;
+  if(isFit){
+    const newDist = (document.getElementById('we-distcode')?.value||'').trim().toUpperCase();
+    const newMpn  = (document.getElementById('we-mpn')?.value||'').trim().toUpperCase();
+    w.distCode = newDist;
+    w.mpn = newMpn;
+    // Diff aliases — anything new gets a workshop-wide alias rule too
+    const newAliasList = (document.getElementById('we-aliases')?.value||'')
+      .split('\n').map(s=>s.trim()).filter(Boolean);
+    const existingAliases = new Set((w.aliases||[]).map(a=>a.toLowerCase()));
+    const addedAliases = newAliasList.filter(a=>!existingAliases.has(a.toLowerCase()));
+    w.aliases = newAliasList;
+    addedAliases.forEach(a=>{
+      whAddAliasRule(a, w.sku, 1, (w.subcategory||'').toLowerCase());
+    });
+  }
+  save();
+  whCloseModal();
+  const msg = isFit && w.aliases?.length ? `✓ Atnaujinta (${w.aliases.length} aliasų)` : '✓ Atnaujinta';
+  toast(msg,'success');
+  renderWarehouse();
+}
+
+function openWhCountModal(itemId){
+  const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:440px;max-width:95vw;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">📋 Inventorizacija</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:var(--mono)">${escHtml(w.sku)} · ${escHtml(w.material)} · ${escHtml(locToStr(w.location)||'be vietos')}</div>
+      <div style="display:grid;gap:12px">
+        <div style="background:var(--surface2);padding:14px;border-radius:8px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:5px">Sistema rodo</div>
+          <div style="font-size:24px;font-weight:700;font-family:var(--mono)">${whFmt(w.qty)} <span style="font-size:14px;color:var(--muted);font-weight:400">${escHtml(w.unit)}</span></div>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Faktiškai suskaičiuota *</label>
+          <input id="cc-counted" type="number" step="0.01" value="${w.qty}" style="margin-top:4px;font-size:18px;font-weight:600;text-align:center" autofocus>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pastaba</label>
+          <input id="cc-note" placeholder="pvz. Inventorizacija 2026-Q1" style="margin-top:4px">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="submitWhCount('${itemId}')">Patvirtinti skaičiavimą</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(()=>document.getElementById('cc-counted')?.select(),50);
+}
+
+function submitWhCount(itemId){
+  const counted = document.getElementById('cc-counted').value;
+  const note = document.getElementById('cc-note').value;
+  if(counted==='' || isNaN(parseFloat(counted))){ toast('Įveskite skaičių','error'); return; }
+  const r = cycleCount(itemId, counted, note);
+  whCloseModal();
+  if(Math.abs(r.variance)<0.01) toast(`✓ Tikslu — be skirtumo`,'success');
+  else toast(`Skirtumas: ${r.variance>0?'+':''}${whFmt(r.variance,2)} (tikslumas ${whFmt(r.accuracy,0)}%)`, r.accuracy>=95?'success':'');
+  renderWarehouse();
+}
+
+// ══════════════════════════════════════════════
+// SIDEBAR BADGE — show alert count
+// ══════════════════════════════════════════════
+function updateWarehouseBadge(){
+  const badge = document.getElementById('wh-badge'); if(!badge) return;
+  const k = whKPIs();
+  const total = k.stockoutCount + k.shortKitsCount;
+  if(total>0){ badge.style.display=''; badge.textContent=total; }
+  else badge.style.display='none';
+}
+const _origRenderSidebarWh = typeof renderSidebar==='function' ? renderSidebar : null;
+if(_origRenderSidebarWh){
+  renderSidebar = function(){
+    _origRenderSidebarWh.apply(this, arguments);
+    try{ updateWarehouseBadge(); }catch(e){}
+  };
+}
+
+// (CSS now in head — see .wh-stock-row)
+
 
 </script>
 </body>
