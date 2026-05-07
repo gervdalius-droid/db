@@ -697,7 +697,7 @@ let USERS = [];
 let DB = {
   projects:[], tasks:[], comments:[], notifications:[],
   currentUserId:'', orders:[], stepDefaults:{}, matStatus:{}, stepDays:{},
-  warehouse:[], warehouseLog:[], pickStatus:{}, kits:[], cycleCounts:[], fittingAliases:[],
+  warehouse:[], warehouseLog:[], pickStatus:{}, kits:[], cycleCounts:[], fittingAliases:[], fittingPairingRules:[],
 };
 
 // ══════════════════════════════════════════════
@@ -869,10 +869,13 @@ async function saveToCloud(){
     sbSet(wsKey('tasks'),    JSON.stringify(DB.tasks)),
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
-    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases})),
+    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules})),
   ]);
   _lastSavedAt=Date.now();
 }
+
+// Snapshot key for per-record change-detection (see _stampMutated below)
+const _SNAPSHOT_KEY='fabflow_v4_snapshot';
 
 async function loadFromCloud(){
   if(!WORKSPACE_CODE)return false;
@@ -889,25 +892,67 @@ async function loadFromCloud(){
     if(!proj&&!users)return false;
     const cloudProjects=proj?JSON.parse(proj):[];
     const cloudTasks=tasks?JSON.parse(tasks):[];
-    // ANTI-REGRESSION MERGE: keep the more-progressed version of each task
-    // If local has a task in 'done' or higher qtyDone, never let cloud roll it back
+
+    // ── Timestamp-aware merge ─────────────────────────────────────────
+    // For each record, compare lastModified between local and cloud:
+    //   - If local is newer (or cloud is missing the field), keep local copy
+    //   - Otherwise, take cloud copy
+    // Anti-regression rules act as fallback for legacy records without timestamps,
+    // protecting "in-progress" / "done" / qtyDone counters from rollback.
     const localTasksMap={};DB.tasks.forEach(t=>localTasksMap[t.id]=t);
     cloudTasks.forEach((ct,i)=>{
       const lt=localTasksMap[ct.id];
       if(!lt)return;
+      // Timestamp wins when both sides have one
+      if(lt.lastModified && ct.lastModified){
+        if(lt.lastModified > ct.lastModified){cloudTasks[i]=lt;return;}
+        // cloud is newer or equal — fall through (cloud wins)
+      } else if(lt.lastModified && !ct.lastModified){
+        // Local has been edited locally, cloud hasn't been timestamped yet — keep local
+        cloudTasks[i]=lt;return;
+      }
+      // Anti-regression fallback (also catches the case where cloud is newer
+      // but local has actual completion progress that mustn't be lost)
       const localQtyDone=(lt.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||lt.qtyDone||0;
       const cloudQtyDone=(ct.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||ct.qtyDone||0;
-      // If local has more progress OR is 'done' but cloud isn't, keep local version
       if(lt.status==='done'&&ct.status!=='done'){cloudTasks[i]=lt;return;}
       if(localQtyDone>cloudQtyDone){cloudTasks[i]=lt;return;}
     });
+
+    // Also include local tasks the cloud hasn't seen yet (offline-created)
+    const cloudTaskIds=new Set(cloudTasks.map(t=>t.id));
+    DB.tasks.forEach(lt=>{
+      if(!cloudTaskIds.has(lt.id) && lt.lastModified){
+        // Local-only task that has been touched — preserve it
+        cloudTasks.push(lt);
+      }
+    });
+
+    // Same merge for projects
+    const localProjMap={};DB.projects.forEach(p=>localProjMap[p.id]=p);
+    cloudProjects.forEach((cp,i)=>{
+      const lp=localProjMap[cp.id];
+      if(!lp)return;
+      if(lp.lastModified && cp.lastModified){
+        if(lp.lastModified > cp.lastModified){cloudProjects[i]=lp;return;}
+      } else if(lp.lastModified && !cp.lastModified){
+        cloudProjects[i]=lp;return;
+      }
+    });
+    const cloudProjIds=new Set(cloudProjects.map(p=>p.id));
+    DB.projects.forEach(lp=>{
+      if(!cloudProjIds.has(lp.id) && lp.lastModified) cloudProjects.push(lp);
+    });
+
     DB.projects=cloudProjects;
     DB.tasks=cloudTasks;
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
-    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];}
+    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];DB.fittingPairingRules=s.fittingPairingRules||[];}
     // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
+    // Refresh the diff snapshot so the next save() doesn't think everything changed
+    try{localStorage.setItem(_SNAPSHOT_KEY,JSON.stringify({tasks:DB.tasks, projects:DB.projects}));}catch(e){}
     return true;
   }catch(e){console.warn('loadFromCloud:',e);return false;}
 }
@@ -915,11 +960,61 @@ async function loadFromCloud(){
 let _saveTimer=null;
 let _isSaving=false;
 let _lastSavedAt=0;
+
+// ── Per-record change detection ─────────────────────────────────────────
+// Before each save, diff DB.tasks/projects against the last serialized snapshot.
+// Any record whose JSON changed gets its lastModified bumped to "now". The merge
+// in loadFromCloud uses this to do per-record last-writer-wins, which prevents
+// the entire family of "I edited X on device A and a stale device B rolled it
+// back" bugs (the most visible being the disappearing blocker on tasks).
+
+function _stripTs(o){const c={...o};delete c.lastModified;return c;}
+
+function _stampMutated(){
+  let prev={};
+  try{prev=JSON.parse(localStorage.getItem(_SNAPSHOT_KEY)||'{}')||{};}catch(e){prev={};}
+  const now=new Date().toISOString();
+
+  const stampList=(currentList, prevList)=>{
+    if(!Array.isArray(currentList))return;
+    const prevMap={};(prevList||[]).forEach(x=>{if(x&&x.id)prevMap[x.id]=x;});
+    currentList.forEach(item=>{
+      if(!item||!item.id)return;
+      const before=prevMap[item.id];
+      if(!before){
+        // new record — stamp once if missing
+        if(!item.lastModified) item.lastModified=now;
+        return;
+      }
+      // compare ignoring the timestamp itself
+      let changed=false;
+      try{
+        changed=JSON.stringify(_stripTs(item))!==JSON.stringify(_stripTs(before));
+      }catch(e){changed=true;}
+      if(changed) item.lastModified=now;
+    });
+  };
+
+  stampList(DB.tasks, prev.tasks);
+  stampList(DB.projects, prev.projects);
+
+  // Save the new snapshot for next-time diffing (after stamping, so subsequent
+  // diffs compare against the stamped version)
+  try{
+    localStorage.setItem(_SNAPSHOT_KEY, JSON.stringify({
+      tasks: DB.tasks,
+      projects: DB.projects,
+    }));
+  }catch(e){/* quota — non-fatal */}
+}
+
 function save(){
-  // Always write to localStorage immediately
+  // 0. Stamp any records that changed since last save
+  _stampMutated();
+  // 1. Always write to localStorage immediately (whole DB for quick reload)
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
   _lastSavedAt=Date.now(); // block auto-refresh immediately
-  // Short debounce so cloud save fires fast
+  // 2. Short debounce so cloud save fires fast
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(async()=>{
     if(_isSaving)return;
@@ -953,7 +1048,7 @@ function load(){
     DB.notifications=d.notifications||[];DB.currentUserId=d.currentUserId||'';
     DB.orders=d.orders||[];DB.stepDefaults=d.stepDefaults||{};
     DB.matStatus=d.matStatus||{};DB.stepDays=d.stepDays||{};
-    DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];
+    DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];DB.fittingPairingRules=d.fittingPairingRules||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
     return true;
@@ -1732,6 +1827,7 @@ function renderProjectView(pid,tab){
     {id:'workload',  label:'👥 Darbuotojai'},
     {id:'materials', label:'🪵 Medžiagos'},
     {id:'drawers',   label:'🗄 Stalčiai'},
+    {id:'fittings',  label:'🔧 Furnitūra'+(p.importData?.hardware?.length?` (${p.importData.hardware.length})`:'')},
     {id:'files',     label:'📎 Failai'+(p.files?.length?` (${p.files.length})`:'')},
   ];
   const tabBar=tabs.map(t=>`<button class="tab-btn ${_projTab===t.id?'active':''}" onclick="renderProjectView('${pid}','${t.id}')">${t.label}</button>`).join('');
@@ -1770,6 +1866,7 @@ function renderProjectView(pid,tab){
   else if(_projTab==='workload')content=renderWorkload(pid);
   else if(_projTab==='materials')content=renderMaterials(pid);
   else if(_projTab==='drawers')content=renderDrawers(pid);
+  else if(_projTab==='fittings')content=renderFittings(pid);
   else if(_projTab==='files')content=renderFilesTab(pid);
 
   document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+renderProjectComments(pid);
@@ -2012,21 +2109,23 @@ function dropTaskToStep(ev,stepId,pid){
 function renderPipeline(pid){
   const tasks=projTasks(pid);
   if(!tasks.length)return`<div class="empty-state">Nėra užduočių</div>`;
+  // Use the right step set for this project (design vs production)
+  const stepsForProj=projSteps(getProject(pid));
   return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:16px;overflow-x:auto">
   <table class="pipeline-table" style="width:100%;min-width:600px">
     <thead><tr>
       <th style="min-width:160px">Užduotis</th>
       <th style="width:30px">Ats.</th>
-      ${STEPS.map(s=>`<th title="${s.label}" style="text-align:center;width:34px"><div style="width:22px;height:22px;border-radius:5px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:11px;margin:0 auto" title="${s.label}">${s.icon}</div></th>`).join('')}
+      ${stepsForProj.map(s=>`<th title="${s.label}" style="text-align:center;width:34px"><div style="width:22px;height:22px;border-radius:5px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:11px;margin:0 auto" title="${s.label}">${s.icon}</div></th>`).join('')}
       <th style="text-align:right;width:42px">%</th>
     </tr></thead>
     <tbody>${tasks.map(t=>{
-      const si=STEPS.findIndex(s=>s.id===t.stepId);
-      const pct=t.status==='done'?100:t.status==='in-progress'?Math.round((si/STEPS.length)*100):0;
+      const si=stepsForProj.findIndex(s=>s.id===t.stepId);
+      const pct=t.status==='done'?100:t.status==='in-progress'?Math.round((si/stepsForProj.length)*100):0;
       return`<tr onclick="openTaskModal('${t.id}')" style="cursor:pointer">
         <td style="font-size:11px;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.name)}</td>
         <td>${ava(t.assigneeId,18)}</td>
-        ${STEPS.map((s,i)=>{
+        ${stepsForProj.map((s,i)=>{
           let bg='var(--surface3)',color='var(--hint)',icon='·';
           if(t.status==='done'||(t.status==='in-progress'&&i<si)){bg=s.bg;color=s.color;icon='✓';}
           else if(t.status==='in-progress'&&i===si){bg=s.color;color='#fff';icon='●';}
@@ -2635,8 +2734,532 @@ function renderDrawers(pid){
 }
 
 // ══════════════════════════════════════════════
-// FILES TAB — upload, view PDF, download
+// FITTINGS COMBINER — group raw HARDWARE_LIST lines into production-meaningful assemblies
 // ══════════════════════════════════════════════
+//
+// CAD systems (EFICAD/SolidWorks/etc.) export hardware as one row per CAD instance, with names
+// like "TANDEM 350mm_TANDEM_1_DALIES_PEDUT+SEC__KAZ_MG_SP__3_1-Default" — six near-identical
+// lines for what is, in production reality, a stack of identical drawer slides plus brackets.
+//
+// This combiner reverses that flattening:
+//   1. NORMALIZE — strip the per-instance suffixes ("_3_1", "_3_2") and concatenate qty
+//   2. CLASSIFY  — recognize the assembly type (runner, hinge cup, hinge plate, leg, ...)
+//   3. PAIR      — match cup-and-plate, left-and-right, etc. into completed sets
+//   4. EXPAND    — for each assembly, describe what production needs to physically pull
+//
+// Output is a *view* over the raw hardware data, not a replacement. Raw lines remain
+// available for the alias resolver / kit creation logic.
+
+// Strip the noisy CAD-instance suffix from a name. Example:
+//   "TANDEM 350mm_TANDEM_1_DALIES_PEDUT+SEC__KAZ_MG_SP__3_1-Default"
+//   → "TANDEM 350mm"
+function fcNormalizeName(name){
+  let s=String(name||'');
+  // Special case: short codes that are entirely digits/underscores (e.g. "15_18-Défaut")
+  // — preserve the leading code before any "-Default" suffix.
+  const codeMatch=s.match(/^([A-Z0-9]+(?:_[A-Z0-9]+)*)\s*-\s*(?:Default|D[ée]faut)\s*$/i);
+  if(codeMatch) return codeMatch[1];
+  // Strip "_KAZ_MG_SP__" or any "__PROJECT_NAME__" middle bit
+  s=s.replace(/__[A-Z][A-Z0-9_]*__\d*/g,'_');
+  // Strip trailing instance markers like "_3_1-Default" (1-2 digits, multiple groups, then dash)
+  s=s.replace(/_+\d+(_\d+)+[-_]/, '-');
+  // Strip just "-Default", "-Défaut" suffix
+  s=s.replace(/-(Default|D[ée]faut)\s*$/i,'');
+  // Collapse multiple underscores
+  s=s.replace(/_{2,}/g,'_').replace(/^_|_$/g,'');
+  // For names like "TANDEM 350mm_TANDEM_1_DALIES_PEDUT+SEC", trim everything from the first "_"
+  // when the lead part already names the product clearly (ends in mm, deg, kg, or starts with a brand)
+  const leadMatch=s.match(/^([A-Z][\w\s]*?\d+\s*mm\b|[A-Za-z]+_TOP_\d+|CLIP\s+Top\s+\d+|[A-Z]+\s+\d+x\d+|MEDSRAIGTIS[\s_]\d+x\d+|Dowel[\s_]\d+X\d+|pedute|PEDUTE\s*\d+mm|DU\d+T|Oval Tube[\s_][\w\s\d()]*)/i);
+  if(leadMatch && leadMatch[1].length>=4){
+    return leadMatch[1].trim();
+  }
+  // Otherwise return the part before the first dash or underscore (but only if reasonably long)
+  const dash=s.indexOf('-'); const und=s.indexOf('_');
+  let cut=Math.min(dash<0?9999:dash, und<0?9999:und);
+  if(cut>=4 && cut<60) return s.slice(0,cut).trim();
+  return s.trim();
+}
+
+// Classify a normalized name into an assembly category. Returns {kind, subtype, params}.
+// kind:    'runner'|'hinge_cup'|'hinge_plate'|'leg'|'tube'|'tube_support'|'screw'|'dowel'|'connector'|'lift'|'tipon'|'other'
+// params:  {depth, angle, system, ...}
+function fcClassify(name, fullName){
+  const n=name.toLowerCase();
+  const fn=String(fullName||'').toLowerCase();
+
+  // Runners — TANDEM / TANDEMBOX
+  if(/tandem\s*\d|tandembox|runner/i.test(n)||/tandem\s*\d/i.test(fn)){
+    const depthMatch=(n+' '+fn).match(/(\d{3,4})\s*mm/);
+    const depth=depthMatch?parseInt(depthMatch[1]):null;
+    const isBox=/tandembox/i.test(n+fn);
+    return {kind:'runner', subtype:isBox?'tandembox':'tandem', params:{depth, system:isBox?'TANDEMBOX':'TANDEM'}};
+  }
+
+  // Hinge plates (kryžminės plokštelės) — typically the matching mounting plate
+  if(/kryzmin|kryžmin|plokštel|mounting plate|173h\d/i.test(n+fn)){
+    return {kind:'hinge_plate', subtype:'cross', params:{}};
+  }
+
+  // Hinge cups
+  if(/clip\s*top|hinge|lankst|71b\d|70t\d/i.test(n+fn)){
+    const angleMatch=(n+fn).match(/(\d{2,3})\s*°|hinge\s*\|\s*(\d{2,3})/);
+    const angle=angleMatch?parseInt(angleMatch[1]||angleMatch[2]):null;
+    // Detect overlay type from CAD's pipe-separated metadata
+    const fullMeta=String(fullName||'');
+    let overlay='full';
+    if(/\|\s*S\s*\|\s*O\s*\|/.test(fullMeta) && /\bO\b/.test(fullMeta)) overlay='full';
+    if(/\|\s*U\s*\|/.test(fullMeta)) overlay='half';
+    if(/\|\s*I\s*\|/.test(fullMeta)) overlay='inset';
+    return {kind:'hinge_cup', subtype:'clip-top', params:{angle, overlay}};
+  }
+
+  // Lift mechanisms (AVENTOS)
+  if(/aventos|hk-s|hk top|lift/i.test(n+fn)){
+    return {kind:'lift', subtype:'aventos', params:{}};
+  }
+
+  // TIP-ON
+  if(/tip[\s\-]?on|atmetiklis/i.test(n+fn)){
+    return {kind:'tipon', subtype:null, params:{}};
+  }
+
+  // Legs (pedutės)
+  if(/pedute|pedutė|^leg/i.test(n+fn)){
+    const heightMatch=(n+fn).match(/(\d+)\s*mm/);
+    return {kind:'leg', subtype:null, params:{height:heightMatch?parseInt(heightMatch[1]):null}};
+  }
+
+  // Oval tube + supports
+  if(/oval tube\s*support|tube\s*support/i.test(n+fn)) return {kind:'tube_support', subtype:null, params:{}};
+  if(/oval tube|tube/i.test(n+fn)) return {kind:'tube', subtype:null, params:{}};
+
+  // Screws
+  if(/medsraigtis|screw|varžt/i.test(n+fn)){
+    const sizeMatch=(n+fn).match(/(\d+)\s*[xX]\s*(\d+)/);
+    return {kind:'screw', subtype:null, params:{size:sizeMatch?`${sizeMatch[1]}×${sizeMatch[2]}`:null}};
+  }
+
+  // Dowels
+  if(/dowel|kaišt/i.test(n+fn)){
+    const sizeMatch=(n+fn).match(/(\d+)\s*[xX]\s*(\d+)/);
+    return {kind:'dowel', subtype:null, params:{size:sizeMatch?`${sizeMatch[1]}×${sizeMatch[2]}`:null}};
+  }
+
+  // Connectors / fittings (DU232T, 15_18 — Hettich fittings)
+  if(/^DU\d+|^\d+_\d+\b/i.test(name)) return {kind:'connector', subtype:null, params:{}};
+
+  return {kind:'other', subtype:null, params:{}};
+}
+
+// Build the combined view from raw hardware lines.
+// Options:
+//   implyBrackets — true = assume each TANDEM runner pair needs 2 brackets (production reality)
+function fcCombine(hardware, opts={}){
+  const implyBrackets=opts.implyBrackets!==false; // default true
+
+  // Ensure default rules are seeded if the user hasn't created any
+  fcSeedDefaultRulesIfEmpty();
+
+  const rules=(DB.fittingPairingRules||[]).filter(r=>r.enabled!==false);
+
+  // ── Helpers for matching ──
+  const normLower=s=>String(s||'').toLowerCase();
+  const matchesPattern=(name, pattern, exclude)=>{
+    if(!pattern) return false;
+    const n=normLower(name);
+    // Pattern can be pipe-separated alternatives
+    const parts=pattern.split('|').map(s=>normLower(s.trim())).filter(Boolean);
+    if(!parts.some(p=>n.includes(p))) return false;
+    if(exclude){
+      const exParts=exclude.split('|').map(s=>normLower(s.trim())).filter(Boolean);
+      if(exParts.some(p=>n.includes(p))) return false;
+    }
+    return true;
+  };
+
+  // ── Step 1: assign each hardware line to a rule (or none) ──
+  const assignments=hardware.map((h,idx)=>({srcIdx:idx, src:h, qty:h.qty, normName:fcNormalizeName(h.name), assignedRule:null, role:null}));
+
+  for(const a of assignments){
+    for(const rule of rules){
+      if(rule.type==='runner_pair'){
+        if(matchesPattern(a.src.name, rule.pattern, rule.excludePattern)){
+          a.assignedRule=rule; a.role='runner';
+          break;
+        }
+      } else if(rule.type==='cup_plate'){
+        // Plates first — plate names like "CLIP_TOP_173H7100" can also match cup pattern "CLIP Top",
+        // so plate-pattern wins when both could apply.
+        if(matchesPattern(a.src.name, rule.platePattern)){
+          a.assignedRule=rule; a.role='plate';
+          break;
+        }
+        if(matchesPattern(a.src.name, rule.cupPattern)){
+          a.assignedRule=rule; a.role='cup';
+          break;
+        }
+      }
+    }
+  }
+
+  // ── Step 2: bucket assignments by (rule, depth-for-runners) ──
+  const ruleBuckets={};  // key = ruleId + '__' + depth
+
+  for(const a of assignments){
+    if(!a.assignedRule) continue;
+    const rule=a.assignedRule;
+    let depth=null;
+    if(rule.type==='runner_pair' && rule.extractDepth){
+      const m=a.src.name.match(/(\d{2,4})\s*mm/i);
+      if(m) depth=parseInt(m[1]);
+    }
+    const key=rule.id+(depth?'_d'+depth:'');
+    if(!ruleBuckets[key]) ruleBuckets[key]={rule, depth, runners:0, cups:0, plates:0, sourceLines:[]};
+    if(a.role==='runner') ruleBuckets[key].runners+=a.qty;
+    if(a.role==='cup') ruleBuckets[key].cups+=a.qty;
+    if(a.role==='plate') ruleBuckets[key].plates+=a.qty;
+    ruleBuckets[key].sourceLines.push({srcIdx:a.srcIdx, qty:a.qty, original:a.src.name, role:a.role});
+  }
+
+  // ── Step 3: build assembly cards from buckets ──
+  const assemblies=[];
+
+  for(const b of Object.values(ruleBuckets)){
+    const r=b.rule;
+    if(r.type==='runner_pair'){
+      const piecesPer=parseInt(r.piecesPerAssembly)||2;
+      const total=b.runners;
+      const sets=Math.floor(total/piecesPer);
+      const odd=total%piecesPer;
+      // Build display title
+      let title=r.assemblyTitle||r.name;
+      title=title.replace('{depth}', b.depth||'').replace(/\s+mm/g,'mm');
+      if(!b.depth) title=title.replace(/\{depth\}/g,'').replace(/\s+mm/g,'').trim();
+      // Components: 2 base runner roles + each implied component scaled by sets
+      const components=[
+        {role:'Bėgelis (kairys)', qty:sets, perDrawer:1, sourceHint:r.name+' L'},
+        {role:'Bėgelis (dešinys)', qty:sets, perDrawer:1, sourceHint:r.name+' R'},
+      ];
+      if(implyBrackets && Array.isArray(r.components)){
+        for(const c of r.components){
+          if(c.implied){
+            components.push({role:c.role, qty:sets*(c.qty||1), perDrawer:c.qty||1, implied:true});
+          }
+        }
+      }
+      assemblies.push({
+        assemblyKind:'drawer',
+        title:title||r.name,
+        qty:sets,
+        unit:r.assemblyUnit||'stalč.',
+        derivedFrom:`${total} bėgeliai = ${sets} stalčiai${odd?` (+${odd} nepilnas)`:''}`,
+        warn:odd?`Nelyginis bėgelių skaičius: ${odd} likutis nepriklauso komplektui`:null,
+        components,
+        sourceLines:b.sourceLines,
+        params:{depth:b.depth},
+        ruleId:r.id, ruleName:r.name,
+      });
+    } else if(r.type==='cup_plate'){
+      const sets=Math.min(b.cups, b.plates);
+      const orphanCups=Math.max(0, b.cups-sets);
+      const orphanPlates=Math.max(0, b.plates-sets);
+      const components=[
+        {role:'Lankstas', qty:b.cups, perDrawer:null, sourceHint:r.cupPattern},
+        {role:'Plokštelė', qty:b.plates, perDrawer:null, sourceHint:r.platePattern},
+      ];
+      let warn=null;
+      if(orphanCups>0) warn=`${orphanCups} lankstas(-ai) be plokštelių`;
+      if(orphanPlates>0) warn=(warn?warn+'; ':'')+`${orphanPlates} plokštelė(-s) be lankstų`;
+      assemblies.push({
+        assemblyKind:'hinge_set',
+        title:r.setTitle||r.name,
+        qty:sets,
+        unit:r.setUnit||'kompl.',
+        derivedFrom:`${b.cups} lankstų + ${b.plates} plokštelių`,
+        warn,
+        components,
+        sourceLines:b.sourceLines,
+        params:{},
+        ruleId:r.id, ruleName:r.name,
+      });
+    }
+  }
+
+  // ── Step 4: collect "loose" lines (no rule matched, or matched but classified as 'other') ──
+  // These are shown as a flat pass-through table. We collapse identical normalized names.
+  const looseBuckets={};
+  for(const a of assignments){
+    if(a.assignedRule) continue; // already used in an assembly
+    const key=a.normName.toLowerCase()||'__'+a.srcIdx;
+    if(!looseBuckets[key]) looseBuckets[key]={normName:a.normName, totalQty:0, sourceLines:[], firstName:a.src.name};
+    looseBuckets[key].totalQty+=a.qty;
+    looseBuckets[key].sourceLines.push({srcIdx:a.srcIdx, qty:a.qty, original:a.src.name});
+  }
+  const looseRows=Object.values(looseBuckets).map(b=>({
+    name:b.normName,
+    fullName:b.firstName,
+    qty:b.totalQty,
+    unit:'vnt',
+    sourceCount:b.sourceLines.length,
+  })).sort((x,y)=>y.qty-x.qty);
+
+  return {
+    assemblies,
+    looseRows,
+    rawCount:hardware.length,
+    rawTotal:hardware.reduce((s,h)=>s+h.qty,0),
+    bucketCount:Object.keys(ruleBuckets).length,
+    implyBrackets,
+    rulesActive:rules.length,
+  };
+}
+
+// ══════════════════════════════════════════════
+// DEFAULT PAIRING RULES — seeded once on first run
+// ══════════════════════════════════════════════
+function fcSeedDefaultRulesIfEmpty(){
+  if(!DB.fittingPairingRules) DB.fittingPairingRules=[];
+  if(DB.fittingPairingRules.length>0) return;
+  if(DB._fittingRulesSeeded) return; // guard against double-seed within session
+  DB._fittingRulesSeeded=true;
+  const now=new Date().toISOString();
+  DB.fittingPairingRules=[
+    {
+      id:'fr_tandem',
+      name:'TANDEM bėgeliai',
+      type:'runner_pair',
+      enabled:true,
+      pattern:'TANDEM',
+      excludePattern:'TANDEMBOX',
+      piecesPerAssembly:2,
+      extractDepth:true,
+      assemblyTitle:'Stalčius {depth}mm (TANDEM)',
+      assemblyUnit:'stalč.',
+      components:[
+        {role:'Tandem laikiklis (kairys)', qty:1, implied:true},
+        {role:'Tandem laikiklis (dešinys)', qty:1, implied:true},
+      ],
+      builtIn:true,
+      createdAt:now,
+    },
+    {
+      id:'fr_tandembox',
+      name:'TANDEMBOX bėgeliai',
+      type:'runner_pair',
+      enabled:true,
+      pattern:'TANDEMBOX',
+      excludePattern:'',
+      piecesPerAssembly:2,
+      extractDepth:true,
+      assemblyTitle:'Stalčius {depth}mm (TANDEMBOX)',
+      assemblyUnit:'stalč.',
+      components:[
+        {role:'Šono profilis (kairys)', qty:1, implied:true},
+        {role:'Šono profilis (dešinys)', qty:1, implied:true},
+        {role:'Užpakalinė tvirtinimo plokštė', qty:1, implied:true},
+      ],
+      builtIn:true,
+      createdAt:now,
+    },
+    {
+      id:'fr_clip_top',
+      name:'CLIP Top lankstai',
+      type:'cup_plate',
+      enabled:true,
+      cupPattern:'CLIP Top|CLIP_Top',
+      platePattern:'KRYZMIN|KRYŽMIN|kryžmin|173H|kryzmin',
+      setTitle:'Lankstų komplektai (CLIP top)',
+      setUnit:'kompl.',
+      builtIn:true,
+      createdAt:now,
+    },
+  ];
+}
+
+// CRUD on rules
+function fcAddRule(rule){
+  if(!DB.fittingPairingRules) DB.fittingPairingRules=[];
+  rule.id=rule.id||'fr_'+Math.random().toString(36).slice(2,10);
+  rule.createdAt=rule.createdAt||new Date().toISOString();
+  if(rule.enabled===undefined) rule.enabled=true;
+  DB.fittingPairingRules.push(rule);
+  save();
+  return rule;
+}
+function fcUpdateRule(id, patch){
+  const r=(DB.fittingPairingRules||[]).find(x=>x.id===id);
+  if(!r) return null;
+  Object.assign(r, patch);
+  save();
+  return r;
+}
+function fcDeleteRule(id){
+  if(!confirm('Ištrinti šią taisyklę? Nepamirškite — projektams ji nustos veikti iš karto.')) return;
+  DB.fittingPairingRules=(DB.fittingPairingRules||[]).filter(r=>r.id!==id);
+  save();
+  renderWarehouse();
+}
+function fcToggleRule(id){
+  const r=(DB.fittingPairingRules||[]).find(x=>x.id===id);
+  if(!r) return;
+  r.enabled=!r.enabled;
+  save();
+  renderWarehouse();
+}
+
+// ══════════════════════════════════════════════
+// PROJECT TAB — combined fittings view
+// ══════════════════════════════════════════════
+function renderFittings(pid){
+  const p=getProject(pid); if(!p) return '<div class="empty-state">Projektas nerastas</div>';
+  const hw=p.importData?.hardware;
+  if(!hw?.length){
+    return `<div class="empty-state" style="padding:40px;text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <div style="font-weight:600;margin-bottom:4px">Furnitūros sąrašas tuščias</div>
+      <div style="font-size:11px;color:var(--hint);max-width:400px;margin:0 auto">Šiame projekte nėra HARDWARE_LIST duomenų. Importuokite XLSM su HARDWARE_LIST lapu.</div>
+    </div>`;
+  }
+
+  // Read per-project preference (default: imply brackets for production reality)
+  const implyBrackets=p.fittingsImplyBrackets!==false;
+  const result=fcCombine(hw, {implyBrackets});
+
+  const summary=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="summary-card"><div class="summary-label">Iš XLSM eilučių</div><div class="summary-value" style="color:var(--blue)">${result.rawCount}</div><div style="font-size:9px;color:var(--hint)">${result.rawTotal} vnt. iš viso</div></div>
+    <div class="summary-card"><div class="summary-label">Auto-komplektai</div><div class="summary-value" style="color:#16a34a">${result.assemblies.filter(a=>a.assemblyKind==='drawer'||a.assemblyKind==='hinge_set').length}</div><div style="font-size:9px;color:var(--hint)">stalčiai + lankstai</div></div>
+    <div class="summary-card"><div class="summary-label">Stalčiai</div><div class="summary-value" style="color:#7c3aed">${result.assemblies.filter(a=>a.assemblyKind==='drawer').reduce((s,a)=>s+a.qty,0)}</div></div>
+    <div class="summary-card"><div class="summary-label">Lankstų kompl.</div><div class="summary-value" style="color:#0ea5e9">${result.assemblies.filter(a=>a.assemblyKind==='hinge_set').reduce((s,a)=>s+a.qty,0)}</div></div>
+  </div>`;
+
+  const optsBar=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:14px;display:flex;align-items:center;gap:14px;font-size:11px">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" ${implyBrackets?'checked':''} onchange="fcToggleImplyBrackets('${pid}',this.checked)">
+      <span>Numanyti laikiklius (Tandem brackets) automatiškai</span>
+    </label>
+    <span style="color:var(--hint);font-size:10px">${implyBrackets?'Pridėjome 2 laikiklius vienam stalčiui':'Tik tai, kas yra XLSM eilutėse'}</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-xs" onclick="fcShowRaw('${pid}')">Žiūrėti pradinį XLSM sąrašą</button>
+  </div>`;
+
+  // Group cards by category for visual hierarchy.
+  // Auto-assembly applies ONLY to drawers and hinges — these are the parts that need
+  // production-meaningful pairing (left+right runners, cup+plate hinge sets).
+  // Everything else (screws, legs, tubes, lift mechs, TIP-ON, dowels, connectors) is
+  // shown as raw line items because they don't compose into kits the same way.
+  const sections=[
+    {kind:['drawer'], title:'Stalčiai', icon:'🗄', color:'#7c3aed'},
+    {kind:['hinge_set'], title:'Lankstai', icon:'🔩', color:'#0ea5e9'},
+  ];
+
+  const renderAssemblyCard=a=>{
+    const componentsHtml=a.components.map(c=>{
+      const impliedBadge=c.implied?'<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:4px">numanoma</span>':'';
+      return `<div style="display:flex;justify-content:space-between;padding:4px 8px;border-radius:4px;background:var(--surface2);font-size:11px">
+        <span>${escHtml(c.role)}${impliedBadge}</span>
+        <span style="font-family:var(--mono);font-weight:600;color:var(--blue-t)">×${c.qty}</span>
+      </div>`;
+    }).join('');
+    const warnBox=a.warn?`<div style="margin-top:6px;padding:5px 8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;font-size:10px;color:#92400e">⚠ ${escHtml(a.warn)}</div>`:'';
+    const sourceCount=a.sourceLines?.length||0;
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 13px;box-shadow:var(--sh)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px">
+        <div style="font-weight:600;font-size:12px;flex:1">${escHtml(a.title)}</div>
+        <div style="font-family:var(--mono);font-weight:700;font-size:14px;color:var(--blue-t);white-space:nowrap">${a.qty} ${a.unit}</div>
+      </div>
+      <div style="font-size:10px;color:var(--hint);margin-bottom:6px">📐 ${escHtml(a.derivedFrom)} ${sourceCount>0?`<span title="Eilutės XLSM faile">· ${sourceCount} eil.</span>`:''}</div>
+      ${componentsHtml?`<div style="display:grid;gap:3px;margin-top:5px">${componentsHtml}</div>`:''}
+      ${warnBox}
+    </div>`;
+  };
+
+  const sectionsHtml=sections.map(sec=>{
+    const items=result.assemblies.filter(a=>sec.kind.includes(a.assemblyKind));
+    if(!items.length) return '';
+    const cards=items.map(renderAssemblyCard).join('');
+    return `<div style="margin-bottom:18px">
+      <div style="font-size:11px;font-weight:700;color:${sec.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span style="font-size:14px">${sec.icon}</span>
+        <span>${sec.title}</span>
+        <span style="background:${sec.color};color:white;padding:1px 7px;border-radius:99px;font-size:9px">${items.length}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}</div>
+    </div>`;
+  }).join('');
+
+  // ── Flat list of everything else ──
+  // Loose hardware (anything not matched by a pairing rule) comes back from fcCombine
+  // already collapsed by normalized name. We just sort and render.
+  const looseRows=(result.looseRows||[]).slice().sort((x,y)=>y.qty-x.qty);
+
+  const looseHtml=looseRows.length?`<div style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+      <span style="font-size:14px">📋</span>
+      <span>Kitos pozicijos</span>
+      <span style="background:#94a3b8;color:white;padding:1px 7px;border-radius:99px;font-size:9px">${looseRows.length}</span>
+      <span style="margin-left:8px;color:var(--hint);font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">be auto-komplektavimo — kaip XLSM eilutės</span>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:var(--sh)">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead style="background:var(--surface2)"><tr>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Pavadinimas</th>
+          <th style="padding:7px 10px;text-align:right;width:90px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Kiekis</th>
+          <th style="padding:7px 10px;text-align:right;width:60px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Eil.</th>
+        </tr></thead>
+        <tbody>${looseRows.map(r=>`<tr style="border-top:1px solid var(--border)">
+          <td style="padding:7px 10px">${escHtml(r.name||r.fullName||'').slice(0,80)}</td>
+          <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600">${r.qty} ${r.unit||'vnt'}</td>
+          <td style="padding:7px 10px;text-align:right;font-size:10px;color:var(--hint)">${r.sourceCount||1}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </div>`:'';
+
+  return summary+optsBar+sectionsHtml+looseHtml;
+}
+
+function fcToggleImplyBrackets(pid, val){
+  const p=getProject(pid); if(!p) return;
+  p.fittingsImplyBrackets=val;
+  save();
+  // Re-render the project view, staying on the fittings tab
+  const main=document.getElementById('main-content');
+  if(main){ const html=renderFittings(pid); const cur=main.querySelector('.tab-content,.proj-tab-body'); if(cur) cur.innerHTML=html; else renderProject(pid); }
+  toast(val?'✓ Laikikliai numanomi':'✓ Tik literalūs duomenys','success');
+}
+
+function fcShowRaw(pid){
+  const p=getProject(pid); if(!p) return;
+  const hw=p.importData?.hardware||[];
+  const rows=hw.map((h,i)=>`<tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--hint)">${i+1}</td>
+    <td style="padding:5px 8px;font-size:10px;font-family:var(--mono)">${escHtml(h.name).slice(0,150)}</td>
+    <td style="padding:5px 8px;text-align:right;font-family:var(--mono);font-weight:600">${h.qty}</td>
+    <td style="padding:5px 8px;font-size:10px;color:var(--hint)">${escHtml(fcNormalizeName(h.name))}</td>
+  </tr>`).join('');
+  const html=`<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:18px 22px;width:900px;max-width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">Pradinis HARDWARE_LIST sąrašas</div>
+      <div style="font-size:10px;color:var(--hint);margin-bottom:10px">${hw.length} eilučių iš importuoto XLSM. Stulpelis "Normalizuota" rodo, kaip auto-kombinatorius matytų eilutę.</div>
+      <div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead style="background:var(--surface2);position:sticky;top:0">
+            <tr>
+              <th style="padding:6px 8px;text-align:right;width:40px">#</th>
+              <th style="padding:6px 8px;text-align:left">Originalus pavadinimas</th>
+              <th style="padding:6px 8px;text-align:right;width:60px">Kiekis</th>
+              <th style="padding:6px 8px;text-align:left;width:200px">Normalizuota</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="whCloseModal()">Uždaryti</button></div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
 function renderFilesTab(pid){
   const p=getProject(pid);
   if(!p)return'';
@@ -3791,11 +4414,15 @@ async function createProject(fromOrderId){
 
 // ── openAddTaskModal ──
 function openAddTaskModal(pid,preStep){
-  const defAss=DB.stepDefaults[preStep||'pjovimas']||DB.currentUserId;
-  _selAssignee=defAss;
-  const so=STEPS.map(s=>`<option value="${s.id}" ${s.id===(preStep||'pjovimas')?'selected':''}>${s.icon} ${s.label}</option>`).join('');
-  // Get project deadline as default suggestion
   const proj=getProject(pid);
+  // Use design steps for design projects, production steps otherwise
+  const stepsForProj=projSteps(proj);
+  // Default step: first one that makes sense for this project type
+  const firstStepId=stepsForProj[0]?.id || 'pjovimas';
+  const defStep=preStep && stepsForProj.some(s=>s.id===preStep) ? preStep : firstStepId;
+  const defAss=DB.stepDefaults[defStep]||DB.currentUserId;
+  _selAssignee=defAss;
+  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===defStep?'selected':''}>${s.icon} ${s.label}</option>`).join('');
   openModal(`<div class="modal-title">Nauja užduotis <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-field"><label class="form-label">Pavadinimas *</label><input id="nt-name" autofocus></div>
     <div class="form-grid-2">
@@ -3837,7 +4464,9 @@ function openTaskModal(tid){
     clearTimeout(_saveTimer);_saveTimer=setTimeout(saveToCloud,2000);
   }
   const step=getStep(t.stepId);const comments=taskComments(tid);
-  const so=STEPS.map(s=>`<option value="${s.id}" ${s.id===t.stepId?'selected':''}>${s.icon} ${s.label}</option>`).join('');
+  // Use design steps for design projects, production steps otherwise
+  const stepsForProj=projSteps(proj);
+  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===t.stepId?'selected':''}>${s.icon} ${s.label}</option>`).join('');
   const sto=['pending','in-progress','done'].map((v,i)=>`<option value="${v}" ${v===t.status?'selected':''}>${['⏳ Laukia','🔄 Vykdoma','✅ Atlikta'][i]}</option>`).join('');
   const assigneeGrid=USERS.map(u=>{
     const sel=t.assigneeIds.includes(u.id);
@@ -5573,18 +6202,55 @@ function parseWorkbook(wb){
     }
   }
 
-  // ─ HARDWARE_LIST ─ keep raw lines + group TANDEMBOX into assemblies ─
+  // ─ HARDWARE_LIST ─ auto-detect column layout, keep raw + group ─
   if(wb.SheetNames.includes('HARDWARE_LIST')){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets['HARDWARE_LIST'],{header:1,defval:null});
-    const hw=rows.filter(r=>r[2]&&r[5]).map(r=>({name:String(r[2]).trim(),qty:parseInt(r[5])||1}));
-    // Keep the raw, full hardware list — every line, not just runners.
-    // This is what the alias resolver will operate on.
-    data.hardware = hw;
-    // Also build the legacy drawers[] for the existing 🗄 Stalčiai view.
-    const runners=hw.filter(h=>h.name.includes('Runner'));
+
+    // Auto-detect header row: scan first 12 rows for one containing both a "Name"-like
+    // and a "Qty"-like cell. Different CAD exports (SA_GA_VIRT, RIMANTE_ZAB, KAZ_MG_SP/EFICAD)
+    // have the data starting at different rows and slightly different column offsets.
+    let nameCol=-1, qtyCol=-1, supCol=-1, refCol=-1, dataStart=-1;
+    for(let i=0; i<Math.min(12,rows.length); i++){
+      const r=rows[i]||[];
+      const cellsLower=r.map(c=>c==null?'':String(c).toLowerCase().trim());
+      const ni=cellsLower.findIndex(c=>c==='name'||c==='hardware'||c==='aprasymas'||c==='pavadinimas');
+      const qi=cellsLower.findIndex(c=>c==='qty'||c==='quantity'||c==='kiekis');
+      if(ni>=0 && qi>=0){
+        nameCol=ni; qtyCol=qi;
+        supCol=cellsLower.findIndex(c=>c==='supplier'||c==='tiekejas');
+        refCol=cellsLower.findIndex(c=>c==='supplier ref'||c==='ref'||c==='kodas'||c==='reference');
+        dataStart=i+1;
+        break;
+      }
+    }
+
+    let hw=[];
+    if(dataStart>=0){
+      // Extract using detected columns
+      for(let i=dataStart; i<rows.length; i++){
+        const r=rows[i]; if(!r) continue;
+        const name=r[nameCol]; const qty=r[qtyCol];
+        if(name && qty!=null && qty!==''){
+          const q=parseInt(qty)||0; if(q<=0) continue;
+          const item={name:String(name).trim(), qty:q};
+          if(supCol>=0 && r[supCol]) item.supplier=String(r[supCol]).trim();
+          if(refCol>=0 && r[refCol]) item.ref=String(r[refCol]).trim();
+          hw.push(item);
+        }
+      }
+    } else {
+      // Fallback: legacy heuristic (cols 2 & 5 from old SA_GA_VIRT layout) — won't work for
+      // KAZ_MG_SP but preserves backward compatibility for the original supported files.
+      hw=rows.filter(r=>r[2]&&r[5]).map(r=>({name:String(r[2]).trim(),qty:parseInt(r[5])||1}));
+    }
+
+    data.hardware=hw;
+
+    // Also build the legacy drawers[] for the existing 🗄 Stalčiai view (English-only patterns)
+    const runners=hw.filter(h=>/runner/i.test(h.name));
     const byD={};
-    runners.forEach(r=>{const m=r.name.match(/Runner (\d+)/);if(m){const dep=parseInt(m[1]);if(!byD[dep])byD[dep]={depth:dep,height:98,qty:Math.ceil(r.qty/2),parts:[]}}});
-    hw.filter(h=>h.name.includes('TANDEMBOX')).forEach(h=>{const dm=h.name.match(/(\d{3,4})/g);const dep=dm?parseInt(dm[0]):500;const dr=byD[dep];if(dr)dr.parts.push({name:h.name.split('-')[0].trim().slice(0,40),qty:Math.ceil(h.qty/(dr.qty||1))})});
+    runners.forEach(r=>{const m=r.name.match(/Runner\s+(\d+)/i);if(m){const dep=parseInt(m[1]);if(!byD[dep])byD[dep]={depth:dep,height:98,qty:Math.ceil(r.qty/2),parts:[]}}});
+    hw.filter(h=>/tandembox/i.test(h.name)).forEach(h=>{const dm=h.name.match(/(\d{3,4})/g);const dep=dm?parseInt(dm[0]):500;const dr=byD[dep];if(dr)dr.parts.push({name:h.name.split('-')[0].trim().slice(0,40),qty:Math.ceil(h.qty/(dr.qty||1))})});
     data.drawers=Object.values(byD);
   }
   return data;
@@ -5616,7 +6282,7 @@ function doImport(data){
 
 function applyImport(data,pid){
   const p=getProject(pid);if(!p)return;
-  p.importData={stocks:data.stocks,edgebands:data.edgebands,parts:data.parts,drawers:data.drawers};
+  p.importData={stocks:data.stocks,edgebands:data.edgebands,parts:data.parts,drawers:data.drawers,hardware:data.hardware||[]};
   const existing=new Set(DB.tasks.filter(t=>t.projectId===pid).map(t=>t.stepId));
   const pName=p.name.split('—')[0].trim();
   const sm=data.stocks.map(s=>`${s.material} ${s.thickness}mm (${s.m2} m²)`);
@@ -7011,6 +7677,7 @@ function renderWarehouse(){
     <button class="wh-tab ${_whTab==='kits'?'active':''}" onclick="_whTab='kits';renderWarehouse()">📦 Komplektai → cechas</button>
     <button class="wh-tab ${_whTab==='counts'?'active':''}" onclick="_whTab='counts';renderWarehouse()">📋 Inventorizacija</button>
     <button class="wh-tab ${_whTab==='log'?'active':''}" onclick="_whTab='log';renderWarehouse()">📜 Žurnalas</button>
+    <button class="wh-tab ${_whTab==='rules'?'active':''}" onclick="_whTab='rules';renderWarehouse()">🔗 Taisyklės</button>
   </div>`;
   let body='';
   if(_whTab==='dashboard') body = renderWhDashboard();
@@ -7018,6 +7685,7 @@ function renderWarehouse(){
   else if(_whTab==='stock') body = renderWhStock();
   else if(_whTab==='kits') body = renderWhKits();
   else if(_whTab==='counts') body = renderWhCounts();
+  else if(_whTab==='rules') body = renderWhRules();
   else body = renderWhLog();
   el.innerHTML = tabs + body;
 }
@@ -7785,6 +8453,321 @@ function renderWhCounts(){
 
   return summary + todoCard + historyCard;
 }
+
+// ── Pairing rules editor ──────────────────────────────
+let _ruleEditing = null;  // id of rule being edited, or 'new' for create
+
+function renderWhRules(){
+  fcSeedDefaultRulesIfEmpty();
+  const rules = DB.fittingPairingRules || [];
+  const aliases = DB.fittingAliases || [];
+
+  // ── Pairing rules section ──
+  const pairingRulesHtml = rules.length ? rules.map(r => {
+    const isRunner = r.type === 'runner_pair';
+    const isCupPlate = r.type === 'cup_plate';
+    const enabledBg = r.enabled === false ? 'opacity:.55;background:var(--surface2)' : 'background:var(--surface)';
+    const summary = isRunner
+      ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${escHtml(r.pattern)}${r.excludePattern?` <span style="color:#dc2626">!${escHtml(r.excludePattern)}</span>`:''}</span> · ${r.piecesPerAssembly||2} vnt./kompl. · ${(r.components||[]).length} numanomi komponentai`
+      : `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">cup: ${escHtml(r.cupPattern||'')} · plate: ${escHtml(r.platePattern||'')}</span>`;
+    const typeBadge = isRunner
+      ? '<span style="background:#7c3aed;color:white;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:600">🗄 BĖGELIAI</span>'
+      : '<span style="background:#0ea5e9;color:white;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:600">🔩 LANKSTAI</span>';
+    const builtInBadge = r.builtIn ? '<span style="background:#94a3b8;color:white;padding:1px 6px;border-radius:99px;font-size:9px;margin-left:4px">numatytoji</span>' : '';
+    return `<div style="${enabledBg};border:1px solid var(--border);border-radius:8px;padding:11px 13px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          ${typeBadge}
+          <span style="font-weight:600;font-size:13px">${escHtml(r.name)}</span>
+          ${builtInBadge}
+          ${r.enabled===false?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:99px;font-size:9px;margin-left:4px">išjungta</span>':''}
+        </div>
+        <div style="font-size:11px;color:var(--hint)">${summary}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-sm" onclick="fcToggleRule('${r.id}')" title="${r.enabled===false?'Įjungti':'Išjungti'}">${r.enabled===false?'▶ Įjungti':'⏸ Išjungti'}</button>
+        <button class="btn btn-sm" onclick="openRuleEditor('${r.id}')">✏ Redaguoti</button>
+        ${!r.builtIn ? `<button class="btn btn-sm btn-danger" onclick="fcDeleteRule('${r.id}')">×</button>` : ''}
+      </div>
+    </div>`;
+  }).join('') : `<div style="padding:30px;text-align:center;color:var(--hint);font-size:12px">Taisyklių dar nėra. Spauskite "Nauja taisyklė", kad sukurtumėte pirmą.</div>`;
+
+  // ── Alias rules section (existing fittingAliases) ──
+  const aliasRulesHtml = aliases.length ? `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead style="background:var(--surface2)"><tr>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">XLSM šablonas</th>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">→ SKU</th>
+          <th style="padding:7px 10px;text-align:right;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">×</th>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Tipas</th>
+          <th style="padding:7px 10px;width:50px"></th>
+        </tr></thead>
+        <tbody>${aliases.slice(0,50).map(a=>`<tr style="border-top:1px solid var(--border)">
+          <td style="padding:6px 10px;font-family:var(--mono);font-size:10px">${escHtml(a.pattern).slice(0,60)}</td>
+          <td style="padding:6px 10px;font-family:var(--mono);font-size:10px;color:#16a34a;font-weight:600">${escHtml(a.sku)}</td>
+          <td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:10px">${a.qtyMultiplier||1}</td>
+          <td style="padding:6px 10px;font-size:10px;color:var(--hint)">${escHtml(a.partType||'')}</td>
+          <td style="padding:6px 10px;text-align:right"><button class="btn btn-xs btn-danger" onclick="whDeleteAliasRule('${a.id}')">×</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${aliases.length>50?`<div style="padding:8px;text-align:center;font-size:10px;color:var(--hint)">Rodoma pirmos 50 iš ${aliases.length}</div>`:''}
+    </div>` : `<div style="padding:30px;text-align:center;color:var(--hint);font-size:12px">Aliasų taisyklių nėra. Jos kuriasi automatiškai, kai susiejate komplekto eilutę su SKU.</div>`;
+
+  return `<div style="max-width:1100px">
+    <div style="background:var(--blue-bg);border:1px solid var(--blue-t);border-radius:8px;padding:11px 14px;margin-bottom:18px;font-size:11px;color:var(--blue-t);line-height:1.5">
+      💡 <strong>Susiejimo taisyklės</strong> nurodo sistemai, kaip elgtis su importuotomis HARDWARE_LIST eilutėmis: kurias grupuoti į stalčių/lanksto komplektus (paruošimo taisyklės), o kurias prie kurio sandėlio SKU priskirti (aliasų taisyklės).
+    </div>
+
+    <div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:600">Komplektavimo taisyklės</div>
+          <div style="font-size:11px;color:var(--muted)">Iš XLSM eilučių formuoja stalčių ir lanksto komplektus</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${(isManager()||isEngineer())?`<button class="btn btn-primary" onclick="openRuleEditor('new')">+ Nauja taisyklė</button>`:''}
+          ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="if(confirm('Atstatyti numatytąsias taisykles? Esamos bus pakeistos.')){DB.fittingPairingRules=[];DB._fittingRulesSeeded=false;fcSeedDefaultRulesIfEmpty();save();renderWarehouse();}" title="Atstatyti numatytąsias">↻</button>`:''}
+        </div>
+      </div>
+      <div style="display:grid;gap:8px">${pairingRulesHtml}</div>
+    </div>
+
+    <div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">Aliasų taisyklės (${aliases.length})</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Susieja XLSM pavadinimus su konkrečiais sandėlio SKU</div>
+      ${aliasRulesHtml}
+    </div>
+  </div>`;
+}
+
+// Rule editor modal
+function openRuleEditor(ruleId){
+  if(!isManager() && !isEngineer()){ toast('Nėra teisių','error'); return; }
+  const isNew = ruleId === 'new';
+  const r = isNew ? {
+    id:'',
+    name:'',
+    type:'runner_pair',
+    enabled:true,
+    pattern:'',
+    excludePattern:'',
+    piecesPerAssembly:2,
+    extractDepth:true,
+    assemblyTitle:'Stalčius {depth}mm',
+    assemblyUnit:'stalč.',
+    components:[],
+    cupPattern:'',
+    platePattern:'',
+    setTitle:'Lankstų komplektai',
+    setUnit:'kompl.',
+  } : (DB.fittingPairingRules||[]).find(x=>x.id===ruleId);
+  if(!r){ toast('Taisyklė nerasta','error'); return; }
+
+  _ruleEditing = isNew ? 'new' : ruleId;
+  // Make a deep copy so the user can cancel without affecting the live rule
+  const w = JSON.parse(JSON.stringify(r));
+  w.components = w.components || [];
+
+  const renderComponents = () => (w.components||[]).map((c,i)=>`<div style="display:grid;grid-template-columns:1fr 60px auto;gap:6px;align-items:center;padding:5px 0">
+    <input value="${escHtml(c.role||'')}" onchange="_ruleEditing_setComp(${i},'role',this.value)" placeholder="Komponento pavadinimas (pvz. Tandem laikiklis)" style="font-size:11px">
+    <input type="number" value="${c.qty||1}" min="1" onchange="_ruleEditing_setComp(${i},'qty',parseInt(this.value)||1)" style="font-size:11px">
+    <button class="btn btn-xs btn-danger" onclick="_ruleEditing_removeComp(${i})">×</button>
+  </div>`).join('');
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this){_ruleEditing=null;whCloseModal()}">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:600px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:14px">${isNew?'Nauja komplektavimo taisyklė':'Redaguoti taisyklę'}</div>
+
+      <div style="display:grid;gap:14px">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas</label>
+          <input id="re-name" value="${escHtml(w.name)}" placeholder="pvz. TANDEMBOX bėgeliai" style="margin-top:4px">
+        </div>
+
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Taisyklės tipas</label>
+          <select id="re-type" onchange="_ruleEditing_changeType(this.value)" style="margin-top:4px">
+            <option value="runner_pair" ${w.type==='runner_pair'?'selected':''}>🗄 Bėgeliai → stalčiai (1 eilutė = 1 bėgelio detalė)</option>
+            <option value="cup_plate" ${w.type==='cup_plate'?'selected':''}>🔩 Lankstas + plokštelė → komplektas</option>
+          </select>
+        </div>
+
+        <div id="re-runner-fields" style="${w.type==='runner_pair'?'':'display:none'}">
+          <div style="background:var(--surface2);border-radius:8px;padding:12px;display:grid;gap:10px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Šablonas (kurios eilutės)</label>
+                <input id="re-pattern" value="${escHtml(w.pattern||'')}" placeholder="pvz. TANDEM" style="margin-top:4px;font-family:var(--mono)">
+                <div style="font-size:9px;color:var(--hint);margin-top:2px">Galite naudoti `|` keliems šablonams: TANDEM|MERIVO</div>
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Išskirti (jei nenoroma)</label>
+                <input id="re-exclude" value="${escHtml(w.excludePattern||'')}" placeholder="pvz. TANDEMBOX" style="margin-top:4px;font-family:var(--mono)">
+                <div style="font-size:9px;color:var(--hint);margin-top:2px">Eilutės, kurių neturi paimti</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Detalių komplekte</label>
+                <input id="re-pieces" type="number" min="1" max="20" value="${w.piecesPerAssembly||2}" style="margin-top:4px">
+                <div style="font-size:9px;color:var(--hint);margin-top:2px">2 = pora bėgelių 1 stalčiui</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding-top:18px">
+                <input type="checkbox" id="re-extract-depth" ${w.extractDepth?'checked':''} style="cursor:pointer">
+                <label for="re-extract-depth" style="font-size:11px;cursor:pointer">Iš pavadinimo paimti gylį (pvz. "350mm")</label>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Komplekto pavadinimas</label>
+                <input id="re-asm-title" value="${escHtml(w.assemblyTitle||'')}" placeholder="Stalčius {depth}mm" style="margin-top:4px">
+                <div style="font-size:9px;color:var(--hint);margin-top:2px">{depth} pakeičiama gyliu</div>
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vienetas</label>
+                <input id="re-asm-unit" value="${escHtml(w.assemblyUnit||'stalč.')}" style="margin-top:4px">
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Numanomi komponentai (pridedami automatiškai)</label>
+                <button class="btn btn-xs" onclick="_ruleEditing_addComp()">+ Komponentas</button>
+              </div>
+              <div id="re-comp-list" style="background:var(--surface);border-radius:6px;padding:6px 10px;border:1px solid var(--border)">
+                ${w.components.length?renderComponents():'<div style="font-size:11px;color:var(--hint);padding:6px 0">Komponentų nėra. Pavyzdžiai: Tandem laikiklis (kairys), Šono profilis, Užpakalinė plokštė.</div>'}
+              </div>
+              <div style="font-size:9px;color:var(--hint);margin-top:4px">Šios detalės neminimos XLSM, bet realybėje reikia kiekvienam komplektui</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="re-cup-plate-fields" style="${w.type==='cup_plate'?'':'display:none'}">
+          <div style="background:var(--surface2);border-radius:8px;padding:12px;display:grid;gap:10px">
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Lanksto šablonas</label>
+              <input id="re-cup" value="${escHtml(w.cupPattern||'')}" placeholder="pvz. CLIP Top|CLIP_Top" style="margin-top:4px;font-family:var(--mono)">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Plokštelės šablonas</label>
+              <input id="re-plate" value="${escHtml(w.platePattern||'')}" placeholder="pvz. KRYZMIN|kryžmin|173H" style="margin-top:4px;font-family:var(--mono)">
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Komplekto pavadinimas</label>
+                <input id="re-set-title" value="${escHtml(w.setTitle||'')}" placeholder="Lankstų komplektai" style="margin-top:4px">
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vienetas</label>
+                <input id="re-set-unit" value="${escHtml(w.setUnit||'kompl.')}" style="margin-top:4px">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+        <button class="btn" onclick="_ruleEditing=null;whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="submitRuleEditor('${ruleId}')">${isNew?'Sukurti':'Išsaugoti'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  // Stash working copy on window so the inline edit functions can modify it
+  window._ruleEditingW = w;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function _ruleEditing_changeType(t){
+  if(!window._ruleEditingW) return;
+  window._ruleEditingW.type = t;
+  document.getElementById('re-runner-fields').style.display = (t==='runner_pair')?'':'none';
+  document.getElementById('re-cup-plate-fields').style.display = (t==='cup_plate')?'':'none';
+}
+function _ruleEditing_addComp(){
+  if(!window._ruleEditingW) return;
+  if(!window._ruleEditingW.components) window._ruleEditingW.components=[];
+  window._ruleEditingW.components.push({role:'', qty:1, implied:true});
+  _ruleEditing_redraw();
+}
+function _ruleEditing_removeComp(i){
+  if(!window._ruleEditingW) return;
+  window._ruleEditingW.components.splice(i,1);
+  _ruleEditing_redraw();
+}
+function _ruleEditing_setComp(i, key, value){
+  if(!window._ruleEditingW) return;
+  window._ruleEditingW.components[i][key] = value;
+  if(key==='role' && !window._ruleEditingW.components[i].implied){
+    window._ruleEditingW.components[i].implied = true;
+  }
+}
+function _ruleEditing_redraw(){
+  const list = document.getElementById('re-comp-list'); if(!list) return;
+  const w = window._ruleEditingW;
+  if(!w.components || !w.components.length){
+    list.innerHTML = '<div style="font-size:11px;color:var(--hint);padding:6px 0">Komponentų nėra.</div>';
+    return;
+  }
+  list.innerHTML = w.components.map((c,i)=>`<div style="display:grid;grid-template-columns:1fr 60px auto;gap:6px;align-items:center;padding:5px 0">
+    <input value="${escHtml(c.role||'')}" onchange="_ruleEditing_setComp(${i},'role',this.value)" placeholder="Komponento pavadinimas" style="font-size:11px">
+    <input type="number" value="${c.qty||1}" min="1" onchange="_ruleEditing_setComp(${i},'qty',parseInt(this.value)||1)" style="font-size:11px">
+    <button class="btn btn-xs btn-danger" onclick="_ruleEditing_removeComp(${i})">×</button>
+  </div>`).join('');
+}
+
+function submitRuleEditor(ruleId){
+  const isNew = ruleId === 'new';
+  const w = window._ruleEditingW || {};
+  const name = document.getElementById('re-name')?.value.trim();
+  if(!name){ toast('Reikalingas pavadinimas','error'); return; }
+  const type = document.getElementById('re-type')?.value || 'runner_pair';
+
+  const data = { name, type, enabled:true };
+
+  if(type==='runner_pair'){
+    data.pattern = (document.getElementById('re-pattern')?.value || '').trim();
+    data.excludePattern = (document.getElementById('re-exclude')?.value || '').trim();
+    data.piecesPerAssembly = parseInt(document.getElementById('re-pieces')?.value)||2;
+    data.extractDepth = !!document.getElementById('re-extract-depth')?.checked;
+    data.assemblyTitle = (document.getElementById('re-asm-title')?.value || '').trim() || name;
+    data.assemblyUnit = (document.getElementById('re-asm-unit')?.value || '').trim() || 'stalč.';
+    // Components — read fresh from working copy
+    data.components = (w.components||[]).filter(c=>c.role && c.role.trim()).map(c=>({
+      role: c.role.trim(),
+      qty: parseInt(c.qty)||1,
+      implied: true,
+    }));
+    if(!data.pattern){ toast('Reikalingas šablonas','error'); return; }
+  } else {
+    data.cupPattern = (document.getElementById('re-cup')?.value || '').trim();
+    data.platePattern = (document.getElementById('re-plate')?.value || '').trim();
+    data.setTitle = (document.getElementById('re-set-title')?.value || '').trim() || name;
+    data.setUnit = (document.getElementById('re-set-unit')?.value || '').trim() || 'kompl.';
+    if(!data.cupPattern || !data.platePattern){ toast('Reikalingas lanksto IR plokštelės šablonas','error'); return; }
+  }
+
+  if(isNew){
+    fcAddRule(data);
+    toast('✓ Taisyklė sukurta','success');
+  } else {
+    // Preserve enabled state and builtIn flag from existing rule
+    const existing = (DB.fittingPairingRules||[]).find(r=>r.id===ruleId);
+    if(existing){
+      data.enabled = existing.enabled !== false;
+      data.builtIn = existing.builtIn || false;
+    }
+    fcUpdateRule(ruleId, data);
+    toast('✓ Atnaujinta','success');
+  }
+
+  window._ruleEditingW = null;
+  _ruleEditing = null;
+  whCloseModal();
+  renderWarehouse();
+}
+
 
 // ── Log ───────────────────────────────────────────────
 function renderWhLog(){
