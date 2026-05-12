@@ -448,6 +448,146 @@ span.in-progress-text{color:var(--blue-t)}
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .section-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
 .empty-state{text-align:center;padding:36px;color:var(--hint)}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODERN POLISH OVERLAY — refines tokens, spacing, typography, and
+   component styling without changing structure or behavior.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  /* Refined warm-beige tokens — slightly richer, more depth */
+  --bg:#f3f1ec;
+  --surface:#ffffff;
+  --surface2:#faf8f3;
+  --surface3:#eeebe3;
+  --border:rgba(28,25,20,.07);
+  --border2:rgba(28,25,20,.12);
+  --text:#1a1815;
+  --muted:#6f6a60;
+  --hint:#a8a39a;
+  /* Softer, more refined shadows */
+  --sh:0 1px 2px rgba(28,25,20,.04), 0 1px 1px rgba(28,25,20,.03);
+  --sh2:0 4px 14px -2px rgba(28,25,20,.08), 0 2px 6px -1px rgba(28,25,20,.04);
+  --sh3:0 24px 48px -12px rgba(28,25,20,.18), 0 8px 16px -4px rgba(28,25,20,.06);
+  /* Slightly larger radius scale */
+  --r:10px; --rl:14px; --rxl:18px;
+  --ring:0 0 0 3px rgba(37,99,235,.14);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0f0e0c;
+  --surface:#1a1916;
+  --surface2:#221f1b;
+  --surface3:#2a2722;
+  --border:rgba(255,255,255,.06);
+  --border2:rgba(255,255,255,.11);
+  --text:#ebe8e2;
+  --muted:#928d83;
+  --hint:#5d574f;
+  --sh:0 1px 2px rgba(0,0,0,.3), 0 1px 1px rgba(0,0,0,.2);
+  --sh2:0 4px 14px -2px rgba(0,0,0,.4), 0 2px 6px -1px rgba(0,0,0,.25);
+  --sh3:0 24px 48px -12px rgba(0,0,0,.6), 0 8px 16px -4px rgba(0,0,0,.3);
+  --ring:0 0 0 3px rgba(147,197,253,.18);
+}}
+
+body{font-feature-settings:"cv02","cv03","cv11";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.005em}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:padding-box;border:2px solid transparent}
+
+/* Buttons — crisper, more tactile */
+.btn{padding:8px 14px;border-radius:9px;font-size:13px;font-weight:500;border:1px solid var(--border2);color:var(--text);background:var(--surface);box-shadow:var(--sh);transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease, color .12s ease, background .12s ease}
+.btn:hover{border-color:var(--blue);color:var(--blue-t);background:var(--blue-bg);box-shadow:var(--sh2);transform:translateY(-1px)}
+.btn:active{transform:translateY(0);box-shadow:var(--sh)}
+.btn:focus-visible{outline:none;box-shadow:var(--ring)}
+.btn-primary{background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;border-color:#2563eb;box-shadow:0 1px 2px rgba(37,99,235,.25), inset 0 1px 0 rgba(255,255,255,.15)}
+.btn-primary:hover{background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#fff;border-color:#1d4ed8;box-shadow:0 4px 12px -2px rgba(37,99,235,.35), inset 0 1px 0 rgba(255,255,255,.15)}
+.btn-danger{color:var(--red-t);border-color:var(--border2);background:var(--surface)}
+.btn-danger:hover{background:var(--red-bg);border-color:var(--red);color:var(--red-t)}
+.btn-sm{padding:5px 11px;font-size:11.5px;border-radius:8px}
+.btn-xs{padding:3px 8px;font-size:10px;border-radius:6px}
+
+/* Inputs — softer borders, refined focus ring */
+input,textarea,select{font-size:13px;padding:9px 12px;border-radius:9px;background:var(--surface);border:1px solid var(--border2);transition:border-color .12s ease, box-shadow .12s ease, background .12s ease}
+input::placeholder,textarea::placeholder{color:var(--hint)}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:rgba(28,25,20,.18)}
+input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(--ring)}
+
+/* Sidebar — more breathing room, refined dividers */
+.sidebar{width:248px;min-width:248px;background:var(--surface);border-right:1px solid var(--border)}
+.sidebar-logo{padding:18px 18px 14px;border-bottom:1px solid var(--border)}
+.sidebar-section{padding:12px 0;border-bottom:1px solid var(--border)}
+.sidebar-section:last-child{border-bottom:none}
+.sidebar-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--hint);padding:6px 16px 8px}
+.nav-item{padding:8px 16px;font-size:12.5px;color:var(--muted);border-radius:0;margin:1px 0;transition:color .12s ease, background .12s ease}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--blue-t);background:var(--blue-bg);font-weight:600}
+.nav-item.active::before{width:3px;border-radius:0 2px 2px 0}
+.nav-icon{font-size:14px;width:20px}
+.nav-badge{font-size:9.5px;font-weight:600;padding:2px 6px;min-width:18px;border-radius:11px}
+.proj-item{padding:6px 16px;font-size:11.5px;border-radius:0;transition:color .12s ease, background .12s ease}
+.proj-item:hover{background:var(--surface2)}
+.proj-item.active{background:var(--blue-bg);color:var(--blue-t);font-weight:600}
+.proj-dot{width:8px;height:8px}
+.sidebar-footer{padding:10px;border-top:1px solid var(--border)}
+.user-chip{padding:8px;border-radius:9px;gap:10px}
+
+/* Topbar — taller, more substantial */
+.topbar{padding:14px 24px;border-bottom:1px solid var(--border);min-height:60px}
+.topbar-title{font-size:17px;font-weight:700;letter-spacing:-.025em;line-height:1.2}
+.topbar-sub{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:0}
+
+/* Content area — generous padding */
+.content-area{padding:24px 28px}
+@media(max-width:900px){.content-area{padding:18px}}
+
+/* Summary cards — softer, more modern */
+.summary-grid{gap:12px;margin-bottom:24px}
+.summary-card{padding:14px 16px;border-radius:var(--rl);border:1px solid var(--border);box-shadow:var(--sh);transition:box-shadow .15s ease, transform .15s ease}
+.summary-card:hover{box-shadow:var(--sh2)}
+.summary-label{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--muted);margin-bottom:6px}
+.summary-value{font-size:26px;font-weight:700;letter-spacing:-.035em}
+
+/* Project cards — rounded, refined hover lift */
+.project-card{padding:18px;border-radius:var(--rxl);border:1px solid var(--border);box-shadow:var(--sh);transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+.project-card:hover{border-color:var(--border2);box-shadow:var(--sh2);transform:translateY(-2px)}
+.pc-pipeline{margin:12px 0 8px}
+.pp-step{height:5px;border-radius:3px}
+
+/* Tabs — softer pill style */
+.tab-bar{background:var(--surface3);border-radius:11px;padding:4px;gap:2px}
+.tab-btn{padding:8px 12px;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted);transition:color .12s ease, background .12s ease, box-shadow .12s ease}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(28,25,20,.06), 0 1px 2px rgba(28,25,20,.04);font-weight:600}
+
+/* Badges — slightly more refined */
+.badge{font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:.02em}
+
+/* Section headers */
+.section-header{margin-bottom:18px}
+.section-title{font-size:15px;font-weight:700;letter-spacing:-.02em}
+
+/* Toast — modern */
+.toast{padding:11px 16px;border-radius:11px;font-size:12px;font-weight:500;box-shadow:var(--sh3)}
+
+/* Empty states — more inviting */
+.empty-state{padding:48px 24px}
+
+/* Avatars — slight shadow for depth */
+.avatar{box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+
+/* Auth screen card */
+.auth-card{border-radius:22px;box-shadow:var(--sh3)}
+
+/* Notification items */
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);transition:background .12s ease}
+.notif-item:hover{background:var(--surface2)}
+
+/* Mobile responsiveness preserved — only refine type */
+@media(max-width:700px){
+  .topbar{padding:12px 16px;min-height:54px}
+  .topbar-title{font-size:15px}
+  .content-area{padding:16px 14px}
+}
 </style>
 </head>
 <body>
@@ -566,7 +706,6 @@ span.in-progress-text{color:var(--blue-t)}
         <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-design" onclick="showView('design')"><span class="nav-icon">📐</span>Projektavimas<span class="nav-badge" id="design-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
-        <div class="nav-item" onclick="window.open('orders.html','_blank')"><span class="nav-icon">📋</span>Pirkimo užsakymai ↗</div>
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge" id="mat-badge" style="display:none">!</span></div>
         <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge" id="wh-badge" style="display:none;background:var(--blue)">0</span></div>
         <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span>Grafikas / Lean</div>
@@ -577,14 +716,37 @@ span.in-progress-text{color:var(--blue-t)}
         <div class="nav-item" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-label">Projektai</div>
-        <div id="proj-nav"></div>
-        <div style="padding:6px 10px"><button class="btn btn-sm" style="width:100%;justify-content:center" onclick="if(isReadOnly()){toast('👁 Peržiūros režimas','');return;}openNewProjectModal()">+ Naujas projektas</button></div>
+      <div class="sidebar-section" style="border-top:3px solid var(--border2);margin-top:4px;padding-top:10px">
+        <div class="sidebar-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none" onclick="toggleSidebarGroup('projektas')">
+          <span id="sg-projektas-caret" style="font-size:9px;color:var(--hint);transition:transform .15s;display:inline-block">▼</span>
+          <span>📁 Gamybos Projektai</span>
+          <span id="sg-projektas-count" style="color:var(--hint);margin-left:auto;font-weight:400">0</span>
+        </div>
+        <div id="proj-nav-projektas"></div>
+
+        <div class="sidebar-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;margin-top:6px" onclick="toggleSidebarGroup('paslauga')">
+          <span id="sg-paslauga-caret" style="font-size:9px;color:var(--hint);transition:transform .15s;display:inline-block">▼</span>
+          <span>⚡ Paslauga</span>
+          <span id="sg-paslauga-count" style="color:var(--hint);margin-left:auto;font-weight:400">0</span>
+        </div>
+        <div id="proj-nav-paslauga"></div>
+
+        <div class="sidebar-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;margin-top:6px" onclick="toggleSidebarGroup('projektavimas')">
+          <span id="sg-projektavimas-caret" style="font-size:9px;color:var(--hint);transition:transform .15s;display:inline-block">▼</span>
+          <span>📐 Projektavimas</span>
+          <span id="sg-projektavimas-count" style="color:var(--hint);margin-left:auto;font-weight:400">0</span>
+        </div>
+        <div id="proj-nav-projektavimas"></div>
+
+        <div style="padding:6px 10px;margin-top:6px"><button class="btn btn-sm" style="width:100%;justify-content:center" onclick="if(isReadOnly()){toast('👁 Peržiūros režimas','');return;}openNewProjectModal()">+ Naujas projektas</button></div>
       </div>
       <div class="sidebar-section" id="archive-section" style="display:none">
-        <div class="sidebar-label">Archyvas <span id="archive-count" style="color:var(--hint)"></span></div>
-        <div id="archive-nav"></div>
+        <div class="sidebar-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none" onclick="toggleArchiveSection()">
+          <span id="archive-caret" style="font-size:9px;color:var(--hint);transition:transform .15s;display:inline-block">▶</span>
+          <span>📦 Archyvas</span>
+          <span id="archive-count" style="color:var(--hint);margin-left:auto;font-weight:400"></span>
+        </div>
+        <div id="archive-nav" style="display:none"></div>
       </div>
       <div class="sidebar-section"><div class="sidebar-label">Komanda</div><div id="team-nav"></div></div>
     </div>
@@ -1444,7 +1606,7 @@ function showView(name,extra){
   if(name==='floor'){document.getElementById('topbar-title').textContent='Cecho rodinys';document.getElementById('topbar-sub').textContent='Visi aktyvūs projektai';renderFloor();}
   else if(name==='projects'){
     document.getElementById('topbar-title').textContent='Visi Projektai';
-    document.getElementById('topbar-sub').textContent='Pilnas projektų sąrašas su filtrais';
+    document.getElementById('topbar-sub').textContent='Suskirstyta pagal tipą: Projektai · Paslauga · Projektavimas';
     if(act)act.innerHTML=(isManager()||isEngineer())&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Naujas projektas</button>':'';
     renderAllProjects();
   }
@@ -1508,9 +1670,31 @@ function showView(name,extra){
   renderSidebar();save();
 }
 
+// Sidebar group collapse state — projects expanded by default, archive collapsed by default
+let _sidebarCollapsed={projektas:false, paslauga:false, projektavimas:false};
+let _archiveExpanded=false;
+
+function toggleSidebarGroup(key){
+  _sidebarCollapsed[key] = !_sidebarCollapsed[key];
+  renderSidebar();
+}
+
+function toggleArchiveSection(){
+  _archiveExpanded = !_archiveExpanded;
+  renderSidebar();
+}
+
 function renderSidebar(){
-  // Active projects
-  document.getElementById('proj-nav').innerHTML=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p)).map(p=>{
+  // Active projects split by category (Projects / Paslauga / Projektavimas)
+  const activeProjects=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
+
+  const buckets={
+    projektas:     activeProjects.filter(p=>p.designStatus!=='design' && p.type!=='paslauga'),
+    paslauga:      activeProjects.filter(p=>p.designStatus!=='design' && p.type==='paslauga'),
+    projektavimas: activeProjects.filter(p=>p.designStatus==='design')
+  };
+
+  const renderProjItem=p=>{
     const pct=projProgress(p.id),active=DB.currentProjectId===p.id;
     const isCompleted=p.status==='completed';
     return`<div class="proj-item ${active?'active':''}" onclick="showView('project','${p.id}')">
@@ -1519,9 +1703,26 @@ function renderSidebar(){
       ${isCompleted?'<span style="font-size:9px;background:var(--green-bg);color:var(--green-t);padding:1px 4px;border-radius:3px;flex-shrink:0">✓</span>':''}
       <span style="font-family:var(--mono);font-size:9px;color:var(--hint);flex-shrink:0;margin-left:4px">${pct}%</span>
     </div>`;
-  }).join('');
+  };
 
-  // Archived projects
+  ['projektas','paslauga','projektavimas'].forEach(key=>{
+    const container=document.getElementById('proj-nav-'+key);
+    const countEl=document.getElementById('sg-'+key+'-count');
+    if(container){
+      const list=buckets[key];
+      container.innerHTML=list.length
+        ? list.map(renderProjItem).join('')
+        : '<div style="padding:4px 14px 6px 28px;font-size:10px;color:var(--hint);font-style:italic">—</div>';
+      // Respect collapsed state
+      const collapsed = _sidebarCollapsed[key];
+      container.style.display = collapsed ? 'none' : '';
+      const caret=document.getElementById('sg-'+key+'-caret');
+      if(caret) caret.textContent = collapsed ? '▶' : '▼';
+    }
+    if(countEl) countEl.textContent=buckets[key].length;
+  });
+
+  // Archived projects (collapsible, collapsed by default)
   const archived=DB.projects.filter(p=>p.status==='archived');
   const archSec=document.getElementById('archive-section');
   const archNav=document.getElementById('archive-nav');
@@ -1536,6 +1737,10 @@ function renderSidebar(){
         <span style="font-size:9px;color:var(--hint);flex-shrink:0">📦</span>
       </div>`;
     }).join('');
+    // Apply collapsed state (default: collapsed)
+    archNav.style.display = _archiveExpanded ? '' : 'none';
+    const archCaret=document.getElementById('archive-caret');
+    if(archCaret) archCaret.textContent = _archiveExpanded ? '▼' : '▶';
   }
 
   document.getElementById('team-nav').innerHTML=USERS.map(u=>{
@@ -5025,7 +5230,7 @@ function setOrdSearch(v){_ordSearch=v.toLowerCase();renderOrders();}
 function setOrdFilter(v){_ordFilter=v;renderOrders();}
 
 // ── Projects state filter/sort ──
-let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'asc'};
+let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'asc',category:'projektas'};
 
 function renderDesignProjects(){
   const el=document.getElementById('design-content');
@@ -5086,10 +5291,34 @@ function renderDesignProjects(){
 function renderAllProjects(){
   const el=document.getElementById('projects-content');
   if(!el)return;
-  // Exclude design-phase projects — they have their own view
-  const all=(DB.projects||[]).filter(p=>p.designStatus!=='design'&&canSeeProject(p));
 
-  // Apply filter
+  // All projects user can see. Archived projects are hidden by default and only included
+  // when the user explicitly filters for "archived" — they always remain accessible via the sidebar Archyvas section.
+  const showArchived = _projFilter.status==='archived';
+  const visible=(DB.projects||[]).filter(p=>canSeeProject(p) && (showArchived ? p.status==='archived' : p.status!=='archived'));
+  const catProjektas    = visible.filter(p=>p.designStatus!=='design' && p.type!=='paslauga');
+  const catPaslauga     = visible.filter(p=>p.designStatus!=='design' && p.type==='paslauga');
+  const catProjektavimas= visible.filter(p=>p.designStatus==='design');
+
+  // Ensure category is valid; if a user can't see any design projects, don't force them onto that tab
+  if(!_projFilter.category) _projFilter.category='projektas';
+  if(_projFilter.category==='projektavimas' && !catProjektavimas.length && (catProjektas.length||catPaslauga.length)){
+    _projFilter.category='projektas';
+  }
+
+  const catLabels={
+    projektas:     {label:'📁 GAMYBOS PROJEKTAI', sub:'Pilni projektai (gamyba)'},
+    paslauga:      {label:'⚡ PASLAUGA',       sub:'Atskirų etapų darbai'},
+    projektavimas: {label:'📐 PROJEKTAVIMAS',  sub:'Dizaino / inžinerijos etape'}
+  };
+
+  // Source list for the currently active category
+  let all;
+  if(_projFilter.category==='paslauga')           all=catPaslauga;
+  else if(_projFilter.category==='projektavimas') all=catProjektavimas;
+  else                                            all=catProjektas;
+
+  // Apply filter (status + search) — type filter removed; categories handle that now
   let filtered=all.filter(p=>{
     if(_projFilter.status==='active'&&p.status==='archived')return false;
     if(_projFilter.status==='archived'&&p.status!=='archived')return false;
@@ -5104,8 +5333,6 @@ function renderAllProjects(){
     if(_projFilter.status==='overdue'){
       if(!p.deadline||daysUntilDeadline(p.deadline)>=0)return false;
     }
-    if(_projFilter.type==='projektas'&&p.type==='paslauga')return false;
-    if(_projFilter.type==='paslauga'&&p.type!=='paslauga')return false;
     if(_projFilter.search){
       const q=_projFilter.search.toLowerCase();
       const hay=(p.name+' '+(p.client||'')+' '+(p.notes||'')).toLowerCase();
@@ -5133,7 +5360,7 @@ function renderAllProjects(){
     return 0;
   });
 
-  // Count totals for summary
+  // Count totals for summary — scoped to the active category
   const totalActive=all.filter(p=>p.status!=='archived').length;
   const totalDone=all.filter(p=>{const t=projTasks(p.id);return t.length&&t.filter(x=>x.status==='done').length===t.length;}).length;
   const totalOverdue=all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0&&p.status!=='archived').length;
@@ -5145,6 +5372,9 @@ function renderAllProjects(){
     return '<th style="padding:9px 10px;text-align:'+(alignRight?'right':'left')+';font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+(active?'var(--blue-t)':'var(--muted)')+';white-space:nowrap;cursor:pointer;user-select:none" onclick="setProjSort(\''+key+'\')">'+label+arrow+'</th>';
   };
 
+  const isDesignCat = _projFilter.category==='projektavimas';
+  const isPaslaugaCat = _projFilter.category==='paslauga';
+
   const rows=filtered.map((p,idx)=>{
     const tasks=projTasks(p.id);
     const pct=projProgress(p.id);
@@ -5154,6 +5384,7 @@ function renderAllProjects(){
     const dlDays=p.deadline?daysUntilDeadline(p.deadline):null;
     const dlColor=dlDays===null?'var(--hint)':dlDays<0?'var(--red-t)':dlDays<3?'var(--amber-t)':dlDays<7?'var(--text)':'var(--muted)';
     const isPaslauga=p.type==='paslauga';
+    const isDesign=p.designStatus==='design';
     const allDone=tasks.length&&doneTasks===tasks.length;
     const statusBadge=p.status==='archived'?'<span style="font-size:10px;color:var(--hint)">📦 Archyvuotas</span>'
       :allDone?'<span style="font-size:10px;color:var(--green-t);font-weight:600">✅ Baigtas</span>'
@@ -5164,16 +5395,20 @@ function renderAllProjects(){
     const prioIcons={high:'🔴',mid:'🟡',low:'🟢'};
 
     const rowBg=idx%2===0?'var(--surface)':'var(--surface2)';
-    const leftBorder=isPaslauga?'border-left:3px solid var(--amber-t);':'border-left:3px solid '+p.color+';';
+    const leftBorder=isDesign?'border-left:3px solid #6366f1;':isPaslauga?'border-left:3px solid var(--amber-t);':'border-left:3px solid '+p.color+';';
+
+    const iconEl = isDesign?'📐':isPaslauga?'⚡':initials(p.name);
+    const subBadge = isDesign?'<div style="font-size:9px;color:#4338ca;font-weight:600">📐 Projektavimas</div>'
+                   : isPaslauga?'<div style="font-size:9px;color:var(--amber-t);font-weight:600">⚡ Paslauga</div>':'';
 
     return'<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);'+leftBorder+'cursor:pointer" onclick="showView(\'project\',\''+p.id+'\')" onmouseover="this.style.background=\'var(--blue-bg)\'" onmouseout="this.style.background=\''+rowBg+'\'">'
       // Icon + Name
       +'<td style="padding:8px 10px;max-width:220px">'
         +'<div style="display:flex;align-items:center;gap:8px">'
-        +'<div style="width:26px;height:26px;border-radius:7px;background:'+p.color+'20;color:'+p.color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(isPaslauga?'⚡':initials(p.name))+'</div>'
+        +'<div style="width:26px;height:26px;border-radius:7px;background:'+p.color+'20;color:'+p.color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+iconEl+'</div>'
         +'<div style="min-width:0;flex:1">'
         +'<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.name)+'</div>'
-        +(isPaslauga?'<div style="font-size:9px;color:var(--amber-t);font-weight:600">⚡ Paslauga</div>':'')
+        +subBadge
         +'</div></div>'
       +'</td>'
       // Client
@@ -5205,9 +5440,37 @@ function renderAllProjects(){
       +'</tr>';
   }).join('');
 
+  // Tab buttons (category selector)
+  const tabBtn=(key)=>{
+    const active=_projFilter.category===key;
+    const count = key==='projektas'?catProjektas.length:key==='paslauga'?catPaslauga.length:catProjektavimas.length;
+    return '<button onclick="setProjCategory(\''+key+'\')" class="tab-btn'+(active?' active':'')+'" style="flex:1;font-size:12px;padding:9px 12px;display:flex;flex-direction:column;align-items:center;gap:2px">'
+      +'<span style="font-weight:600">'+catLabels[key].label+'</span>'
+      +'<span style="font-size:9px;color:'+(active?'var(--muted)':'var(--hint)')+';font-weight:500">'+catLabels[key].sub+' · '+count+'</span>'
+    +'</button>';
+  };
+
+  const emptyMsg = _projFilter.category==='paslauga'
+    ? (all.length?'Nieko nerasta — pakeiskite filtrus':'Nėra paslaugos darbų')
+    : _projFilter.category==='projektavimas'
+      ? (all.length?'Nieko nerasta — pakeiskite filtrus':'Nėra projektavimo darbų')
+      : (all.length?'Nieko nerasta — pakeiskite filtrus':'Nėra projektų');
+
+  const designHint = isDesignCat
+    ? '<div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:12px">'
+      +'🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.'
+    +'</div>'
+    : '';
+
   el.innerHTML=
+    // Category tabs
+    '<div class="tab-bar" style="margin-bottom:14px;display:flex;gap:2px;background:var(--surface2);border-radius:9px;padding:3px">'
+    +tabBtn('projektas')
+    +tabBtn('paslauga')
+    +tabBtn('projektavimas')
+    +'</div>'
     // Summary cards
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
     +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
       +'<div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Iš viso</div>'
       +'<div style="font-size:22px;font-weight:800;margin-top:2px">'+totalActive+'</div>'
@@ -5225,7 +5488,8 @@ function renderAllProjects(){
       +'<div style="font-size:22px;font-weight:800;color:var(--red-t);margin-top:2px">'+totalOverdue+'</div>'
     +'</div>'
     +'</div>'
-    // Filter bar
+    +designHint
+    // Filter bar (search + status only; type is now the tab)
     +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<input type="text" id="proj-search" placeholder="🔍 Ieškoti projektų, klientų..." value="'+escHtml(_projFilter.search)+'" oninput="_projFilter.search=this.value;renderAllProjects()" style="flex:1;min-width:200px;font-size:12px;padding:6px 10px">'
     +'<select onchange="_projFilter.status=this.value;renderAllProjects()" style="font-size:12px;padding:6px 10px">'
@@ -5236,16 +5500,11 @@ function renderAllProjects(){
       +'<option value="overdue"'+(_projFilter.status==='overdue'?' selected':'')+'>⚠ Vėluojantys</option>'
       +'<option value="archived"'+(_projFilter.status==='archived'?' selected':'')+'>📦 Archyvuoti</option>'
     +'</select>'
-    +'<select onchange="_projFilter.type=this.value;renderAllProjects()" style="font-size:12px;padding:6px 10px">'
-      +'<option value="all"'+(_projFilter.type==='all'?' selected':'')+'>Visi tipai</option>'
-      +'<option value="projektas"'+(_projFilter.type==='projektas'?' selected':'')+'>📁 Projektai</option>'
-      +'<option value="paslauga"'+(_projFilter.type==='paslauga'?' selected':'')+'>⚡ Paslaugos</option>'
-    +'</select>'
-    +(_projFilter.search||_projFilter.status!=='all'||_projFilter.type!=='all'?'<button class="btn btn-sm" onclick="resetProjFilter()">✕ Išvalyti</button>':'')
+    +(_projFilter.search||_projFilter.status!=='all'?'<button class="btn btn-sm" onclick="resetProjFilter()">✕ Išvalyti</button>':'')
     +'</div>'
     // Table
     +(!filtered.length
-      ?'<div class="empty-state" style="padding:40px;text-align:center"><div style="font-size:30px;margin-bottom:8px">📁</div><div style="font-size:13px;color:var(--muted)">'+(all.length?'Nieko nerasta — pakeiskite filtrus':'Nėra projektų')+'</div></div>'
+      ?'<div class="empty-state" style="padding:40px;text-align:center"><div style="font-size:30px;margin-bottom:8px">'+(isDesignCat?'📐':isPaslaugaCat?'⚡':'📁')+'</div><div style="font-size:13px;color:var(--muted)">'+emptyMsg+'</div></div>'
       :'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh)">'
       +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
       +'<thead><tr style="background:var(--surface2);border-bottom:2px solid var(--border)">'
@@ -5265,6 +5524,14 @@ function renderAllProjects(){
       +'</div>');
 }
 
+function setProjCategory(cat){
+  _projFilter.category=cat;
+  // Clear search/status when switching tabs so each tab starts clean
+  _projFilter.search='';
+  _projFilter.status='all';
+  renderAllProjects();
+}
+
 function setProjSort(key){
   if(_projFilter.sortBy===key){
     _projFilter.sortDir=_projFilter.sortDir==='asc'?'desc':'asc';
@@ -5276,7 +5543,7 @@ function setProjSort(key){
 }
 
 function resetProjFilter(){
-  _projFilter={search:'',status:'all',type:'all',sortBy:_projFilter.sortBy,sortDir:_projFilter.sortDir};
+  _projFilter={search:'',status:'all',type:'all',sortBy:_projFilter.sortBy,sortDir:_projFilter.sortDir,category:_projFilter.category};
   renderAllProjects();
 }
 
@@ -5607,23 +5874,32 @@ function buildBackupWorkbook(){
   };
 
   // ── Sheet 1: Projektai ──
-  const projData=[['ID','Pavadinimas','Tipas','Klientas','Prioritetas','Statusas','Dizaino fazė','Terminas','Atsakingas','Pozicijų','Užduočių','Atlikta %','Pastabos','Sukurta']];
+  const projData=[['ID','Pavadinimas','Kategorija','Tipas','Klientas','Prioritetas','Statusas','Dizaino fazė','Paslaugos žingsniai','Terminas','Baigta','Užbaigimo pastaba','Atsakingas','Pozicijų','Užduočių','Atlikta %','Pastabos','Sukurta']];
   (DB.projects||[]).forEach(p=>{
     const tasks=projTasks(p.id);
     const owner=getUser(p.owner)?.name||'';
     const prio=PRIO_LABELS[p.priority||'mid']?.label||'';
     const statLabel=p.status==='completed'?'✅ Užbaigtas':p.status==='archived'?'📦 Archyvas':'🔄 Aktyvus';
     const dPhase=p.designStatus==='design'?'📐 Projektavimas':'🏭 Gamyba';
+    // New category column matches sidebar grouping
+    const category = p.designStatus==='design' ? '📐 Projektavimas'
+                   : p.type==='paslauga' ? '⚡ Paslauga'
+                   : '📁 Gamybos projektas';
+    const serviceStepLabels = (p.serviceSteps||[]).map(id=>{
+      const st=(typeof STEPS!=='undefined'?STEPS:[]).find(s=>s.id===id);
+      return st?st.short||st.label:id;
+    }).join(' → ');
     projData.push([
-      p.id,p.name||'',p.type||'projektas',p.client||'',
-      prio,statLabel,dPhase,
-      p.deadline||'',owner,
+      p.id,p.name||'',category,p.type||'projektas',p.client||'',
+      prio,statLabel,dPhase,serviceStepLabels,
+      p.deadline||'',fmtDateForBackup(p.completedAt),p.completionNote||'',
+      owner,
       (p.lines||[]).length,tasks.length,projProgress(p.id),
       p.notes||'',fmtDateForBackup(p.created),
     ]);
   });
   const ws1=XLSX.utils.aoa_to_sheet(projData);
-  styleSheet(ws1,[12,32,11,22,11,14,18,12,18,9,9,9,30,18]);
+  styleSheet(ws1,[12,32,20,11,22,11,14,18,28,12,18,30,18,9,9,9,30,18]);
   XLSX.utils.book_append_sheet(wb,ws1,'📁 Projektai');
 
   // ── Sheet 2: Užduotys ──
@@ -5712,7 +5988,135 @@ function buildBackupWorkbook(){
   styleSheet(ws6,[22,26,18,12,12]);
   XLSX.utils.book_append_sheet(wb,ws6,'👥 Komanda');
 
-  // ── Sheet 7: Info ──
+  // ── Sheet 7: 🏭 Sandėlis (Atsargos) ──
+  // One row per SKU. Sheet (medžiaga) and fitting columns are unified;
+  // fitting-only fields stay empty for sheet rows and vice versa.
+  const whItems = DB.warehouse||[];
+  const whData=[[
+    'SKU','Tipas','Pavadinimas / Medžiaga','Subkategorija',
+    'Kiekis','Rezervuota','Laisva','Vnt.',
+    'Min','ROP (užsakymo riba)','Max','ABC',
+    'Storis (mm)','MPN','Distrib. kodas','Prekės ženklas','Pakuotėje vnt.','Aliasai',
+    'Tiekėjas','Kaina €/vnt','Bendra vertė €','Būsena',
+    'Vieta (zona)','Vieta (lentyna)','Brūkšninis kodas',
+    'Paskut. priėmimas','Paskut. išdavimas','Paskut. invent. data','Paskut. invent. kiekis','Tikslumas %',
+    'Pastabos','Archyvuotas',
+  ]];
+  whItems.forEach(w=>{
+    const kindLabel = w.kind==='fitting' ? '🔩 Furnitūra' : '📋 Lakštas';
+    const free = (w.qty||0) - (w.reservedQty||0);
+    const totalValue = (w.qty||0) * (w.cost||0);
+    // Status badge
+    let status = '✓ OK';
+    if(w.qty<=0) status='⛔ Pasibaigė';
+    else if(w.reorderPoint>0 && w.qty<=w.reorderPoint) status='🟠 Žemai';
+    else if(w.maxQty>0 && w.qty>w.maxQty) status='🟣 Per daug';
+    const loc = w.location || {};
+    whData.push([
+      w.sku||'', kindLabel, w.material||'', w.subcategory||'',
+      w.qty||0, w.reservedQty||0, free, w.unit||'',
+      w.minQty||0, w.reorderPoint||0, w.maxQty||0, w.abcClass||'',
+      w.thickness||'', w.mpn||'', w.distCode||'', w.brand||'', w.unitsPerPack||'',
+      (w.aliases||[]).join(' | '),
+      w.supplier||'', w.cost||0, Math.round(totalValue*100)/100, status,
+      loc.zone||'', loc.bin||'', w.barcode||'',
+      fmtDateForBackup(w.lastReceived), fmtDateForBackup(w.lastIssued),
+      fmtDateForBackup(w.lastCountDate), w.lastCountQty==null?'':w.lastCountQty,
+      w.accuracy==null?'':Math.round(w.accuracy),
+      w.notes||'', w.archived?'Taip':'Ne',
+    ]);
+  });
+  const ws7=XLSX.utils.aoa_to_sheet(whData);
+  styleSheet(ws7,[16,12,30,16,8,9,8,7,7,9,7,5,8,15,15,12,9,28,16,10,12,12,8,10,16,18,18,18,10,9,28,11]);
+  XLSX.utils.book_append_sheet(wb,ws7,'🏭 Sandėlis');
+
+  // ── Sheet 8: 📜 Sandėlio žurnalas (audit log) ──
+  // Newest first; limit to last 2000 entries so the file stays usable.
+  const whLog = (DB.warehouseLog||[]).slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||'')).slice(0,2000);
+  const logData=[['Data','Tipas','SKU','Medžiaga','Kiekis','Vnt.','Likutis po','Priežastis','Projektas','Naudotojas','Pastaba']];
+  whLog.forEach(l=>{
+    const typeLabel = l.type==='receive'?'📥 Priėmimas'
+                    : l.type==='issue'?'📤 Išdavimas'
+                    : l.type==='reserve'?'🔒 Rezervas'
+                    : l.type==='release'?'🔓 Atšaukta rezerv.'
+                    : l.type==='adjust'?'🛠 Korekcija'
+                    : l.type==='count'?'📋 Inventorizacija'
+                    : (l.type||'—');
+    const proj = l.projectId ? (getProject(l.projectId)?.name||l.projectId) : '';
+    logData.push([
+      fmtDateForBackup(l.ts), typeLabel, l.sku||'', l.material||'',
+      l.qty||0, l.unit||'', l.balanceAfter==null?'':l.balanceAfter,
+      l.reason||'', proj, l.user||'', l.note||'',
+    ]);
+  });
+  const ws8=XLSX.utils.aoa_to_sheet(logData);
+  styleSheet(ws8,[18,20,16,30,9,7,11,22,26,16,40]);
+  XLSX.utils.book_append_sheet(wb,ws8,'📜 Žurnalas');
+
+  // ── Sheet 9: 📦 Komplektai (Kits / pick lists) ──
+  const kits = DB.kits||[];
+  const kitData=[['Kit ID','Projektas','Būsena','Sukurta','Sukūrė','Išleista','Surinkta','Išduota','Surinkimo vieta','Tikslumas %','Eilutė','SKU','Medžiaga','Vnt.','Reikia','Surinkta','Pastabos']];
+  kits.forEach(k=>{
+    if(!k.items||!k.items.length){
+      kitData.push([k.id||'',k.projectName||'',k.status||'',fmtDateForBackup(k.createdAt),k.createdBy||'',
+        fmtDateForBackup(k.releasedAt),fmtDateForBackup(k.stagedAt),fmtDateForBackup(k.issuedAt),
+        k.stagingArea||'',k.accuracy==null?'':k.accuracy,'','','','','','',k.notes||'']);
+      return;
+    }
+    k.items.forEach((it,i)=>{
+      kitData.push([
+        i===0?(k.id||''):'',
+        i===0?(k.projectName||''):'',
+        i===0?(k.status||''):'',
+        i===0?fmtDateForBackup(k.createdAt):'',
+        i===0?(k.createdBy||''):'',
+        i===0?fmtDateForBackup(k.releasedAt):'',
+        i===0?fmtDateForBackup(k.stagedAt):'',
+        i===0?fmtDateForBackup(k.issuedAt):'',
+        i===0?(k.stagingArea||''):'',
+        i===0?(k.accuracy==null?'':k.accuracy):'',
+        i+1,it.sku||'',it.material||'',it.unit||'',it.required||it.qty||0,it.picked||0,
+        i===0?(k.notes||''):'',
+      ]);
+    });
+  });
+  const ws9=XLSX.utils.aoa_to_sheet(kitData);
+  styleSheet(ws9,[14,26,12,18,16,18,18,18,14,9,5,16,28,7,9,9,30]);
+  XLSX.utils.book_append_sheet(wb,ws9,'📦 Komplektai');
+
+  // ── Sheet 10: 📋 Inventorizacijos (cycle counts) ──
+  const counts = (DB.cycleCounts||[]).slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  const ccData=[['Data','SKU','Medžiaga','Sistemoje buvo','Suskaičiuota','Skirtumas','Tikslumas %','Naudotojas','Pastaba']];
+  counts.forEach(c=>{
+    const w = DB.warehouse.find(x=>x.id===c.itemId);
+    const acc = c.expectedQty>0 ? Math.max(0,100-Math.abs(c.variance)/c.expectedQty*100) : 100;
+    ccData.push([
+      fmtDateForBackup(c.ts), w?.sku||c.itemId, w?.material||'',
+      c.expectedQty||0, c.countedQty||0, c.variance||0, Math.round(acc),
+      c.user||'', c.note||'',
+    ]);
+  });
+  const ws10=XLSX.utils.aoa_to_sheet(ccData);
+  styleSheet(ws10,[18,16,30,12,12,10,11,16,30]);
+  XLSX.utils.book_append_sheet(wb,ws10,'📋 Inventorizacijos');
+
+  // ── Sheet 11: 🔗 Fitting aliasai ──
+  const aliases = DB.fittingAliases||[];
+  const aliasData=[['Aliasas (iš importo)','Susietas SKU','Subkategorija','Daugiklis','Sukūrė','Sukurta']];
+  aliases.forEach(a=>{
+    const w = DB.warehouse.find(x=>x.sku===a.sku);
+    aliasData.push([a.alias||'', a.sku||'', w?.subcategory||a.subcategory||'',
+      a.multiplier==null?1:a.multiplier, a.createdBy||'', fmtDateForBackup(a.createdAt)]);
+  });
+  const ws11=XLSX.utils.aoa_to_sheet(aliasData);
+  styleSheet(ws11,[28,16,16,10,16,18]);
+  XLSX.utils.book_append_sheet(wb,ws11,'🔗 Fitting aliasai');
+
+  // ── Sheet 12: ℹ Info ──
+  // Compute warehouse summary using the same logic as the in-app KPI panel.
+  let whSummary = null;
+  try { if(typeof whKPIs==='function') whSummary = whKPIs(); } catch(e) { whSummary=null; }
+
   const infoData=[
     ['Sistema','Dėdės Baldai gamybos valdymas'],
     ['Eksporto data',today],
@@ -5720,20 +6124,44 @@ function buildBackupWorkbook(){
     ['Darbo vietos kodas',WORKSPACE_CODE||''],
     ['Eksportavo',CURRENT_USER_NAME||''],
     [],
-    ['Statistika',''],
+    ['── PROJEKTAI ──',''],
     ['Iš viso projektų',(DB.projects||[]).length],
+    ['  - 📁 Gamybos projektai',(DB.projects||[]).filter(p=>p.designStatus!=='design'&&p.type!=='paslauga').length],
+    ['  - ⚡ Paslaugos',(DB.projects||[]).filter(p=>p.designStatus!=='design'&&p.type==='paslauga').length],
+    ['  - 📐 Projektavimas',(DB.projects||[]).filter(p=>p.designStatus==='design').length],
     ['  - aktyvūs',(DB.projects||[]).filter(p=>p.status!=='completed'&&p.status!=='archived').length],
-    ['  - užbaigti',(DB.projects||[]).filter(p=>p.status==='completed'||projProgress(p.id)===100).length],
+    ['  - užbaigti',(DB.projects||[]).filter(p=>p.status==='completed').length],
+    ['  - archyvuoti',(DB.projects||[]).filter(p=>p.status==='archived').length],
+    [],
+    ['── UŽDUOTYS ──',''],
     ['Iš viso užduočių',(DB.tasks||[]).length],
     ['  - atliktos',(DB.tasks||[]).filter(t=>t.status==='done').length],
     ['  - vykdomos',(DB.tasks||[]).filter(t=>t.status==='in-progress').length],
     ['  - laukia',(DB.tasks||[]).filter(t=>t.status==='pending').length],
+    [],
+    ['── UŽSAKYMAI / KOMANDA ──',''],
     ['Užsakymų',(DB.orders||[]).length],
     ['Komandos narių',(USERS||[]).length],
+    [],
+    ['── SANDĖLIS ──',''],
+    ['SKU iš viso',whSummary?whSummary.totalSkus:(DB.warehouse||[]).length],
+    ['  - 📋 Lakštai (m²)',whSummary?whSummary.sheetSkus:(DB.warehouse||[]).filter(w=>w.kind!=='fitting').length],
+    ['  - 🔩 Furnitūra',whSummary?whSummary.fittingSkus:(DB.warehouse||[]).filter(w=>w.kind==='fitting').length],
+    ['Lakštų likutis (m²)',whSummary?Math.round((whSummary.totalQty||0)*100)/100:''],
+    ['Furnitūros vienetų',whSummary?whSummary.fittingPieces:''],
+    ['Rezervuota',whSummary?Math.round((whSummary.reserved||0)*100)/100:''],
+    ['Bendra vertė €',whSummary?Math.round((whSummary.totalValue||0)*100)/100:''],
+    ['  - ⛔ Pasibaigę',whSummary?whSummary.stockoutCount:''],
+    ['  - 🟠 Žemai',whSummary?whSummary.lowCount:''],
+    ['  - 🟣 Per daug',whSummary?whSummary.overstockCount:''],
+    ['Inventorizacijų įrašai',(DB.cycleCounts||[]).length],
+    ['Žurnalo įrašai',(DB.warehouseLog||[]).length],
+    ['Komplektai',(DB.kits||[]).length],
+    ['Fitting aliasai',(DB.fittingAliases||[]).length],
   ];
-  const ws7=XLSX.utils.aoa_to_sheet(infoData);
-  styleSheet(ws7,[24,30]);
-  XLSX.utils.book_append_sheet(wb,ws7,'ℹ Info');
+  const wsInfo=XLSX.utils.aoa_to_sheet(infoData);
+  styleSheet(wsInfo,[28,30]);
+  XLSX.utils.book_append_sheet(wb,wsInfo,'ℹ Info');
 
   return wb;
 }
