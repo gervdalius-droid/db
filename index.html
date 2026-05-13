@@ -931,22 +931,99 @@ function canSeeProject(p){
 }
 function projTasks(pid){return DB.tasks.filter(t=>t.projectId===pid)}
 function taskComments(tid){return DB.comments.filter(c=>c.taskId===tid)}
+
+// Per-task completion percentage (0-100). Each task represents one step in the
+// project pipeline (Pjovimas, Briaunavimas, ...), so a task's progress is the
+// share of its own items completed — NEVER the share of project-wide items.
+function taskProgress(t){
+  if(!t) return 0;
+  if(t.status==='done') return 100;
+  // Prefer qtyLines as the source of truth when present (most accurate)
+  if(t.qtyLines && t.qtyLines.length){
+    const ordered=t.qtyLines.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+    const done   =t.qtyLines.reduce((s,l)=>s+(parseInt(l.done)||0),0);
+    if(ordered>0) return Math.min(100, Math.round(done/ordered*100));
+    // If qty are all zero, fall through to status/qty fallback
+  }
+  // Aggregate qty (no lines)
+  const ordered=parseInt(t.qtyOrdered)||0;
+  const done   =parseInt(t.qtyDone)||0;
+  if(ordered>0) return Math.min(100, Math.round(done/ordered*100));
+  // No quantities at all — binary by status
+  return t.status==='in-progress' ? 50 : 0;
+}
+
+// Project progress = AVERAGE of per-task progress. This matches what the user
+// sees on the step cards (one card per task) and avoids the old summing bug
+// where one step's qtyLines could be divided by the project-wide qtyOrdered
+// total, producing absurd numbers like 43% with zero tasks marked done.
 function projProgress(pid){
   const t=projTasks(pid);
   if(!t.length)return 0;
-  // Use quantity-based progress when tasks have qtyOrdered > 0
-  const totalOrdered=t.reduce((s,x)=>s+(x.qtyOrdered||0),0);
-  const totalDone=t.reduce((s,x)=>{
-    if(x.qtyLines&&x.qtyLines.length)return s+x.qtyLines.reduce((a,l)=>a+(l.done||0),0);
-    return s+(x.qtyDone||0);
-  },0);
-  if(totalOrdered>0)return Math.round(totalDone/totalOrdered*100);
-  // Fallback: count done tasks
-  return Math.round(t.filter(x=>x.status==='done').length/t.length*100);
+  const sum=t.reduce((s,x)=>s+taskProgress(x),0);
+  return Math.round(sum/t.length);
+}
+
+// One-time cleanup: a previous import flow stored the project-wide line total
+// in every task's qtyOrdered, which made progress calculations divide by the
+// wrong base. We can detect and fix this safely: if a task has qtyLines and
+// qtyOrdered != sum(qtyLines.qty), the qtyLines sum is the truth. Also clamp
+// any qtyDone that exceeds qtyOrdered. Called once per load.
+function normalizeTaskQuantities(){
+  if(!Array.isArray(DB.tasks)) return;
+  let fixed=0;
+  DB.tasks.forEach(t=>{
+    if(Array.isArray(t.qtyLines) && t.qtyLines.length){
+      const sumOrd=t.qtyLines.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+      const sumDone=t.qtyLines.reduce((s,l)=>s+(parseInt(l.done)||0),0);
+      if(sumOrd>0 && t.qtyOrdered!==sumOrd){ t.qtyOrdered=sumOrd; fixed++; }
+      // Sync qtyDone to the line totals so the two never drift apart
+      if(t.qtyDone!==sumDone){ t.qtyDone=sumDone; fixed++; }
+    } else {
+      // No qtyLines — just clamp qtyDone <= qtyOrdered
+      if((t.qtyDone||0) > (t.qtyOrdered||0)){ t.qtyDone=t.qtyOrdered||0; fixed++; }
+    }
+    // If status==='done' but qtyDone < qtyOrdered, prefer the explicit status
+    // (don't downgrade), but if status==='pending' and qtyDone===0, ensure the
+    // task is not silently contributing partial progress
+    if(t.status==='pending' && (!t.qtyLines || t.qtyLines.every(l=>(l.done||0)===0))){
+      // already 0, nothing to do
+    }
+  });
+  if(fixed>0){
+    try{console.info('normalizeTaskQuantities: fixed',fixed,'task fields');}catch(e){}
+  }
 }
 function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
 function ava(uid2,sz=22){const u=getUser(uid2);return'<div class="avatar" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Math.floor(sz*.38)+'px;background:'+u.bg+';color:'+u.color+'">'+u.initials+'</div>';}
 function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'}
+
+// Project name duplicate detection. Names are normalized (trim + lowercase) so
+// "GO_JU_VONIA" and " go_ju_vonia " collide. Archived projects are NOT counted —
+// they're not visible to active workflows. Returns a Set of normalized names
+// that appear on 2+ active projects.
+function duplicateProjectNames(){
+  const seen={};
+  (DB.projects||[]).forEach(p=>{
+    if(p.status==='archived')return;
+    const key=(p.name||'').trim().toLowerCase();
+    if(!key)return;
+    seen[key]=(seen[key]||0)+1;
+  });
+  const dups=new Set();
+  Object.keys(seen).forEach(k=>{if(seen[k]>1)dups.add(k);});
+  return dups;
+}
+function isDuplicateName(p){
+  if(!p||p.status==='archived')return false;
+  return duplicateProjectNames().has((p.name||'').trim().toLowerCase());
+}
+// Find all active projects with this name (case-insensitive)
+function projectsByName(name){
+  const k=(name||'').trim().toLowerCase();
+  if(!k)return [];
+  return (DB.projects||[]).filter(p=>p.status!=='archived' && (p.name||'').trim().toLowerCase()===k);
+}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(msg,type){const c=document.getElementById('toast-container');if(!c)return;const el=document.createElement('div');el.className='toast';el.textContent=msg;if(type==='success')el.style.background='#16a34a';if(type==='error')el.style.background='#dc2626';c.appendChild(el);setTimeout(function(){el.remove()},3000)}
 function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return'<span style="font-size:9px;font-weight:700;color:'+p.color+';background:'+p.bg+';padding:1px 5px;border-radius:4px">'+p.label+'</span>';}
@@ -1113,6 +1190,7 @@ async function loadFromCloud(){
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
     if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];DB.fittingPairingRules=s.fittingPairingRules||[];}
+    normalizeTaskQuantities();
     // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     // Refresh the diff snapshot so the next save() doesn't think everything changed
@@ -1215,6 +1293,7 @@ function load(){
     DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];DB.fittingPairingRules=d.fittingPairingRules||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
+    normalizeTaskQuantities();
     return true;
   }catch(e){return false;}
 }
@@ -1704,12 +1783,16 @@ function renderSidebar(){
     projektavimas: activeProjects.filter(p=>p.designStatus==='design')
   };
 
+  // Precompute duplicate-name set once per render (cheaper than per-item)
+  const _dupSet = duplicateProjectNames();
+
   const renderProjItem=p=>{
     const pct=projProgress(p.id),active=DB.currentProjectId===p.id;
     const isCompleted=p.status==='completed';
-    return`<div class="proj-item ${active?'active':''}" onclick="showView('project','${p.id}')">
+    const isDup=_dupSet.has((p.name||'').trim().toLowerCase());
+    return`<div class="proj-item ${active?'active':''}" onclick="showView('project','${p.id}')" ${isDup?`title="⚠ Pavadinimas pasikartoja kituose projektuose"`:''}>
       <div class="proj-dot" style="background:${p.color}"></div>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${isDup?' <span style="color:#d97706" title="Pasikartojantis pavadinimas">⚠</span>':''}</span>
       ${isCompleted?'<span style="font-size:9px;background:var(--green-bg);color:var(--green-t);padding:1px 4px;border-radius:3px;flex-shrink:0">✓</span>':''}
       <span style="font-family:var(--mono);font-size:9px;color:var(--hint);flex-shrink:0;margin-left:4px">${pct}%</span>
     </div>`;
@@ -2044,6 +2127,7 @@ function renderProjectView(pid,tab){
     {id:'materials', label:'🪵 Medžiagos'},
     {id:'drawers',   label:'🗄 Stalčiai'},
     {id:'fittings',  label:'🔧 Furnitūra'+(p.importData?.hardware?.length?` (${p.importData.hardware.length})`:'')},
+    {id:'collect',   label:'📋 Surinkimui'},
     {id:'files',     label:'📎 Failai'+(p.files?.length?` (${p.files.length})`:'')},
   ];
   const tabBar=tabs.map(t=>`<button class="tab-btn ${_projTab===t.id?'active':''}" onclick="renderProjectView('${pid}','${t.id}')">${t.label}</button>`).join('');
@@ -2083,6 +2167,7 @@ function renderProjectView(pid,tab){
   else if(_projTab==='materials')content=renderMaterials(pid);
   else if(_projTab==='drawers')content=renderDrawers(pid);
   else if(_projTab==='fittings')content=renderFittings(pid);
+  else if(_projTab==='collect')content=renderCollectionList(pid);
   else if(_projTab==='files')content=renderFilesTab(pid);
 
   document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+renderProjectComments(pid);
@@ -3432,6 +3517,404 @@ function renderFittings(pid){
   </div>`:'';
 
   return summary+optsBar+sectionsHtml+looseHtml;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 📋 COLLECTION LIST (Surinkimui) — printable per-project fitting pick list
+// Single purpose: tell the warehouse picker exactly which fittings to grab,
+// grouped by type for an efficient walk. Source priority:
+//   1. Existing kit (if one was generated for this project) — canonical
+//   2. fcCombine() output expanded into atomic fitting rows — for projects
+//      with HARDWARE_LIST but no kit yet
+//   3. Raw p.importData.hardware as last resort
+// Manual user additions are merged on top and live in p.collectionList.
+// Tick state per fitting is stored in p.collectionTicks {key: bool}.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Map any incoming subcategory/role string into one of 6 collection groups.
+function clCategoryFor(item){
+  const blob = String((item.subcategory||'')+' '+(item.role||'')+' '+(item.name||'')+' '+(item.material||'')+' '+(item.title||'')).toLowerCase();
+  if(/bėgel|begel|runner|tandem|slide/.test(blob)) return 'runners';
+  if(/lankst|hinge|cup|plokštel|plokstel|plate/.test(blob)) return 'hinges';
+  if(/ranken|handle|knob|pull/.test(blob)) return 'handles';
+  if(/aventos|servo|tip-?on|push|lift|mechan|piston|amorti/.test(blob)) return 'mechanisms';
+  if(/varžt|varzt|screw|sraigt|euro\b|confirmat|dowel|kaišt|kaist/.test(blob)) return 'screws';
+  return 'other';
+}
+const CL_GROUPS = [
+  {id:'runners',    label:'Bėgeliai',     icon:'↔', color:'#7c3aed'},
+  {id:'hinges',     label:'Lankstai',     icon:'⊃', color:'#0ea5e9'},
+  {id:'handles',    label:'Rankenėlės',   icon:'⎔', color:'#f59e0b'},
+  {id:'mechanisms', label:'Mechanizmai',  icon:'⚙', color:'#10b981'},
+  {id:'screws',     label:'Varžtai / Tvirtinimas', icon:'🔩', color:'#64748b'},
+  {id:'other',      label:'Kita furnitūra', icon:'•', color:'#94a3b8'},
+];
+
+// Build the unified collection list for a project. Returns an array of
+// normalized rows: {key, name, qty, unit, sku, mpn, brand, location, category, source}
+function buildCollectionList(pid){
+  const p=getProject(pid); if(!p) return [];
+  const rows=[];
+
+  // ── Source 1: existing kit ──
+  const kit = (typeof kitFindForProject==='function') ? kitFindForProject(pid) : null;
+  if(kit && Array.isArray(kit.items)){
+    kit.items.forEach(it=>{
+      if(it.kind!=='fitting') return; // fittings only
+      const name = it.material || it.sourceName || it.sku || 'Furnitūra';
+      rows.push({
+        key: 'kit:'+(it.kitItemId||it.sku||name),
+        name, qty: it.need || it.sourceQty || 0, unit: it.unit||'vnt',
+        sku: it.sku||'', mpn: it.mpn||'', brand: it.brand||'',
+        location: it.location||'',
+        category: clCategoryFor({subcategory:it.partType||it.subcategory||'', name}),
+        source: 'kit',
+      });
+    });
+  }
+
+  // ── Source 2: HARDWARE_LIST via fcCombine (only if kit didn't provide rows) ──
+  const hw = p.importData?.hardware;
+  if(rows.length===0 && hw && hw.length && typeof fcCombine==='function'){
+    try{
+      const combined = fcCombine(hw, {implyBrackets: p.fittingsImplyBrackets!==false});
+      // Expand assemblies into individual components (one row per part role)
+      (combined.assemblies||[]).forEach(a=>{
+        (a.components||[]).forEach(c=>{
+          rows.push({
+            key: 'asm:'+a.assemblyKind+':'+c.role+':'+(a.params?.depth||''),
+            name: c.role+(a.params?.depth?' '+a.params.depth+'mm':'')+(a.title&&!c.role.toLowerCase().includes(a.title.toLowerCase())?' ('+a.title+')':''),
+            qty: c.qty, unit: 'vnt', sku:'', mpn:'', brand:'',
+            location:'',
+            category: clCategoryFor({role:c.role, name:a.title}),
+            source: 'hardware',
+          });
+        });
+      });
+      // Loose lines (didn't match an assembly rule)
+      (combined.looseRows||[]).forEach(l=>{
+        rows.push({
+          key: 'hw:'+l.name,
+          name: l.fullName||l.name, qty: l.qty, unit: l.unit||'vnt',
+          sku:'', mpn:'', brand:'', location:'',
+          category: clCategoryFor({name:l.name}),
+          source: 'hardware',
+        });
+      });
+    }catch(e){console.warn('fcCombine failed:',e);}
+  }
+
+  // ── Source 3: raw hardware list as a last resort ──
+  if(rows.length===0 && hw && hw.length){
+    hw.forEach((h,i)=>{
+      rows.push({
+        key: 'raw:'+i,
+        name: h.name||h.material||'Furnitūra', qty: h.qty||h.quantity||1, unit: h.unit||'vnt',
+        sku: h.sku||'', mpn: h.mpn||'', brand: h.brand||'',
+        location:'',
+        category: clCategoryFor(h),
+        source: 'hardware',
+      });
+    });
+  }
+
+  // ── Source 4: user-added manual items ──
+  (p.collectionList||[]).forEach(m=>{
+    rows.push({
+      key: 'manual:'+m.id,
+      name: m.name, qty: m.qty||1, unit: m.unit||'vnt',
+      sku: m.sku||'', mpn:'', brand:'',
+      location: m.location||'',
+      category: m.category || clCategoryFor({name:m.name}),
+      source: 'manual',
+      manualId: m.id,
+    });
+  });
+
+  // Enrich rows with warehouse location/MPN if we can match by SKU
+  if(Array.isArray(DB.warehouse)){
+    rows.forEach(r=>{
+      if(r.location && r.mpn) return;
+      let wh = r.sku ? DB.warehouse.find(w=>w.sku===r.sku) : null;
+      if(!wh && r.mpn) wh = DB.warehouse.find(w=>w.mpn===r.mpn);
+      if(!wh){
+        // last-ditch: name contains MPN/material match
+        const needle = String(r.name||'').toLowerCase();
+        wh = DB.warehouse.find(w=>w.kind==='fitting' && (
+          (w.mpn && needle.includes(w.mpn.toLowerCase())) ||
+          (w.material && needle.includes(w.material.toLowerCase().slice(0,12)))
+        ));
+      }
+      if(wh){
+        if(!r.location) r.location = locToStr(wh.location);
+        if(!r.mpn)      r.mpn = wh.mpn||'';
+        if(!r.brand)    r.brand = wh.brand||'';
+        if(!r.sku)      r.sku = wh.sku||'';
+      }
+    });
+  }
+
+  return rows;
+}
+
+function renderCollectionList(pid){
+  const p=getProject(pid); if(!p) return '<div class="empty-state">Projektas nerastas</div>';
+  if(!p.collectionTicks) p.collectionTicks={};
+  if(!p.collectionList) p.collectionList=[];
+
+  const rows = buildCollectionList(pid);
+  const totalQty = rows.reduce((s,r)=>s+(r.qty||0),0);
+  const tickedCount = rows.filter(r=>p.collectionTicks[r.key]).length;
+  const allTicked = rows.length>0 && tickedCount===rows.length;
+
+  // Group rows by category, in the canonical order from CL_GROUPS
+  const grouped={};
+  CL_GROUPS.forEach(g=>grouped[g.id]=[]);
+  rows.forEach(r=>{
+    const cat = grouped[r.category] ? r.category : 'other';
+    grouped[cat].push(r);
+  });
+
+  // Empty state
+  if(rows.length===0){
+    return `<div class="empty-state" style="padding:40px;text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <div style="font-weight:600;margin-bottom:4px">Surinkimo sąrašas tuščias</div>
+      <div style="font-size:11px;color:var(--hint);max-width:420px;margin:0 auto 14px">Šis projektas neturi nei komplekto (kit), nei importuotų furnitūros duomenų. Pridėkite pozicijas rankiniu būdu.</div>
+      <button class="btn btn-sm btn-primary" onclick="clAddManualPrompt('${pid}')">+ Pridėti rankiniu būdu</button>
+    </div>`;
+  }
+
+  // Toolbar
+  const sourceCount = {
+    kit: rows.filter(r=>r.source==='kit').length,
+    hardware: rows.filter(r=>r.source==='hardware').length,
+    manual: rows.filter(r=>r.source==='manual').length,
+  };
+  const srcBadges = [
+    sourceCount.kit?`<span class="badge" style="background:#e0e7ff;color:#4338ca">📦 Iš komplekto: ${sourceCount.kit}</span>`:'',
+    sourceCount.hardware?`<span class="badge" style="background:#dcfce7;color:#166534">📊 Iš HARDWARE_LIST: ${sourceCount.hardware}</span>`:'',
+    sourceCount.manual?`<span class="badge" style="background:#fef3c7;color:#92400e">✏ Rankiniu būdu: ${sourceCount.manual}</span>`:'',
+  ].filter(Boolean).join(' ');
+
+  const toolbar = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:14px;box-shadow:var(--sh)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">📋 Furnitūros surinkimo sąrašas</div>
+          <div style="font-size:14px;font-weight:700;letter-spacing:-.01em">${escHtml(p.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${rows.length} pozicij${rows.length===1?'a':rows.length<10?'os':'ų'} · ${totalQty} vnt. iš viso · <strong style="color:${allTicked?'var(--green-t)':'var(--text)'}">${tickedCount}/${rows.length} pažymėta</strong></div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${srcBadges}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-sm" onclick="clAddManualPrompt('${pid}')" title="Pridėti poziciją rankiniu būdu">+ Pridėti</button>
+          <button class="btn btn-sm" onclick="clExportExcel('${pid}')" title="Eksportuoti Excel">⬇ Excel</button>
+          <button class="btn btn-sm" onclick="clPrint('${pid}')" title="Spausdinti PDF">🖨 Print</button>
+          ${tickedCount>0?`<button class="btn btn-sm btn-danger" onclick="clResetTicks('${pid}')" title="Atžymėti visus">↺ Atžymėti</button>`:''}
+        </div>
+      </div>
+      ${allTicked?'<div style="margin-top:10px;padding:8px 12px;background:var(--green-bg);color:var(--green-t);border-radius:8px;font-size:12px;font-weight:600;text-align:center">✅ Viskas surinkta — galima pradėti gamybą</div>':''}
+    </div>`;
+
+  // Render each group section
+  const sections = CL_GROUPS.map(g=>{
+    const list = grouped[g.id];
+    if(!list.length) return '';
+    const groupQty = list.reduce((s,r)=>s+(r.qty||0),0);
+    const groupTicked = list.filter(r=>p.collectionTicks[r.key]).length;
+    const groupDone = groupTicked===list.length;
+    // Sort: untracked location last, then by location/name
+    list.sort((a,b)=>{
+      if(!a.location && b.location) return 1;
+      if(a.location && !b.location) return -1;
+      return (a.location||'').localeCompare(b.location||'') || (a.name||'').localeCompare(b.name||'');
+    });
+    const itemRows = list.map(r=>{
+      const ticked = !!p.collectionTicks[r.key];
+      const meta = [
+        r.location ? `<span style="color:var(--blue-t);font-weight:600">📍 ${escHtml(r.location)}</span>` : '',
+        r.brand ? escHtml(r.brand) : '',
+        r.mpn ? `<code style="font-family:var(--mono);font-size:10px;background:var(--surface3);padding:1px 5px;border-radius:3px">${escHtml(r.mpn)}</code>` : '',
+        r.sku ? `<span style="color:var(--hint);font-size:10px">SKU: ${escHtml(r.sku)}</span>` : '',
+        r.source==='manual'?`<span style="color:#92400e;font-size:10px">✏ rankinis</span>`:'',
+      ].filter(Boolean).join(' · ');
+      const delBtn = r.source==='manual' ? `<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();clRemoveManual('${pid}','${r.manualId}')" title="Pašalinti">🗑</button>` : '';
+      return `
+        <div class="cl-row" onclick="clToggleTick('${pid}','${r.key.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;background:${ticked?'var(--green-bg)':'transparent'};transition:background .15s">
+          <input type="checkbox" ${ticked?'checked':''} onclick="event.stopPropagation();clToggleTick('${pid}','${r.key.replace(/'/g,"\\'")}')" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;accent-color:${g.color}">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:${ticked?'500':'600'};color:${ticked?'var(--muted)':'var(--text)'};${ticked?'text-decoration:line-through':''};line-height:1.3">${escHtml(r.name)}</div>
+            ${meta?`<div style="font-size:10.5px;color:var(--muted);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${meta}</div>`:''}
+          </div>
+          <div style="text-align:right;flex-shrink:0;min-width:60px">
+            <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${ticked?'var(--muted)':g.color};${ticked?'text-decoration:line-through':''}">${r.qty}</div>
+            <div style="font-size:9px;color:var(--hint)">${escHtml(r.unit)}</div>
+          </div>
+          ${delBtn}
+        </div>`;
+    }).join('');
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:12px;box-shadow:var(--sh)">
+        <div style="padding:10px 14px;background:linear-gradient(90deg,${g.color}14,transparent);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px;color:${g.color}">${g.icon}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;color:${g.color};letter-spacing:-.01em">${g.label}</div>
+            <div style="font-size:10px;color:var(--muted)">${list.length} pozicij${list.length===1?'a':list.length<10?'os':'ų'} · ${groupQty} vnt. · <strong style="color:${groupDone?'var(--green-t)':'var(--text)'}">${groupTicked}/${list.length}</strong></div>
+          </div>
+          <div style="width:36px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">
+            <div style="width:${list.length?Math.round(groupTicked/list.length*100):0}%;height:100%;background:${g.color};transition:width .3s"></div>
+          </div>
+        </div>
+        ${itemRows}
+      </div>`;
+  }).filter(Boolean).join('');
+
+  return toolbar + sections;
+}
+
+// Toggle a single row's ticked state
+function clToggleTick(pid, key){
+  const p=getProject(pid); if(!p) return;
+  if(!p.collectionTicks) p.collectionTicks={};
+  p.collectionTicks[key] = !p.collectionTicks[key];
+  save();
+  renderProjectView(pid,'collect');
+}
+function clResetTicks(pid){
+  if(!confirm('Atžymėti visas pozicijas?')) return;
+  const p=getProject(pid); if(!p) return;
+  p.collectionTicks={};
+  save(); renderProjectView(pid,'collect');
+}
+function clAddManualPrompt(pid){
+  const name = prompt('Pavadinimas (pvz. "Tandembox D=500 Blum"):'); if(!name) return;
+  const qtyStr = prompt('Kiekis (vnt.):', '1'); if(qtyStr===null) return;
+  const qty = parseInt(qtyStr)||1;
+  const loc = prompt('Vieta sandėlyje (pasirinktinai, pvz. "A·12"):', '') || '';
+  const p=getProject(pid); if(!p) return;
+  if(!p.collectionList) p.collectionList=[];
+  p.collectionList.push({
+    id: 'm'+Math.random().toString(36).slice(2,9),
+    name, qty, unit:'vnt', location:loc,
+    category: clCategoryFor({name}),
+    addedAt: new Date().toISOString(),
+  });
+  save(); renderProjectView(pid,'collect');
+  toast('✅ Pozicija pridėta','success');
+}
+function clRemoveManual(pid, mid){
+  const p=getProject(pid); if(!p) return;
+  p.collectionList = (p.collectionList||[]).filter(m=>m.id!==mid);
+  // Also clean up tick state
+  if(p.collectionTicks) delete p.collectionTicks['manual:'+mid];
+  save(); renderProjectView(pid,'collect');
+}
+
+// Excel export of the collection list for a single project
+function clExportExcel(pid){
+  const p=getProject(pid); if(!p) return;
+  if(typeof XLSX==='undefined'){toast('XLSX biblioteka nepasiekiama','error');return;}
+  const rows = buildCollectionList(pid);
+  if(!rows.length){toast('Sąrašas tuščias','error');return;}
+
+  const wb=XLSX.utils.book_new();
+  const data=[
+    ['Surinkimo sąrašas:', p.name],
+    ['Klientas:', p.client||''],
+    ['Terminas:', p.deadline||''],
+    ['Sukurta:', new Date().toLocaleString('lt-LT')],
+    [],
+    ['Kategorija','✓','Pavadinimas','Kiekis','Vnt.','Vieta','MPN','SKU','Brand','Šaltinis'],
+  ];
+  // Group cleanly by category
+  const grouped={};
+  CL_GROUPS.forEach(g=>grouped[g.id]=[]);
+  rows.forEach(r=>{(grouped[r.category]||grouped.other).push(r);});
+  CL_GROUPS.forEach(g=>{
+    const list=grouped[g.id];
+    if(!list.length) return;
+    data.push([g.label,'','','','','','','','','']);  // group header row
+    list.sort((a,b)=>(a.location||'').localeCompare(b.location||'') || (a.name||'').localeCompare(b.name||''));
+    list.forEach(r=>{
+      const ticked = !!(p.collectionTicks||{})[r.key];
+      data.push([
+        '', ticked?'✓':'☐', r.name, r.qty, r.unit||'vnt', r.location||'',
+        r.mpn||'', r.sku||'', r.brand||'',
+        r.source==='kit'?'Komplektas':r.source==='manual'?'Rankinis':'Hardware',
+      ]);
+    });
+    data.push([]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:18},{wch:4},{wch:42},{wch:7},{wch:6},{wch:12},{wch:18},{wch:16},{wch:14},{wch:12}];
+  ws['!freeze']={xSplit:0,ySplit:6};
+  XLSX.utils.book_append_sheet(wb, ws, 'Surinkimui');
+
+  const safe = (p.name||'projektas').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40);
+  XLSX.writeFile(wb, `Surinkimas_${safe}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('⬇ Excel atsisiunčiamas','success');
+}
+
+// Print-friendly view → opens new window, then triggers print
+function clPrint(pid){
+  const p=getProject(pid); if(!p) return;
+  const rows=buildCollectionList(pid);
+  if(!rows.length){toast('Sąrašas tuščias','error');return;}
+  const grouped={};
+  CL_GROUPS.forEach(g=>grouped[g.id]=[]);
+  rows.forEach(r=>{(grouped[r.category]||grouped.other).push(r);});
+
+  const total = rows.reduce((s,r)=>s+(r.qty||0),0);
+  const sections = CL_GROUPS.map(g=>{
+    const list=grouped[g.id]; if(!list.length) return '';
+    list.sort((a,b)=>(a.location||'').localeCompare(b.location||'') || (a.name||'').localeCompare(b.name||''));
+    const tr = list.map(r=>`<tr>
+      <td style="text-align:center;width:24px;border:1px solid #999">☐</td>
+      <td style="border:1px solid #999;padding:5px 8px">${escHtml(r.name)}${r.brand?` <span style="color:#666;font-size:10px">(${escHtml(r.brand)})</span>`:''}</td>
+      <td style="border:1px solid #999;padding:5px 8px;text-align:right;font-weight:700;width:60px">${r.qty}</td>
+      <td style="border:1px solid #999;padding:5px 8px;width:50px">${escHtml(r.unit||'vnt')}</td>
+      <td style="border:1px solid #999;padding:5px 8px;width:90px">${escHtml(r.location||'')}</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-family:monospace;font-size:10px;width:120px">${escHtml(r.mpn||'')}</td>
+    </tr>`).join('');
+    return `<h3 style="margin:18px 0 6px;font-size:13px;color:#333;border-bottom:2px solid #333;padding-bottom:3px">${g.icon} ${g.label} <span style="font-size:11px;color:#666;font-weight:400">(${list.length} poz.)</span></h3>
+      <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#eee">
+        <th style="border:1px solid #999;padding:5px">✓</th>
+        <th style="border:1px solid #999;padding:5px;text-align:left">Pavadinimas</th>
+        <th style="border:1px solid #999;padding:5px">Kiek.</th>
+        <th style="border:1px solid #999;padding:5px">Vnt.</th>
+        <th style="border:1px solid #999;padding:5px">Vieta</th>
+        <th style="border:1px solid #999;padding:5px">MPN</th>
+      </tr></thead><tbody>${tr}</tbody></table>`;
+  }).filter(Boolean).join('');
+
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Surinkimo sąrašas – ${escHtml(p.name)}</title>
+    <style>
+      @page{margin:14mm}
+      body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;padding:0;margin:0}
+      h1{font-size:18px;margin:0 0 4px}
+      .meta{font-size:11px;color:#555;margin-bottom:12px}
+      .sig{margin-top:24px;font-size:11px;display:flex;gap:30px}
+      .sig div{flex:1;border-top:1px solid #999;padding-top:4px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <button onclick="window.print()" style="position:fixed;top:8px;right:8px;padding:6px 12px;font-size:12px">🖨 Spausdinti</button>
+    <h1>📋 Furnitūros surinkimo sąrašas</h1>
+    <div class="meta">
+      <strong>${escHtml(p.name)}</strong>${p.client?` · ${escHtml(p.client)}`:''}${p.deadline?` · terminas: ${p.deadline}`:''}<br>
+      ${rows.length} pozicij${rows.length===1?'a':rows.length<10?'os':'ų'} · ${total} vnt. iš viso · spausdinta: ${new Date().toLocaleString('lt-LT')}
+    </div>
+    ${sections}
+    <div class="sig">
+      <div>Surinko (vardas, parašas):</div>
+      <div>Patikrino (vardas, parašas):</div>
+      <div>Data:</div>
+    </div>
+    <`+`script>setTimeout(()=>window.print(), 300);<\/`+`script>
+  </body></html>`;
+  const w=window.open('', '_blank');
+  if(!w){toast('Naršyklė užblokavo iškylantį langą','error');return;}
+  w.document.write(html); w.document.close();
 }
 
 function fcToggleImplyBrackets(pid, val){
@@ -5052,6 +5535,27 @@ async function createProject(fromOrderId){
   const name=document.getElementById('np-name').value.trim();if(!name)return;
   const type=document.getElementById('np-type')?.value||'projektas';
 
+  // Duplicate-name guard — warn if an active project with the same name already exists.
+  // The user can choose to proceed (e.g. two genuinely different projects with similar names)
+  // or cancel and rename. Archived projects are not counted.
+  const existing=projectsByName(name);
+  if(existing.length){
+    const labels=existing.map(p=>{
+      const cat = p.designStatus==='design' ? '📐 Projektavimas'
+                : p.type==='paslauga' ? '⚡ Paslauga'
+                : '📁 Gamybos projektas';
+      const pct=projProgress(p.id);
+      return `• ${cat} · ${pct}% atlikta`+(p.client&&p.client!=='—'?` · ${p.client}`:'')+(p.deadline?` · terminas ${p.deadline}`:'');
+    }).join('\n');
+    const ok=confirm(
+      `⚠ Jau yra ${existing.length===1?'projektas':existing.length+' projektai'} pavadinimu "${name}":\n\n`+
+      labels+'\n\n'+
+      `Ar tikrai kurti dar vieną tokiu pat pavadinimu?\n\n`+
+      `Patarimas: jei tai tas pats projektas einantis iš projektavimo į gamybą, geriau atidaryti esamą ir užbaigti "Perdavimas" žingsnį — sistema automatiškai pakeis statusą.`
+    );
+    if(!ok)return;
+  }
+
   // Collect lines from modal (if manually entered)
   let lines=[];
   const lineRows=document.querySelectorAll('#np-lines > div');
@@ -5928,7 +6432,7 @@ function renderAllProjects(){
         +'<div style="display:flex;align-items:center;gap:8px">'
         +'<div style="width:26px;height:26px;border-radius:7px;background:'+p.color+'20;color:'+p.color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+iconEl+'</div>'
         +'<div style="min-width:0;flex:1">'
-        +'<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.name)+'</div>'
+        +'<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" '+(isDuplicateName(p)?'title="⚠ Šis pavadinimas pasikartoja kituose projektuose"':'')+'>'+escHtml(p.name)+(isDuplicateName(p)?' <span style="color:#d97706">⚠</span>':'')+'</div>'
         +subBadge
         +'</div></div>'
       +'</td>'
@@ -5983,6 +6487,44 @@ function renderAllProjects(){
     +'</div>'
     : '';
 
+  // Duplicate-name warning. Two or more active projects sharing a name often
+  // means someone created a "new" project instead of progressing the existing
+  // one through perdavimas (design → production). We surface them here so the
+  // user can decide what to do — merge mentally, rename, or delete one.
+  const dupNames=[...duplicateProjectNames()];
+  // Allow user to dismiss the banner for this session
+  if(!window._projDupDismissed) window._projDupDismissed=new Set();
+  const dupBanner = (dupNames.length && !dupNames.every(n=>window._projDupDismissed.has(n))) ? (()=>{
+    const blocks = dupNames.filter(n=>!window._projDupDismissed.has(n)).map(n=>{
+      const list=projectsByName(n);
+      const items=list.map(p=>{
+        const cat = p.designStatus==='design' ? '📐 Projektavimas'
+                  : p.type==='paslauga'      ? '⚡ Paslauga'
+                  :                              '📁 Gamyba';
+        const pct=projProgress(p.id);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:#fff;border-radius:6px;font-size:11px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${p.color||'#999'};flex-shrink:0"></div>
+          <span style="flex:1;color:var(--text)"><strong>${cat}</strong> · ${pct}% atlikta${p.client&&p.client!=='—'?' · '+escHtml(p.client):''}${p.deadline?' · iki '+p.deadline:''}</span>
+          <button class="btn btn-xs" onclick="event.stopPropagation();showView('project','${p.id}')">Atidaryti →</button>
+        </div>`;
+      }).join('');
+      return `<div style="margin-top:8px">
+        <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:5px">"${escHtml(list[0].name)}" — ${list.length} projektai vienodu pavadinimu:</div>
+        <div style="display:flex;flex-direction:column;gap:4px">${items}</div>
+      </div>`;
+    }).join('');
+    return `<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:700;color:#92400e;display:flex;align-items:center;gap:6px">⚠ Pasikartojantys pavadinimai</div>
+          <div style="font-size:11px;color:#78350f;margin-top:3px;line-height:1.5">Šie projektai turi vienodus pavadinimus. Jei tai tas pats projektas einantis iš projektavimo į gamybą, atidarykite projektavimo versiją ir užbaikite <strong>"Perdavimas"</strong> žingsnį — sistema automatiškai pakeis statusą be naujo projekto. Jei tai du atskiri projektai, pervadinkite vieną iš jų aiškumo dėlei.</div>
+          ${blocks}
+        </div>
+        <button class="btn btn-xs" style="flex-shrink:0" onclick="dismissDupBanner()" title="Užverti šiai sesijai">✕</button>
+      </div>
+    </div>`;
+  })() : '';
+
   el.innerHTML=
     // Category tabs
     '<div class="tab-bar" style="margin-bottom:14px;display:flex;gap:2px;background:var(--surface2);border-radius:9px;padding:3px">'
@@ -5990,6 +6532,7 @@ function renderAllProjects(){
     +tabBtn('paslauga')
     +tabBtn('projektavimas')
     +'</div>'
+    +dupBanner
     // Summary cards
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
     +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">'
@@ -6050,6 +6593,12 @@ function setProjCategory(cat){
   // Clear search/status when switching tabs so each tab starts clean
   _projFilter.search='';
   _projFilter.status='all';
+  renderAllProjects();
+}
+
+function dismissDupBanner(){
+  if(!window._projDupDismissed) window._projDupDismissed=new Set();
+  duplicateProjectNames().forEach(n=>window._projDupDismissed.add(n));
   renderAllProjects();
 }
 
