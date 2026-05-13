@@ -5177,20 +5177,23 @@ function advanceTask(tid){
     if(allDone)toast('🎉 Visi žingsniai atlikti!','success');
 
     // DESIGN → PRODUCTION TRANSITION
-    // If this was the last design step (Perdavimas) and project is in design phase,
-    // transition to production: create production tasks
-    if(proj?.designStatus==='design'&&stepId==='perdavimas'){
-      const designDone=DESIGN_STEPS.every(s=>{
-        const designTask=DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id);
-        return !designTask||designTask.status==='done';
+    // Fires whenever a project in 'design' phase has had all DESIGN_STEPS completed.
+    // We check on EVERY design-task completion (not only Perdavimas) so the order in
+    // which the engineer marks them done doesn't matter — the project transitions as
+    // soon as the last design task moves to 'done'.
+    if(proj?.designStatus==='design' && DESIGN_STEPS.some(s=>s.id===stepId)){
+      const remainingDesignSteps = DESIGN_STEPS.filter(s=>{
+        const dt = DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id);
+        return dt && dt.status!=='done';
       });
-      if(designDone){
+      if(remainingDesignSteps.length === 0){
         proj.designStatus='production';
         proj.designCompletedAt=now;
         const shortName=proj.name.split('—')[0].trim();
         const qtyLines2=(proj.lines||[]).map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
         const totalQty2=qtyLines2.reduce((s,l)=>s+l.qty,0)||0;
         const stepsToCreate=proj.serviceSteps?STEPS.filter(s=>proj.serviceSteps.includes(s.id)):STEPS;
+        let createdCount=0;
         stepsToCreate.forEach(s=>{
           // Only create if not already exists
           if(!DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id)){
@@ -5205,9 +5208,19 @@ function advanceTask(tid){
               estimatedHours:estHours,
               materials:[],created:now,
             });
+            createdCount++;
           }
         });
-        toast('🚀 Projektas perduotas į gamybą!','success');
+        // Notify production-side workers that a fresh batch landed in their queue
+        addNotif('step-move', `🚀 Naujas projektas gamyboje`, proj.name||'', pid);
+        toast(`🚀 Projektas perduotas į gamybą! Sukurta ${createdCount} užduočių.`, 'success');
+        // Refresh sidebar so the project moves from "Projektavimas" group to "Gamybos Projektai"
+        try{ renderSidebar(); }catch(e){}
+      } else if(stepId==='perdavimas'){
+        // Engineer marked the handover task done, but earlier design steps are still
+        // open — explain exactly what's missing so they don't wonder why nothing happened.
+        const missingLabels = remainingDesignSteps.map(s=>s.label).join(', ');
+        toast(`⚠ Negalima perduoti į gamybą — dar neatlikti žingsniai: ${missingLabels}`, 'error');
       }
     }
     save();
