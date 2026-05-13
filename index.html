@@ -8465,6 +8465,522 @@ function catImportSubmit(){
   renderWarehouse();
 }
 
+// ══════════════════════════════════════════════
+// WAREHOUSE EXCEL IMPORT (round-trip from backup / inventory sheet)
+// ══════════════════════════════════════════════
+// Reads the exported "🏭 Sandėlis" sheet (or any sheet that has SKU + Pavadinimas + Kiekis
+// columns) and synchronizes the warehouse: updates existing SKUs in place
+// (name, code, qty, etc.) and creates new SKUs for unknown ones.
+//
+// Column mapping is tolerant — headers are detected by name, so re-saved or
+// re-ordered files still work. Required headers: SKU, Pavadinimas / Medžiaga, Kiekis.
+
+const _WH_IMP_HEADERS = {
+  // Map normalized header → internal field name
+  'sku':                    'sku',
+  'tipas':                  'tipas',
+  'pavadinimas / medžiaga': 'material',
+  'pavadinimas':            'material',
+  'medžiaga':               'material',
+  'subkategorija':          'subcategory',
+  'kiekis':                 'qty',
+  'rezervuota':             'reservedQty',
+  'vnt.':                   'unit',
+  'vnt':                    'unit',
+  'min':                    'minQty',
+  'rop (užsakymo riba)':    'reorderPoint',
+  'rop':                    'reorderPoint',
+  'max':                    'maxQty',
+  'abc':                    'abcClass',
+  'storis (mm)':            'thickness',
+  'storis':                 'thickness',
+  'mpn':                    'mpn',
+  'distrib. kodas':         'distCode',
+  'distrib kodas':          'distCode',
+  'prekės ženklas':         'brand',
+  'pakuotėje vnt.':         'unitsPerPack',
+  'pakuotėje vnt':          'unitsPerPack',
+  'aliasai':                'aliases',
+  'tiekėjas':               'supplier',
+  'kaina €/vnt':            'cost',
+  'kaina':                  'cost',
+  'vieta (zona)':           'locZone',
+  'vieta (lentyna)':        'locBin',
+  'brūkšninis kodas':       'barcode',
+  'pastabos':               'notes',
+  'archyvuotas':            'archived',
+};
+
+function _whImpNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+
+// Parse the uploaded workbook → { rows: [...], sheetName, columnsFound: [...], headerWarning }
+function whImpParseWorkbook(arrayBuffer){
+  const wb = XLSX.read(new Uint8Array(arrayBuffer), {type:'array', cellDates:true});
+
+  // Find the best matching sheet — prefer one named "Sandėlis", else any sheet
+  // whose headers include SKU + Kiekis.
+  let chosenSheet = null;
+  let chosenName  = '';
+  const preferOrder = ['🏭 Sandėlis','Sandėlis','Sandelis','Warehouse'];
+  for(const name of preferOrder){
+    if(wb.SheetNames.includes(name)){ chosenSheet = wb.Sheets[name]; chosenName = name; break; }
+  }
+  if(!chosenSheet){
+    // Try every sheet; first one whose header row contains "SKU" and "Kiekis" wins.
+    for(const name of wb.SheetNames){
+      const ws = wb.Sheets[name];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      const headerRow = aoa.find(r => r.some(c => _whImpNorm(c)==='sku'))
+                     || aoa[0];
+      if(!headerRow) continue;
+      const headers = headerRow.map(_whImpNorm);
+      if(headers.includes('sku') && headers.some(h => h==='kiekis' || h==='pavadinimas / medžiaga' || h==='pavadinimas')){
+        chosenSheet = ws; chosenName = name; break;
+      }
+    }
+  }
+  if(!chosenSheet) throw new Error('Byloje nerasta sandėlio lapo (laukiama stulpelių: SKU, Pavadinimas, Kiekis)');
+
+  const aoa = XLSX.utils.sheet_to_json(chosenSheet, {header:1, defval:''});
+  if(!aoa.length) throw new Error('Lapas tuščias');
+
+  // Find the header row — first row that has "SKU" somewhere.
+  const headerIdx = aoa.findIndex(r => r.some(c => _whImpNorm(c)==='sku'));
+  if(headerIdx<0) throw new Error('Antraščių eilutė nerasta (turi būti stulpelis "SKU")');
+  const headerRow = aoa[headerIdx].map(_whImpNorm);
+
+  // Map header column index → field name
+  const colMap = {};
+  const columnsFound = [];
+  headerRow.forEach((h,i)=>{
+    const field = _WH_IMP_HEADERS[h];
+    if(field){ colMap[field] = i; columnsFound.push(h); }
+  });
+  if(colMap.sku === undefined) throw new Error('Stulpelis "SKU" nerastas');
+  if(colMap.material === undefined && colMap.qty === undefined){
+    throw new Error('Nerasti būtini stulpeliai (Pavadinimas arba Kiekis)');
+  }
+
+  // Read data rows
+  const rows = [];
+  for(let i=headerIdx+1; i<aoa.length; i++){
+    const r = aoa[i];
+    if(!r || !r.length) continue;
+    const sku = String(r[colMap.sku]||'').trim();
+    if(!sku) continue;
+    const get = f => colMap[f]!==undefined ? r[colMap[f]] : undefined;
+    const tipasRaw = String(get('tipas')||'').toLowerCase();
+    const kind = (tipasRaw.includes('lakšt') || tipasRaw.includes('laksht') || tipasRaw.includes('sheet'))
+                 ? 'sheet'
+                 : (tipasRaw.includes('furnit') || tipasRaw.includes('fitting') ? 'fitting' : null);
+    rows.push({
+      sku,
+      kind, // may be null if Tipas column is missing — we'll infer later
+      material:     get('material'),
+      subcategory:  get('subcategory'),
+      qty:          get('qty'),
+      reservedQty:  get('reservedQty'),
+      unit:         get('unit'),
+      minQty:       get('minQty'),
+      reorderPoint: get('reorderPoint'),
+      maxQty:       get('maxQty'),
+      abcClass:     get('abcClass'),
+      thickness:    get('thickness'),
+      mpn:          get('mpn'),
+      distCode:     get('distCode'),
+      brand:        get('brand'),
+      unitsPerPack: get('unitsPerPack'),
+      aliases:      get('aliases'),
+      supplier:     get('supplier'),
+      cost:         get('cost'),
+      locZone:      get('locZone'),
+      locBin:       get('locBin'),
+      barcode:      get('barcode'),
+      notes:        get('notes'),
+      archived:     get('archived'),
+    });
+  }
+  return {rows, sheetName: chosenName, columnsFound};
+}
+
+// Compare each row to existing warehouse and classify as create/update/unchanged.
+function whImpPrepareDiff(rows){
+  const plan = [];
+  rows.forEach((row, idx) => {
+    // Match: SKU exact, else MPN, else distCode (only for fittings)
+    let existing = DB.warehouse.find(w => w.sku === row.sku);
+    if(!existing && row.mpn){
+      existing = DB.warehouse.find(w => w.kind==='fitting' && w.mpn && w.mpn.toUpperCase() === String(row.mpn).toUpperCase());
+    }
+    if(!existing && row.distCode){
+      existing = DB.warehouse.find(w => w.kind==='fitting' && w.distCode && w.distCode.toUpperCase() === String(row.distCode).toUpperCase());
+    }
+
+    // Infer kind if "Tipas" column was missing
+    let kind = row.kind;
+    if(!kind){
+      if(existing) kind = existing.kind;
+      else if(row.thickness || /lmd|mdf|hpl|faner|akrilo|plokšt|akmuo/i.test(String(row.material||''))) kind='sheet';
+      else kind='fitting';
+    }
+
+    // Compute the changes
+    const changes = {};
+    const newQty = row.qty===''||row.qty==null||isNaN(parseFloat(row.qty)) ? null : parseFloat(row.qty);
+
+    if(existing){
+      // Field-by-field diff — only flag changes when the cell has a non-empty value
+      const setIfChanged = (field, newVal, parser) => {
+        if(newVal===''||newVal==null) return;
+        const v = parser ? parser(newVal) : newVal;
+        if(JSON.stringify(existing[field]) !== JSON.stringify(v)) changes[field] = {from: existing[field], to: v};
+      };
+      setIfChanged('material', row.material);
+      if(kind==='fitting'){
+        setIfChanged('subcategory', row.subcategory);
+        setIfChanged('mpn',      row.mpn ? String(row.mpn).toUpperCase() : '');
+        setIfChanged('distCode', row.distCode ? String(row.distCode).toUpperCase() : '');
+        setIfChanged('brand', row.brand);
+        setIfChanged('unitsPerPack', row.unitsPerPack, v=>parseInt(v)||1);
+      } else {
+        setIfChanged('thickness', row.thickness, v=>parseInt(v)||existing.thickness);
+      }
+      setIfChanged('unit', row.unit);
+      setIfChanged('supplier', row.supplier);
+      setIfChanged('barcode', row.barcode);
+      setIfChanged('abcClass', row.abcClass);
+      if(row.minQty!=='' && row.minQty!=null)        setIfChanged('minQty', row.minQty, v=>parseFloat(v)||0);
+      if(row.reorderPoint!=='' && row.reorderPoint!=null) setIfChanged('reorderPoint', row.reorderPoint, v=>parseFloat(v)||0);
+      if(row.maxQty!=='' && row.maxQty!=null)        setIfChanged('maxQty', row.maxQty, v=>parseFloat(v)||0);
+      if(row.cost!=='' && row.cost!=null)            setIfChanged('cost', row.cost, v=>parseFloat(v)||0);
+      if(row.notes!=='' && row.notes!=null)          setIfChanged('notes', String(row.notes).replace(/\\n/g,'\n'));
+      if(row.archived!=='' && row.archived!=null){
+        const isArchived = /^(taip|yes|true|1)$/i.test(String(row.archived).trim());
+        if(!!existing.archived !== isArchived) changes.archived = {from: !!existing.archived, to: isArchived};
+      }
+      // Location: only update if either field non-empty
+      if((row.locZone||'') !== '' || (row.locBin||'') !== ''){
+        const newLoc = {zone:String(row.locZone||'').trim(), bin:String(row.locBin||'').trim()};
+        const oldLoc = existing.location || {zone:'',bin:''};
+        if(newLoc.zone !== (oldLoc.zone||'') || newLoc.bin !== (oldLoc.bin||'')){
+          changes.location = {from: oldLoc, to: newLoc};
+        }
+      }
+      // Qty: always treated separately — needs an audit log entry
+      const qtyDelta = (newQty!=null) ? (newQty - (existing.qty||0)) : 0;
+      const qtyChanged = newQty!=null && Math.abs(qtyDelta) > 0.0001;
+
+      plan.push({
+        idx, row, kind, action: (Object.keys(changes).length || qtyChanged) ? 'update' : 'unchanged',
+        existing, changes, newQty, qtyDelta, qtyChanged,
+        include: true,
+      });
+    } else {
+      plan.push({
+        idx, row, kind, action:'create',
+        existing: null, changes: {}, newQty, qtyDelta: newQty||0, qtyChanged: false,
+        include: true,
+      });
+    }
+  });
+  return plan;
+}
+
+let _whImpData = null; // {plan, fileName, sheetName, columnsFound}
+
+function openWhImportModal(){
+  if(!isManager()&&!isEngineer()){ toast('Nėra teisių','error'); return; }
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">📥 Atnaujinti sandėlį iš Excel</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Įkelkite Excel bylą su SKU sąrašu — pavadinimai, kodai ir kiekiai bus atnaujinti, naujos pozicijos sukurtos.</div>
+      <div style="background:var(--blue-bg);border:1px solid var(--blue-t);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--blue-t);margin-bottom:14px;line-height:1.5">
+        💡 <strong>Kaip tai veikia:</strong><br>
+        • Suderinama pagal <strong>SKU</strong> (papildomai pagal MPN / Distrib. kodą)<br>
+        • Esamoms pozicijoms atnaujinami: pavadinimas, kodai, kiekis, vieta, kaina, ABC, ROP, pastabos<br>
+        • Nežinomos pozicijos sukuriamos naujos<br>
+        • Kiekio pakeitimai įrašomi į žurnalą kaip <em>Korekcija</em><br>
+        <br>
+        Tinka eksportuotam <strong>"🏭 Sandėlis"</strong> lapui arba bet kuriam Excel su antraštėmis: <code>SKU</code>, <code>Pavadinimas / Medžiaga</code>, <code>Kiekis</code>, <code>Vnt.</code>, <code>Tipas</code> ir t.t.
+      </div>
+      <div>
+        <input type="file" id="wh-imp-file" accept=".xlsx,.xls,.xlsm" style="width:100%;padding:8px;border:1px dashed var(--border);border-radius:8px;cursor:pointer">
+      </div>
+      <div id="wh-imp-status" style="font-size:11px;color:var(--muted);margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn" onclick="whCloseModal()">Atšaukti</button>
+        <button class="btn btn-primary" onclick="whImpLoadFile()">Toliau →</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function whImpLoadFile(){
+  const file = document.getElementById('wh-imp-file')?.files?.[0];
+  if(!file){ toast('Pasirinkite bylą','error'); return; }
+  const status = document.getElementById('wh-imp-status');
+  if(status) status.textContent = 'Skaitoma...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = whImpParseWorkbook(e.target.result);
+      if(!parsed.rows.length){ toast('Byloje nerasta pozicijų','error'); return; }
+      const plan = whImpPrepareDiff(parsed.rows);
+      _whImpData = {plan, fileName:file.name, sheetName:parsed.sheetName, columnsFound:parsed.columnsFound};
+      whCloseModal();
+      whImpShowPreview();
+    } catch(err){
+      console.error(err);
+      if(status) status.innerHTML = `<span style="color:var(--red-t)">❌ ${escHtml(err.message)}</span>`;
+    }
+  };
+  reader.onerror = () => { if(status) status.textContent = 'Klaida skaitant bylą'; };
+  reader.readAsArrayBuffer(file);
+}
+
+function whImpShowPreview(){
+  if(!_whImpData) return;
+  const {plan, fileName, sheetName} = _whImpData;
+  const nCreate    = plan.filter(p=>p.action==='create').length;
+  const nUpdate    = plan.filter(p=>p.action==='update').length;
+  const nUnchanged = plan.filter(p=>p.action==='unchanged').length;
+  const nQtyChange = plan.filter(p=>p.qtyChanged).length;
+
+  // Group rows by action for tab-like sections
+  const rowsHtml = plan.map((p, i) => {
+    const r = p.row;
+    let actBadge='', actColor='';
+    if(p.action==='create'){    actBadge='➕ NAUJA';    actColor='var(--green-t)'; }
+    else if(p.action==='update'){actBadge='✏ Atnaujinti'; actColor='var(--amber-t)'; }
+    else                         {actBadge='= Nepakitę';   actColor='var(--hint)'; }
+
+    // Show key diffs
+    let diff = '';
+    if(p.action==='update'){
+      const parts = [];
+      if(p.qtyChanged){
+        const sign = p.qtyDelta>0?'+':'';
+        parts.push(`<span style="color:${p.qtyDelta>0?'var(--green-t)':'var(--red-t)'}">Kiekis: ${p.existing.qty||0} → ${p.newQty} (${sign}${whFmt(p.qtyDelta,2)})</span>`);
+      }
+      Object.entries(p.changes).slice(0,4).forEach(([f,d])=>{
+        if(f==='location'){
+          parts.push(`<span style="color:var(--muted)">Vieta: ${escHtml(locToStr(d.from))||'—'} → ${escHtml(locToStr(d.to))||'—'}</span>`);
+        } else {
+          const fromV = d.from===''||d.from==null ? '—' : escHtml(String(d.from)).slice(0,40);
+          const toV   = d.to===''||d.to==null ? '—' : escHtml(String(d.to)).slice(0,40);
+          parts.push(`<span style="color:var(--muted)">${f}: ${fromV} → ${toV}</span>`);
+        }
+      });
+      const extra = Object.keys(p.changes).length - 4;
+      if(extra>0) parts.push(`<span style="color:var(--hint)">+${extra} dar...</span>`);
+      diff = parts.join(' · ');
+    } else if(p.action==='create'){
+      diff = `<span style="color:var(--green-t)">Bus sukurta: ${escHtml(r.material||r.sku)}${p.newQty!=null?` (kiekis: ${p.newQty})`:''}</span>`;
+    } else {
+      diff = `<span style="color:var(--hint)">Skirtumų nėra</span>`;
+    }
+
+    const checked = p.include ? 'checked' : '';
+    const disabled = p.action==='unchanged' ? 'disabled' : '';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px"><input type="checkbox" class="wh-imp-cb" data-idx="${i}" ${checked} ${disabled} onchange="whImpToggle(${i}, this.checked)"></td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:600;color:${actColor};white-space:nowrap">${actBadge}</td>
+      <td style="padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px;font-weight:600">${escHtml(r.sku)}</td>
+      <td style="padding:6px 8px;font-size:11px">${escHtml(r.material||'').slice(0,60)}</td>
+      <td style="padding:6px 8px;font-size:10px;text-align:right;white-space:nowrap">${r.qty===''||r.qty==null?'—':whFmt(parseFloat(r.qty)||0,2)}</td>
+      <td style="padding:6px 8px;font-size:10px;color:var(--muted)">${diff}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+    <div style="background:var(--surface);border-radius:var(--rxl);padding:20px 22px;width:1000px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:var(--sh3)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:2px">📥 Sandėlio importas — peržiūra</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(fileName)} → lapas „${escHtml(sheetName||'Sheet1')}" · ${plan.length} pozicijos</div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
+          <div style="color:var(--green-t);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Naujos</div>
+          <div style="font-size:18px;font-weight:700;color:var(--green-t);margin-top:2px">${nCreate}</div>
+        </div>
+        <div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
+          <div style="color:var(--amber-t);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Atnaujinti</div>
+          <div style="font-size:18px;font-weight:700;color:var(--amber-t);margin-top:2px">${nUpdate}</div>
+        </div>
+        <div style="background:var(--blue-bg);border:1px solid var(--blue-t);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
+          <div style="color:var(--blue-t);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Kiekio keit.</div>
+          <div style="font-size:18px;font-weight:700;color:var(--blue-t);margin-top:2px">${nQtyChange}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
+          <div style="color:var(--hint);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Nepakitę</div>
+          <div style="font-size:18px;font-weight:700;color:var(--hint);margin-top:2px">${nUnchanged}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:8px;font-size:11px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="whImpSelectAll(true)">✓ Pažymėti visus</button>
+        <button class="btn btn-sm" onclick="whImpSelectAll(false)">✗ Atžymėti visus</button>
+        <button class="btn btn-sm" onclick="whImpSelectByAction('create')">➕ Tik naujus</button>
+        <button class="btn btn-sm" onclick="whImpSelectByAction('update')">✏ Tik atnaujinimus</button>
+        <div style="flex:1"></div>
+        <span id="wh-imp-counter" style="color:var(--muted)"></span>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
+            <tr style="border-bottom:1px solid var(--border);text-align:left">
+              <th style="padding:8px;width:30px"></th>
+              <th style="padding:8px;width:110px">Veiksmas</th>
+              <th style="padding:8px;width:140px">SKU</th>
+              <th style="padding:8px">Pavadinimas</th>
+              <th style="padding:8px;width:70px;text-align:right">Kiekis</th>
+              <th style="padding:8px">Pakeitimai</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;align-items:center">
+        <span style="font-size:10px;color:var(--hint);margin-right:auto">⚠ Kiekio pakeitimai bus įrašyti į sandėlio žurnalą</span>
+        <button class="btn" onclick="whCloseModal();_whImpData=null">Atšaukti</button>
+        <button class="btn btn-primary" id="wh-imp-apply" onclick="whImpApply()">Taikyti pakeitimus</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  whImpUpdateCounter();
+}
+
+function whImpToggle(idx, state){
+  if(!_whImpData) return;
+  if(_whImpData.plan[idx]) _whImpData.plan[idx].include = !!state;
+  whImpUpdateCounter();
+}
+
+function whImpSelectAll(state){
+  if(!_whImpData) return;
+  _whImpData.plan.forEach(p => { if(p.action!=='unchanged') p.include = state; });
+  document.querySelectorAll('.wh-imp-cb').forEach(cb => {
+    const i = parseInt(cb.dataset.idx);
+    if(_whImpData.plan[i] && _whImpData.plan[i].action!=='unchanged'){ cb.checked = state; }
+  });
+  whImpUpdateCounter();
+}
+
+function whImpSelectByAction(action){
+  if(!_whImpData) return;
+  _whImpData.plan.forEach(p => { p.include = (p.action===action); });
+  document.querySelectorAll('.wh-imp-cb').forEach(cb => {
+    const i = parseInt(cb.dataset.idx);
+    if(_whImpData.plan[i]) cb.checked = _whImpData.plan[i].include;
+  });
+  whImpUpdateCounter();
+}
+
+function whImpUpdateCounter(){
+  if(!_whImpData) return;
+  const n = _whImpData.plan.filter(p => p.include && p.action!=='unchanged').length;
+  const el = document.getElementById('wh-imp-counter');
+  if(el) el.textContent = `Pasirinkta: ${n}`;
+  const btn = document.getElementById('wh-imp-apply');
+  if(btn) btn.disabled = (n===0);
+}
+
+function whImpApply(){
+  if(!_whImpData){ toast('Nėra duomenų','error'); return; }
+  const items = _whImpData.plan.filter(p => p.include && p.action!=='unchanged');
+  if(!items.length){ toast('Nieko nepasirinkta','error'); return; }
+  if(!confirm(`Atnaujinti ${items.length} pozicijas?\n\nKiekio pakeitimai bus įrašyti į žurnalą.`)) return;
+
+  let created=0, updated=0, qtyChanged=0;
+  items.forEach(p => {
+    const r = p.row;
+    if(p.action === 'create'){
+      // Build whCreateItem payload
+      const aliases = String(r.aliases||'').split(/\s*\|\s*/).filter(Boolean);
+      const data = {
+        kind: p.kind,
+        sku: r.sku,
+        material: r.material || r.sku,
+        unit: r.unit || (p.kind==='fitting' ? 'vnt' : 'm²'),
+        minQty: r.minQty, reorderPoint: r.reorderPoint, maxQty: r.maxQty,
+        abcClass: r.abcClass || 'C',
+        cost: r.cost,
+        location: (r.locZone||r.locBin) ? {zone:String(r.locZone||'').trim(), bin:String(r.locBin||'').trim()} : '',
+        barcode: r.barcode || '',
+        notes: r.notes ? String(r.notes).replace(/\\n/g,'\n') : '',
+        supplier: r.supplier || '',
+      };
+      if(p.kind === 'fitting'){
+        Object.assign(data, {
+          mpn: r.mpn ? String(r.mpn).toUpperCase() : '',
+          distCode: r.distCode ? String(r.distCode).toUpperCase() : '',
+          brand: r.brand || 'Blum',
+          subcategory: r.subcategory || 'Accessory',
+          unitsPerPack: parseInt(r.unitsPerPack)||1,
+          pairOf: (r.unit||'').toLowerCase()==='pora' || (r.subcategory||'').toLowerCase()==='runner',
+          aliases,
+        });
+      } else {
+        data.thickness = parseInt(r.thickness)||18;
+      }
+      const item = whCreateItem(data);
+      // Honour archived flag from the import sheet
+      if(r.archived!=='' && r.archived!=null && /^(taip|yes|true|1)$/i.test(String(r.archived).trim())){
+        item.archived = true;
+      }
+      // Set starting quantity if provided
+      if(p.newQty!=null && p.newQty>0){
+        item.qty = p.newQty;
+        item.firstReceived = whNow();
+        item.lastReceived = whNow();
+        whLog({
+          type:'adjust', itemId:item.id, sku:item.sku, material:item.material,
+          qty:p.newQty, unit:item.unit,
+          reason:WH_REASONS.correction,
+          note:`Importuota iš Excel (nauja pozicija)`,
+        });
+      }
+      // Auto-alias rule for fittings (matches the catalog-import behaviour)
+      if(p.kind==='fitting' && r.material){
+        whAddAliasRule(r.material, item.sku, 1, (data.subcategory||'').toLowerCase());
+      }
+      created++;
+    } else {
+      // Update existing
+      const w = p.existing;
+      Object.entries(p.changes).forEach(([f, d]) => { w[f] = d.to; });
+      if(p.qtyChanged){
+        const oldQty = w.qty||0;
+        w.qty = p.newQty;
+        // If qty went up, refresh lastReceived; if down, lastIssued
+        if(p.qtyDelta>0){
+          w.lastReceived = whNow();
+          if(!w.firstReceived) w.firstReceived = whNow();
+        } else if(p.qtyDelta<0){
+          w.lastIssued = whNow();
+        }
+        whLog({
+          type:'adjust', itemId:w.id, sku:w.sku, material:w.material,
+          qty:p.qtyDelta, unit:w.unit,
+          reason:WH_REASONS.correction,
+          note:`Importuota iš Excel (${oldQty} → ${p.newQty})`,
+        });
+        qtyChanged++;
+      }
+      updated++;
+    }
+  });
+
+  save();
+  whCloseModal();
+  _whImpData = null;
+  toast(`✓ Atnaujinta: ${updated} · Sukurta: ${created} · Kiekio keit.: ${qtyChanged}`, 'success');
+  renderWarehouse();
+}
+
 // ── Audit log helper ─────────────────────────────────────────
 function whLog(entry){
   if(!DB.warehouseLog) DB.warehouseLog=[];
@@ -9472,6 +9988,7 @@ function renderWhStock(){
     <div style="flex:1"></div>
     ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="recomputeABC()">↻ ABC</button>`:''}
     ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="syncWarehouseFromMaterials()" title="Importuoti plokštes su statusu Sandėlyje iš projektų">↻ Sync plokštes</button>`:''}
+    ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="openWhImportModal()" title="Atnaujinti sandėlį iš Excel — sukuria naujas pozicijas, atnaujina pavadinimus, kodus ir kiekius pagal SKU">📥 Atnaujinti iš Excel</button>`:''}
     ${(isManager()||isEngineer())&&kindFilter==='fittings'?`<button class="btn btn-sm" onclick="openCatalogImportModal()" title="Importuoti furnitūros katalogą iš Excel (LoMag, tiekėjo lapas, ir pan.)">📥 Importuoti katalogą</button>`:''}
     ${(isManager()||isEngineer())?`<button class="btn btn-sm btn-primary" onclick="openWhAddModal('${kindFilter==='fittings'?'fitting':'sheet'}')">+ Naujas SKU</button>`:''}
   </div>`;
@@ -9479,8 +9996,8 @@ function renderWhStock(){
   if(!filtered.length){
     const emptyMsg = kindFilter==='fittings' ? 'Nepridėtos furnitūros pozicijos' : (kindFilter==='sheets' ? 'Nėra plokščių sandėly' : 'Sandėlis tuščias');
     const helper = kindFilter==='fittings'
-      ? `<div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-primary" onclick="openCatalogImportModal()">📥 Importuoti iš Excel</button><button class="btn" onclick="openWhAddModal('fitting')">+ Pridėti rankiniu būdu</button></div>`
-      : `<button class="btn btn-primary" onclick="syncWarehouseFromMaterials()">↻ Importuoti iš projektų</button>`;
+      ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="openWhImportModal()">📥 Atnaujinti iš Excel</button><button class="btn" onclick="openCatalogImportModal()">📋 Importuoti katalogą</button><button class="btn" onclick="openWhAddModal('fitting')">+ Pridėti rankiniu būdu</button></div>`
+      : `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="openWhImportModal()">📥 Atnaujinti iš Excel</button><button class="btn" onclick="syncWarehouseFromMaterials()">↻ Importuoti iš projektų</button></div>`;
     return subtabs + summary + filters + `<div class="empty-state" style="padding:48px"><div style="font-size:32px;margin-bottom:10px">${kindFilter==='fittings'?'🔩':'🏭'}</div><div style="font-weight:600;margin-bottom:5px">${items.length?'Nėra atitinkančių pozicijų':emptyMsg}</div><div style="font-size:12px;color:var(--hint);margin-bottom:14px">${items.length?'Pakeiskite filtrus':'Pridėkite SKU rankiniu būdu'}</div>${(isManager()||isEngineer())&&!items.length?helper:''}</div>`;
   }
 
