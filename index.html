@@ -9065,13 +9065,18 @@ function whImpParseWorkbook(arrayBuffer){
 function whImpPrepareDiff(rows){
   const plan = [];
   rows.forEach((row, idx) => {
-    // Match: SKU exact, else MPN, else distCode (only for fittings)
+    // Match: SKU exact, else MPN, else distCode (only for fittings).
+    // Track HOW we matched so the preview can show the user that "ZAA.532.WA" landed on
+    // the existing "ZAA.532.OG" row via MPN — and let them opt in/out of the rename.
     let existing = DB.warehouse.find(w => w.sku === row.sku);
+    let matchedBy = existing ? 'sku' : null;
     if(!existing && row.mpn){
       existing = DB.warehouse.find(w => w.kind==='fitting' && w.mpn && w.mpn.toUpperCase() === String(row.mpn).toUpperCase());
+      if(existing) matchedBy = 'mpn';
     }
     if(!existing && row.distCode){
       existing = DB.warehouse.find(w => w.kind==='fitting' && w.distCode && w.distCode.toUpperCase() === String(row.distCode).toUpperCase());
+      if(existing) matchedBy = 'distCode';
     }
 
     // Infer kind if "Tipas" column was missing
@@ -9085,6 +9090,42 @@ function whImpPrepareDiff(rows){
     // Compute the changes
     const changes = {};
     const newQty = row.qty===''||row.qty==null||isNaN(parseFloat(row.qty)) ? null : parseFloat(row.qty);
+
+    // SKU rename detection — separate from `changes` because it needs explicit user
+    // approval per-row, and applying it has side effects (alias rules, kit lines, log).
+    // Only flag a rename when we matched by MPN/distCode AND the spreadsheet SKU is
+    // different from the existing SKU. Also pre-check for collisions so the UI can
+    // tell the user upfront that the rename is blocked.
+    let skuRename = null;
+    if(existing && matchedBy!=='sku' && row.sku && row.sku!==existing.sku){
+      const collision = DB.warehouse.find(w => w.id!==existing.id && w.sku===row.sku);
+      skuRename = {
+        from: existing.sku,
+        to: row.sku,
+        collisionWith: collision ? collision.id : null,
+        // Default opt-in state for the per-row checkbox in preview:
+        // - if collision: cannot apply, default off
+        // - otherwise: default off (user explicitly opts in)
+        accepted: false,
+      };
+    }
+
+    // Aliases (fittings only) — full replacement when the spreadsheet provides a value.
+    // The aliases column can be a single string or newline / semicolon-separated list.
+    let aliasesChange = null;
+    if(kind==='fitting' && existing && row.aliases!=null && String(row.aliases).trim()!==''){
+      const newList = String(row.aliases)
+        .replace(/\\n/g,'\n')
+        .split(/\n|;|\|/)
+        .map(s=>s.trim())
+        .filter(Boolean);
+      const oldList = Array.isArray(existing.aliases) ? existing.aliases.slice() : [];
+      const sameContent = newList.length===oldList.length
+        && newList.every((v,i)=>v===oldList[i]);
+      if(!sameContent){
+        aliasesChange = {from: oldList, to: newList};
+      }
+    }
 
     if(existing){
       // Field-by-field diff — only flag changes when the cell has a non-empty value
@@ -9116,6 +9157,8 @@ function whImpPrepareDiff(rows){
         const isArchived = /^(taip|yes|true|1)$/i.test(String(row.archived).trim());
         if(!!existing.archived !== isArchived) changes.archived = {from: !!existing.archived, to: isArchived};
       }
+      // Aliases — folded into changes so it shows up in the standard diff list
+      if(aliasesChange) changes.aliases = aliasesChange;
       // Location: only update if either field non-empty
       if((row.locZone||'') !== '' || (row.locBin||'') !== ''){
         const newLoc = {zone:String(row.locZone||'').trim(), bin:String(row.locBin||'').trim()};
@@ -9128,15 +9171,19 @@ function whImpPrepareDiff(rows){
       const qtyDelta = (newQty!=null) ? (newQty - (existing.qty||0)) : 0;
       const qtyChanged = newQty!=null && Math.abs(qtyDelta) > 0.0001;
 
+      const hasNonRenameChanges = Object.keys(changes).length>0 || qtyChanged;
+      const action = (hasNonRenameChanges || skuRename) ? 'update' : 'unchanged';
       plan.push({
-        idx, row, kind, action: (Object.keys(changes).length || qtyChanged) ? 'update' : 'unchanged',
+        idx, row, kind, action,
         existing, changes, newQty, qtyDelta, qtyChanged,
+        matchedBy, skuRename,
         include: true,
       });
     } else {
       plan.push({
         idx, row, kind, action:'create',
         existing: null, changes: {}, newQty, qtyDelta: newQty||0, qtyChanged: false,
+        matchedBy: null, skuRename: null,
         include: true,
       });
     }
@@ -9204,6 +9251,8 @@ function whImpShowPreview(){
   const nUpdate    = plan.filter(p=>p.action==='update').length;
   const nUnchanged = plan.filter(p=>p.action==='unchanged').length;
   const nQtyChange = plan.filter(p=>p.qtyChanged).length;
+  const nRename    = plan.filter(p=>p.skuRename && !p.skuRename.collisionWith).length;
+  const nRenameBlocked = plan.filter(p=>p.skuRename && p.skuRename.collisionWith).length;
 
   // Group rows by action for tab-like sections
   const rowsHtml = plan.map((p, i) => {
@@ -9212,6 +9261,28 @@ function whImpShowPreview(){
     if(p.action==='create'){    actBadge='➕ NAUJA';    actColor='var(--green-t)'; }
     else if(p.action==='update'){actBadge='✏ Atnaujinti'; actColor='var(--amber-t)'; }
     else                         {actBadge='= Nepakitę';   actColor='var(--hint)'; }
+    // Override badge for rename rows so they stand out from regular updates
+    if(p.skuRename){
+      actBadge = p.skuRename.collisionWith ? '🚫 Pervadinimas blok.' : '🔄 Pervadinimas';
+      actColor = p.skuRename.collisionWith ? 'var(--red-t)' : 'var(--purple-t)';
+    }
+
+    // SKU display column: when this is a rename, show "old → new" so the user
+    // can see at a glance that "ZAA.532.WA" landed on existing "ZAA.532.OG".
+    let skuCell;
+    if(p.skuRename){
+      skuCell = `<div style="font-family:var(--mono);font-size:10px">
+        <span style="color:var(--muted);text-decoration:line-through">${escHtml(p.skuRename.from)}</span>
+        <span style="color:var(--purple-t);margin:0 4px">→</span>
+        <span style="color:var(--purple-t);font-weight:700">${escHtml(p.skuRename.to)}</span>
+      </div>`;
+    } else if(p.existing && p.matchedBy && p.matchedBy!=='sku'){
+      // Matched by MPN/distCode but no rename needed — still helpful to show match basis
+      skuCell = `<div style="font-family:var(--mono);font-size:11px;font-weight:600">${escHtml(r.sku)}</div>
+        <div style="font-size:9px;color:var(--hint)">≡ ${p.matchedBy==='mpn'?'MPN':'Vidinis k.'} ${escHtml(p.existing.sku)}</div>`;
+    } else {
+      skuCell = `<div style="font-family:var(--mono);font-size:11px;font-weight:600">${escHtml(r.sku)}</div>`;
+    }
 
     // Show key diffs
     let diff = '';
@@ -9224,6 +9295,16 @@ function whImpShowPreview(){
       Object.entries(p.changes).slice(0,4).forEach(([f,d])=>{
         if(f==='location'){
           parts.push(`<span style="color:var(--muted)">Vieta: ${escHtml(locToStr(d.from))||'—'} → ${escHtml(locToStr(d.to))||'—'}</span>`);
+        } else if(f==='aliases'){
+          // Aliases: special-case so we show "+N nauji / -M pašalinta" rather than dumping the array
+          const fromArr = Array.isArray(d.from)?d.from:[];
+          const toArr = Array.isArray(d.to)?d.to:[];
+          const added = toArr.filter(a=>!fromArr.includes(a)).length;
+          const removed = fromArr.filter(a=>!toArr.includes(a)).length;
+          const aLabel = [];
+          if(added)   aLabel.push(`+${added}`);
+          if(removed) aLabel.push(`−${removed}`);
+          parts.push(`<span style="color:var(--blue-t)">Aliasai (${toArr.length} viso${aLabel.length?', '+aLabel.join(' / '):''})</span>`);
         } else {
           const fromV = d.from===''||d.from==null ? '—' : escHtml(String(d.from)).slice(0,40);
           const toV   = d.to===''||d.to==null ? '—' : escHtml(String(d.to)).slice(0,40);
@@ -9239,22 +9320,49 @@ function whImpShowPreview(){
       diff = `<span style="color:var(--hint)">Skirtumų nėra</span>`;
     }
 
+    // Rename sub-control: extra checkbox the user has to tick to actually accept
+    // the SKU rename. Defaults off (user must opt in). Disabled when there's a
+    // collision because we can't rename onto an occupied SKU.
+    let renameControl = '';
+    if(p.skuRename){
+      if(p.skuRename.collisionWith){
+        const collisionItem = DB.warehouse.find(w=>w.id===p.skuRename.collisionWith);
+        renameControl = `<div style="margin-top:4px;font-size:9px;color:var(--red-t)">⚠ SKU „${escHtml(p.skuRename.to)}" jau priklauso kitam SKU${collisionItem?` (${escHtml(collisionItem.material||'').slice(0,30)})`:''}. Pervadinimas negalimas — kiti laukai bus atnaujinti.</div>`;
+      } else {
+        const renameAccepted = p.skuRename.accepted ? 'checked' : '';
+        renameControl = `<label style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;color:var(--purple-t);cursor:pointer;background:var(--purple-bg);padding:2px 7px;border-radius:4px;border:1px solid var(--purple-t)">
+          <input type="checkbox" class="wh-imp-rename" data-idx="${i}" ${renameAccepted} onchange="whImpToggleRename(${i}, this.checked)" style="cursor:pointer;width:13px;height:13px">
+          Pervadinti SKU
+        </label>`;
+      }
+    }
+
     const checked = p.include ? 'checked' : '';
     const disabled = p.action==='unchanged' ? 'disabled' : '';
     return `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:6px 8px"><input type="checkbox" class="wh-imp-cb" data-idx="${i}" ${checked} ${disabled} onchange="whImpToggle(${i}, this.checked)"></td>
-      <td style="padding:6px 8px;font-size:10px;font-weight:600;color:${actColor};white-space:nowrap">${actBadge}</td>
-      <td style="padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px;font-weight:600">${escHtml(r.sku)}</td>
-      <td style="padding:6px 8px;font-size:11px">${escHtml(r.material||'').slice(0,60)}</td>
-      <td style="padding:6px 8px;font-size:10px;text-align:right;white-space:nowrap">${r.qty===''||r.qty==null?'—':whFmt(parseFloat(r.qty)||0,2)}</td>
-      <td style="padding:6px 8px;font-size:10px;color:var(--muted)">${diff}</td>
+      <td style="padding:6px 8px;vertical-align:top"><input type="checkbox" class="wh-imp-cb" data-idx="${i}" ${checked} ${disabled} onchange="whImpToggle(${i}, this.checked)"></td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:600;color:${actColor};white-space:nowrap;vertical-align:top">${actBadge}</td>
+      <td style="padding:6px 8px;vertical-align:top">${skuCell}${renameControl}</td>
+      <td style="padding:6px 8px;font-size:11px;vertical-align:top">${escHtml(r.material||'').slice(0,60)}</td>
+      <td style="padding:6px 8px;font-size:10px;text-align:right;white-space:nowrap;vertical-align:top">${r.qty===''||r.qty==null?'—':whFmt(parseFloat(r.qty)||0,2)}</td>
+      <td style="padding:6px 8px;font-size:10px;color:var(--muted);vertical-align:top">${diff}</td>
     </tr>`;
   }).join('');
+
+  // Rename info banner — only shown if any renames are pending
+  const renameBanner = (nRename>0 || nRenameBlocked>0) ? `
+    <div style="background:var(--purple-bg);border:1px solid var(--purple-t);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--purple-t);margin-bottom:10px;line-height:1.5">
+      🔄 <strong>Rasta ${nRename+nRenameBlocked} galimi SKU pervadinimai</strong> — pozicijos, kurias suderinome pagal MPN/vidinį kodą su skirtingu SKU XLS faile.
+      ${nRename>0?`<br>• <strong>${nRename}</strong> galima pervadinti — pažymėkite „Pervadinti SKU" prie kiekvienos eilutės atskirai.`:''}
+      ${nRenameBlocked>0?`<br>• <strong>${nRenameBlocked}</strong> <span style="color:var(--red-t)">blokuojami</span> (naujasis SKU jau egzistuoja).`:''}
+    </div>` : '';
 
   const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
     <div style="background:var(--surface);border-radius:var(--rxl);padding:20px 22px;width:1000px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:var(--sh3)">
       <div style="font-size:15px;font-weight:600;margin-bottom:2px">📥 Sandėlio importas — peržiūra</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(fileName)} → lapas „${escHtml(sheetName||'Sheet1')}" · ${plan.length} pozicijos</div>
+
+      ${renameBanner}
 
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
@@ -9269,6 +9377,10 @@ function whImpShowPreview(){
           <div style="color:var(--blue-t);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Kiekio keit.</div>
           <div style="font-size:18px;font-weight:700;color:var(--blue-t);margin-top:2px">${nQtyChange}</div>
         </div>
+        <div style="background:var(--purple-bg);border:1px solid var(--purple-t);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
+          <div style="color:var(--purple-t);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Pervadinimai</div>
+          <div style="font-size:18px;font-weight:700;color:var(--purple-t);margin-top:2px">${nRename}${nRenameBlocked?` <span style="font-size:10px;color:var(--red-t)">+${nRenameBlocked} blok.</span>`:''}</div>
+        </div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:140px">
           <div style="color:var(--hint);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Nepakitę</div>
           <div style="font-size:18px;font-weight:700;color:var(--hint);margin-top:2px">${nUnchanged}</div>
@@ -9280,6 +9392,7 @@ function whImpShowPreview(){
         <button class="btn btn-sm" onclick="whImpSelectAll(false)">✗ Atžymėti visus</button>
         <button class="btn btn-sm" onclick="whImpSelectByAction('create')">➕ Tik naujus</button>
         <button class="btn btn-sm" onclick="whImpSelectByAction('update')">✏ Tik atnaujinimus</button>
+        ${nRename>0?`<button class="btn btn-sm" onclick="whImpAcceptAllRenames(true)" style="border-color:var(--purple-t);color:var(--purple-t)">🔄 Pervadinti visus</button>`:''}
         <div style="flex:1"></div>
         <span id="wh-imp-counter" style="color:var(--muted)"></span>
       </div>
@@ -9289,8 +9402,8 @@ function whImpShowPreview(){
           <thead style="position:sticky;top:0;background:var(--surface2);z-index:1">
             <tr style="border-bottom:1px solid var(--border);text-align:left">
               <th style="padding:8px;width:30px"></th>
-              <th style="padding:8px;width:110px">Veiksmas</th>
-              <th style="padding:8px;width:140px">SKU</th>
+              <th style="padding:8px;width:130px">Veiksmas</th>
+              <th style="padding:8px;width:180px">SKU</th>
               <th style="padding:8px">Pavadinimas</th>
               <th style="padding:8px;width:70px;text-align:right">Kiekis</th>
               <th style="padding:8px">Pakeitimai</th>
@@ -9309,6 +9422,28 @@ function whImpShowPreview(){
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
   whImpUpdateCounter();
+}
+
+// Per-row rename toggle: only flips the accepted bit on this row's skuRename plan.
+function whImpToggleRename(idx, accepted){
+  if(!_whImpData) return;
+  const p = _whImpData.plan[idx];
+  if(!p || !p.skuRename || p.skuRename.collisionWith) return;
+  p.skuRename.accepted = !!accepted;
+  whImpUpdateCounter();
+}
+
+// "Accept all renames" button — opts in every non-blocked rename at once.
+function whImpAcceptAllRenames(accepted){
+  if(!_whImpData) return;
+  _whImpData.plan.forEach(p => {
+    if(p.skuRename && !p.skuRename.collisionWith){
+      p.skuRename.accepted = !!accepted;
+    }
+  });
+  // Re-render to reflect the new checkbox states
+  whCloseModal();
+  whImpShowPreview();
 }
 
 function whImpToggle(idx, state){
@@ -9350,9 +9485,11 @@ function whImpApply(){
   if(!_whImpData){ toast('Nėra duomenų','error'); return; }
   const items = _whImpData.plan.filter(p => p.include && p.action!=='unchanged');
   if(!items.length){ toast('Nieko nepasirinkta','error'); return; }
-  if(!confirm(`Atnaujinti ${items.length} pozicijas?\n\nKiekio pakeitimai bus įrašyti į žurnalą.`)) return;
+  const renameCount = items.filter(p => p.skuRename && p.skuRename.accepted && !p.skuRename.collisionWith).length;
+  const renameLine = renameCount>0 ? `\n\n🔄 ${renameCount} SKU bus pervadinti — kit eilutės, aliasai ir žurnalas bus atnaujinti.` : '';
+  if(!confirm(`Atnaujinti ${items.length} pozicijas?\n\nKiekio pakeitimai bus įrašyti į žurnalą.${renameLine}`)) return;
 
-  let created=0, updated=0, qtyChanged=0;
+  let created=0, updated=0, qtyChanged=0, renamed=0;
   items.forEach(p => {
     const r = p.row;
     if(p.action === 'create'){
@@ -9409,7 +9546,45 @@ function whImpApply(){
     } else {
       // Update existing
       const w = p.existing;
-      Object.entries(p.changes).forEach(([f, d]) => { w[f] = d.to; });
+
+      // ── SKU rename (only if explicitly accepted per row, and no collision) ──
+      // Renames must happen BEFORE applying other changes so that dependent records
+      // (aliases, kits, log) get pointed at the new SKU rather than orphaning the old one.
+      if(p.skuRename && p.skuRename.accepted && !p.skuRename.collisionWith){
+        // Re-check collision at apply time in case the DB changed between preview and apply
+        const reCollide = DB.warehouse.find(x => x.id!==w.id && x.sku===p.skuRename.to);
+        if(reCollide){
+          // Skip the rename but proceed with other changes
+          console.warn(`Skipped rename ${p.skuRename.from} → ${p.skuRename.to}: collision`);
+        } else {
+          const oldSku = w.sku;
+          const newSku = p.skuRename.to;
+          (DB.fittingAliases||[]).forEach(a => { if(a.sku===oldSku) a.sku=newSku; });
+          (DB.kits||[]).forEach(k => (k.lines||[]).forEach(l => { if(l.sku===oldSku) l.sku=newSku; }));
+          (DB.whLog||[]).forEach(L => { if(L.sku===oldSku) L.sku=newSku; });
+          // The warehouseLog entry we're about to write will already use the new SKU.
+          w.sku = newSku;
+          renamed++;
+        }
+      }
+
+      // ── Field changes (material, mpn, distCode, brand, unitsPerPack, aliases, etc.) ──
+      Object.entries(p.changes).forEach(([f, d]) => {
+        w[f] = d.to;
+        // When aliases are replaced via import, also create alias rules for any new
+        // alias strings so the auto-matching pipeline knows about them going forward.
+        if(f==='aliases' && Array.isArray(d.to) && w.kind==='fitting'){
+          const oldList = Array.isArray(d.from) ? d.from : [];
+          const oldSet = new Set(oldList.map(a=>String(a).toLowerCase()));
+          d.to.forEach(a => {
+            if(a && !oldSet.has(String(a).toLowerCase())){
+              try { whAddAliasRule(a, w.sku, 1, (w.subcategory||'').toLowerCase()); }
+              catch(e){ console.warn('whAddAliasRule failed for', a, e); }
+            }
+          });
+        }
+      });
+
       if(p.qtyChanged){
         const oldQty = w.qty||0;
         w.qty = p.newQty;
@@ -9435,7 +9610,8 @@ function whImpApply(){
   save();
   whCloseModal();
   _whImpData = null;
-  toast(`✓ Atnaujinta: ${updated} · Sukurta: ${created} · Kiekio keit.: ${qtyChanged}`, 'success');
+  const renameNote = renamed>0 ? ` · 🔄 Pervadinta: ${renamed}` : '';
+  toast(`✓ Atnaujinta: ${updated} · Sukurta: ${created} · Kiekio keit.: ${qtyChanged}${renameNote}`, 'success');
   renderWarehouse();
 }
 
@@ -11517,6 +11693,47 @@ function openWhEditModal(itemId){
   // Find which alias rules currently route to this SKU (for inline display)
   const linkedRules = isFit ? (DB.fittingAliases||[]).filter(a=>a.sku===w.sku) : [];
 
+  // ── Core identity fields (editable for everyone with write access) ──
+  // Name, SKU, subcategory and brand were previously read-only header chrome — they're
+  // now editable so the user can rename, re-categorise, or fix typos from this modal
+  // instead of having to delete+recreate the SKU.
+  const subcatOptions = isFit ? FITTING_SUBCATEGORIES.map(s =>
+    `<option value="${s}" ${w.subcategory===s?'selected':''}>${FITTING_SUBCAT_ICONS[s]||''} ${FITTING_SUBCAT_LABELS[s]||s}</option>`
+  ).join('') : '';
+
+  const identityBlock = `
+    <div>
+      <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas</label>
+      <input id="we-material" value="${escHtml(w.material||'')}" style="margin-top:4px;font-weight:600">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SKU</label>
+        <input id="we-sku" value="${escHtml(w.sku||'')}" style="margin-top:4px;font-family:var(--mono);font-weight:600">
+        <div style="font-size:9px;color:var(--hint);margin-top:3px">Keičiant SKU, susiję komplektai ir žurnalo įrašai išliks (rodys naują SKU).</div>
+      </div>
+      <div>
+        ${isFit
+          ? `<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Subkategorija</label>
+             <select id="we-subcat" style="margin-top:4px">${subcatOptions}</select>`
+          : `<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Storis (mm)</label>
+             <input id="we-thick" type="number" step="1" min="0" value="${w.thickness||0}" style="margin-top:4px">`
+        }
+      </div>
+    </div>
+    ${isFit ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Prekės ženklas</label>
+        <input id="we-brand" value="${escHtml(w.brand||'')}" style="margin-top:4px">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pakuotėje vnt.</label>
+        <input id="we-uperpack" type="number" step="1" min="1" value="${w.unitsPerPack||1}" style="margin-top:4px">
+      </div>
+    </div>` : ''}
+  `;
+
   const fittingHeader = isFit ? `
     <div style="background:var(--purple-bg);border:1px solid var(--purple-t);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--purple-t);margin-bottom:10px">
       <div style="font-weight:600;margin-bottom:3px">${FITTING_SUBCAT_ICONS[w.subcategory]||'🔩'} ${escHtml(FITTING_SUBCAT_LABELS[w.subcategory]||w.subcategory||'Furnitūra')} — ${escHtml(w.brand||'')}</div>
@@ -11563,6 +11780,7 @@ function openWhEditModal(itemId){
       <div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:var(--mono)">${escHtml(w.sku)} · ${escHtml(w.material)}</div>
       ${fittingHeader}
       <div style="display:grid;gap:10px">
+        ${identityBlock}
         ${fittingFields}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="we-min" type="number" step="${isFit?'1':'0.01'}" value="${w.minQty}" style="margin-top:4px"></div>
@@ -11578,6 +11796,10 @@ function openWhEditModal(itemId){
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/${escHtml(w.unit)}</label><input id="we-cost" type="number" step="0.01" value="${w.cost||0}" style="margin-top:4px"></div>
         </div>
         <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pastabos</label><textarea id="we-notes" style="margin-top:4px;min-height:50px">${escHtml(w.notes||'')}</textarea></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;padding:6px 0">
+          <input type="checkbox" id="we-archived" ${w.archived?'checked':''} style="width:16px;height:16px;cursor:pointer">
+          <span>Archyvuotas (slėpti iš sąrašų)</span>
+        </label>
         <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
         <div style="background:var(--surface2);padding:10px 12px;border-radius:8px;font-size:11px">
           Likutis: <strong style="font-family:var(--mono)">${whFmt(w.qty,isFit?0:2)} ${w.unit}</strong> · Rezerv.: <strong style="font-family:var(--mono);color:var(--purple-t)">${whFmt(w.reservedQty||0,isFit?0:2)}</strong>
@@ -11596,6 +11818,48 @@ function openWhEditModal(itemId){
 function submitWhEdit(itemId){
   const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
   const isFit = w.kind==='fitting';
+
+  // ── Identity changes (SKU rename, material, subcategory, brand, archived) ──
+  const newMaterial = (document.getElementById('we-material')?.value||'').trim();
+  const newSku      = (document.getElementById('we-sku')?.value||'').trim();
+
+  if(!newSku){ toast('SKU privalomas','error'); return; }
+  if(!newMaterial){ toast('Pavadinimas privalomas','error'); return; }
+
+  // SKU rename: verify uniqueness, then propagate to dependent records
+  if(newSku !== w.sku){
+    const collision = DB.warehouse.find(x => x.id!==w.id && x.sku===newSku);
+    if(collision){
+      toast(`SKU "${newSku}" jau egzistuoja kitai pozicijai — pakeisti negalima`,'error');
+      return;
+    }
+    // Propagate SKU rename through dependent records so links don't break:
+    //  - fittingAliases routes (DB.fittingAliases[].sku)
+    //  - kit lines (DB.kits[].lines[].sku)
+    //  - warehouse log (DB.whLog[].sku)
+    const oldSku = w.sku;
+    (DB.fittingAliases||[]).forEach(a => { if(a.sku===oldSku) a.sku=newSku; });
+    (DB.kits||[]).forEach(k => (k.lines||[]).forEach(l => { if(l.sku===oldSku) l.sku=newSku; }));
+    (DB.whLog||[]).forEach(L => { if(L.sku===oldSku) L.sku=newSku; });
+    w.sku = newSku;
+  }
+
+  w.material = newMaterial;
+  if(isFit){
+    const sel = document.getElementById('we-subcat');
+    if(sel) w.subcategory = sel.value;
+    const brandEl = document.getElementById('we-brand');
+    if(brandEl) w.brand = brandEl.value.trim();
+    const uperEl = document.getElementById('we-uperpack');
+    if(uperEl) w.unitsPerPack = parseInt(uperEl.value)||1;
+  } else {
+    const thEl = document.getElementById('we-thick');
+    if(thEl) w.thickness = parseInt(thEl.value)||w.thickness;
+  }
+  const archEl = document.getElementById('we-archived');
+  if(archEl) w.archived = !!archEl.checked;
+
+  // ── Existing numeric / location / cost / notes fields ──
   w.minQty = parseFloat(document.getElementById('we-min').value)||0;
   w.reorderPoint = parseFloat(document.getElementById('we-rop').value)||0;
   w.maxQty = parseFloat(document.getElementById('we-max').value)||0;
