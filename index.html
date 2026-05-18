@@ -3011,24 +3011,41 @@ function renderDrawers(pid){
   const p=getProject(pid);const d=p?.importData;
   if(!d?.drawers?.length)return`<div class="empty-state">Importuokite Excel failą</div>`;
   const total=d.drawers.reduce((s,dr)=>s+dr.qty,0);
-  const summary=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+  const mTotal=d.drawers.filter(dr=>dr.heightLabel==='M').reduce((s,dr)=>s+dr.qty,0);
+  const dTotal=d.drawers.filter(dr=>dr.heightLabel==='D'||dr.heightLabel==='D+').reduce((s,dr)=>s+dr.qty,0);
+  const summary=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
     <div class="summary-card"><div class="summary-label">Stalčių iš viso</div><div class="summary-value" style="color:#7c3aed">${total}</div></div>
-    <div class="summary-card"><div class="summary-label">TANDEMBOX tipai</div><div class="summary-value" style="color:#0ea5e9">${d.drawers.length}</div></div>
-    <div class="summary-card"><div class="summary-label">Iš viso dalių</div><div class="summary-value" style="color:#10b981">${d.drawers.reduce((s,dr)=>s+dr.parts.reduce((ps,pt)=>ps+pt.qty*dr.qty,0),0)}</div></div>
+    <div class="summary-card"><div class="summary-label">M aukščio</div><div class="summary-value" style="color:#0ea5e9">${mTotal}</div></div>
+    <div class="summary-card"><div class="summary-label">D aukščio (su reling)</div><div class="summary-value" style="color:#16a34a">${dTotal}</div></div>
+    <div class="summary-card"><div class="summary-label">Tipų</div><div class="summary-value" style="color:#f59e0b">${d.drawers.length}</div></div>
   </div>`;
-  const note=`<div style="padding:9px 12px;background:var(--blue-bg);border:1px solid rgba(37,99,235,.2);border-radius:7px;font-size:11px;color:var(--blue-t);margin-bottom:14px">ℹ️ Kiekvienas TANDEMBOX surinktas iš kelių komponentų — ne vienas gaminys.</div>`;
-  const cards=d.drawers.map(dr=>`<div class="drawer-assembly">
-    <div class="dr-head">
-      <div class="dr-type"><div style="font-size:9px;font-weight:700;color:var(--purple-t);text-transform:uppercase;letter-spacing:.05em">TANDEMBOX</div><div style="font-size:13px;font-weight:700;margin:2px 0">${dr.depth}/${dr.height||98}</div><div style="margin-top:4px"><span class="badge badge-purple">×${dr.qty} vnt.</span></div></div>
-      <div class="dr-parts">${dr.parts.map(pt=>`<div class="dr-part"><span style="font-weight:700;font-family:var(--mono);color:var(--purple-t)">×${pt.qty*dr.qty}</span><span>${pt.name}</span></div>`).join('')}</div>
-    </div>
-  </div>`).join('');
+  const note=`<div style="padding:9px 12px;background:var(--blue-bg);border:1px solid rgba(37,99,235,.2);border-radius:7px;font-size:11px;color:var(--blue-t);margin-bottom:14px">ℹ️ M = pagrindinis aukštis (~98mm), D = su reling (~224mm). D+ = du ar daugiau reling porų viename stalčiuje.</div>`;
+  const cards=d.drawers.map(dr=>{
+    const heightLabel=dr.heightLabel||'M';
+    const badgeColor=heightLabel==='M'?'#0ea5e9':(heightLabel==='D+'?'#dc2626':'#16a34a');
+    const warnBox=dr.warn?`<div style="margin-top:8px;padding:6px 9px;background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;font-size:10px;color:#92400e">⚠ ${dr.warn}</div>`:'';
+    return `<div class="drawer-assembly">
+      <div class="dr-head">
+        <div class="dr-type">
+          <div style="font-size:9px;font-weight:700;color:var(--purple-t);text-transform:uppercase;letter-spacing:.05em">TANDEMBOX</div>
+          <div style="font-size:13px;font-weight:700;margin:2px 0">${dr.depth}mm</div>
+          <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge" style="background:${badgeColor};color:white">${heightLabel}${dr.railingsPerD&&dr.railingsPerD>1?` ×${dr.railingsPerD}`:''}</span>
+            <span class="badge badge-purple">×${dr.qty} vnt.</span>
+          </div>
+        </div>
+        <div class="dr-parts">${dr.parts.map(pt=>`<div class="dr-part"><span style="font-weight:700;font-family:var(--mono);color:var(--purple-t)">×${pt.qty}</span><span>${pt.name}</span></div>`).join('')}</div>
+      </div>
+      ${warnBox}
+    </div>`;
+  }).join('');
+  // Runner summary table — sum drawer qty per depth (one row per depth, regardless of M/D)
   const byD={};d.drawers.forEach(dr=>{const k=dr.depth+'';if(!byD[k])byD[k]=0;byD[k]+=dr.qty});
   const runners=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-top:14px">
     <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600">📦 Blum bėgelių užsakymo santrauka</div>
     <table class="mat-table" style="width:100%">
-      <thead><tr><th>Gylis</th><th>Stalčių</th><th>Bėgelių (×2)</th><th>Art. nr.</th></tr></thead>
-      <tbody>${Object.entries(byD).map(([dep,qty])=>{const code=dep==='450'?'578.4501B':dep==='500'?'578.5001B':dep==='550'?'578.5501B':'—';return`<tr><td><strong>${dep}mm</strong></td><td>${qty}</td><td style="font-family:var(--mono);font-weight:600">${qty*2}</td><td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${code}</td></tr>`}).join('')}</tbody>
+      <thead><tr><th>Gylis</th><th>Stalčių</th><th>Bėgelių porų</th><th>Art. nr.</th></tr></thead>
+      <tbody>${Object.entries(byD).map(([dep,qty])=>{const code=dep==='400'?'578.4001B':dep==='450'?'578.4501B':dep==='500'?'578.5001B':dep==='550'?'578.5501B':'—';return`<tr><td><strong>${dep}mm</strong></td><td>${qty}</td><td style="font-family:var(--mono);font-weight:600">${qty}</td><td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${code}</td></tr>`}).join('')}</tbody>
     </table>
   </div>`;
   return summary+note+cards+runners;
@@ -3102,16 +3119,31 @@ function fcClassify(name, fullName){
   }
 
   // Hinge cups
-  if(/clip\s*top|hinge|lankst|71b\d|70t\d/i.test(n+fn)){
+  // Detect Blum mechanism subtype from the part-number suffix where we can:
+  //   71B... → BLUMOTION soft-close (integrated soft-close)
+  //   78T9550.83 → CLIP top 83° "straight" / zero-protrusion for thick doors ("tiesusis")
+  //   70T...TL / 71T...TL → CLIP top + TIP-ON BLUMOTION (touch-to-open)
+  //   956A... → standalone TIP-ON mechanism (not a cup itself, classified elsewhere)
+  // When the CAD lumps multiple mechanism types under one code (the common case for
+  // 70T3550.TL), we can't tell them apart from the file alone — mark as
+  // 'undifferentiated' so the UI can show a manual breakdown panel.
+  if(/clip\s*top|hinge|lankst|71b\d|70t\d|78t\d/i.test(n+fn)){
     const angleMatch=(n+fn).match(/(\d{2,3})\s*°|hinge\s*\|\s*(\d{2,3})/);
     const angle=angleMatch?parseInt(angleMatch[1]||angleMatch[2]):null;
-    // Detect overlay type from CAD's pipe-separated metadata
     const fullMeta=String(fullName||'');
+    // Overlay
     let overlay='full';
     if(/\|\s*S\s*\|\s*O\s*\|/.test(fullMeta) && /\bO\b/.test(fullMeta)) overlay='full';
     if(/\|\s*U\s*\|/.test(fullMeta)) overlay='half';
     if(/\|\s*I\s*\|/.test(fullMeta)) overlay='inset';
-    return {kind:'hinge_cup', subtype:'clip-top', params:{angle, overlay}};
+    // Mechanism subtype — look at the raw name (n+fn) since suffixes carry the signal.
+    // Order matters: most specific patterns first.
+    let mech='undifferentiated';
+    if(/71b\d/i.test(n+fn))           mech='softclose';       // CLIP top BLUMOTION
+    else if(/78t9550\.83|78t\d+\.83/i.test(n+fn)) mech='straight_tipon'; // 83° thick-door straight
+    else if(/70t\d+\.tl|71t\d+\.tl|\.tl\b/i.test(n+fn))      mech='tipon_or_softclose'; // CAD lumps these
+    else if(/tip[\s\-]?on/i.test(n+fn)) mech='tipon';
+    return {kind:'hinge_cup', subtype:'clip-top', params:{angle, overlay, mech}};
   }
 
   // Lift mechanisms (AVENTOS)
@@ -3178,14 +3210,56 @@ function fcCombine(hardware, opts={}){
     return true;
   };
 
+  // Detect TANDEMBOX sub-part role from a line name. Returns one of:
+  //   'runner'  — the actual runner pair (anchor for drawer count)
+  //   'side'    — the drawer-side pair (M-height carcass)
+  //   'railing' — the longitudinal tube pair that turns an M-drawer into a D-drawer
+  //   'accessory' — back/front connectors, locking pieces, design elements (informational)
+  //   null      — not a TANDEMBOX sub-part
+  // Order matters: railing test must precede side test ("Side Longitudinal Tube" contains "Side").
+  const tbxSubRole=(name)=>{
+    const n=normLower(name);
+    if(!n.includes('tandembox')) return null;
+    if(/longitudinal\s*tube|gallery\s*rail|design\s*element/.test(n)) return 'railing';
+    if(/\brunner\b/.test(n)) return 'runner';
+    if(/\bside\b/.test(n)) return 'side';
+    if(/back\s*connector|front\s*connector|locking|connector/.test(n)) return 'accessory';
+    return 'accessory';
+  };
+
+  // Robust depth extraction. Looks for standard Blum drawer depths (270-650mm)
+  // appearing as a standalone 3-digit number anywhere in the name. Falls back to
+  // the original "<n>mm" pattern for older CAD exports.
+  const STD_DEPTHS=[270,300,350,400,450,500,550,600,650];
+  const extractDepth=(name)=>{
+    const n=String(name||'');
+    // Try standalone standard depth first
+    const tokens=n.match(/\b\d{3}\b/g)||[];
+    for(const t of tokens){
+      const d=parseInt(t);
+      if(STD_DEPTHS.includes(d)) return d;
+    }
+    // Fallback: any 3-4 digit followed by mm
+    const m=n.match(/(\d{2,4})\s*mm/i);
+    if(m){ const d=parseInt(m[1]); if(d>=200 && d<=800) return d; }
+    return null;
+  };
+
   // ── Step 1: assign each hardware line to a rule (or none) ──
-  const assignments=hardware.map((h,idx)=>({srcIdx:idx, src:h, qty:h.qty, normName:fcNormalizeName(h.name), assignedRule:null, role:null}));
+  const assignments=hardware.map((h,idx)=>({srcIdx:idx, src:h, qty:h.qty, normName:fcNormalizeName(h.name), assignedRule:null, role:null, tbxSub:null}));
 
   for(const a of assignments){
     for(const rule of rules){
       if(rule.type==='runner_pair'){
         if(matchesPattern(a.src.name, rule.pattern, rule.excludePattern)){
-          a.assignedRule=rule; a.role='runner';
+          a.assignedRule=rule;
+          a.role='runner';
+          // For TANDEMBOX-style rules (where the same family-name covers runners, sides,
+          // railings and accessories), distinguish the sub-part so the bucket logic
+          // can count drawers from sides and detect D-height from railings.
+          if(rule.detectTandemboxSubparts){
+            a.tbxSub=tbxSubRole(a.src.name);
+          }
           break;
         }
       } else if(rule.type==='cup_plate'){
@@ -3211,15 +3285,36 @@ function fcCombine(hardware, opts={}){
     const rule=a.assignedRule;
     let depth=null;
     if(rule.type==='runner_pair' && rule.extractDepth){
-      const m=a.src.name.match(/(\d{2,4})\s*mm/i);
-      if(m) depth=parseInt(m[1]);
+      depth=extractDepth(a.src.name);
     }
     const key=rule.id+(depth?'_d'+depth:'');
-    if(!ruleBuckets[key]) ruleBuckets[key]={rule, depth, runners:0, cups:0, plates:0, sourceLines:[]};
-    if(a.role==='runner') ruleBuckets[key].runners+=a.qty;
+    if(!ruleBuckets[key]) ruleBuckets[key]={
+      rule, depth,
+      runners:0, cups:0, plates:0,
+      // TANDEMBOX sub-part tallies (only populated when rule.detectTandemboxSubparts)
+      sides:0, railings:0, accessories:0,
+      accessoryLines:[],  // names of accessory parts for display
+      sourceLines:[],
+    };
+    if(a.role==='runner'){
+      // If this rule does TANDEMBOX sub-part detection, route the qty by sub-role.
+      // Otherwise (plain TANDEM rule), all matching lines count as runners.
+      if(a.tbxSub){
+        const sub=a.tbxSub;
+        if(sub==='runner')   ruleBuckets[key].runners+=a.qty;
+        if(sub==='side')     ruleBuckets[key].sides+=a.qty;
+        if(sub==='railing')  ruleBuckets[key].railings+=a.qty;
+        if(sub==='accessory'){
+          ruleBuckets[key].accessories+=a.qty;
+          ruleBuckets[key].accessoryLines.push({name:a.src.name, qty:a.qty});
+        }
+      } else {
+        ruleBuckets[key].runners+=a.qty;
+      }
+    }
     if(a.role==='cup') ruleBuckets[key].cups+=a.qty;
     if(a.role==='plate') ruleBuckets[key].plates+=a.qty;
-    ruleBuckets[key].sourceLines.push({srcIdx:a.srcIdx, qty:a.qty, original:a.src.name, role:a.role});
+    ruleBuckets[key].sourceLines.push({srcIdx:a.srcIdx, qty:a.qty, original:a.src.name, ref:a.src.ref||'', role:a.role, tbxSub:a.tbxSub});
   }
 
   // ── Step 3: build assembly cards from buckets ──
@@ -3228,10 +3323,168 @@ function fcCombine(hardware, opts={}){
   for(const b of Object.values(ruleBuckets)){
     const r=b.rule;
     if(r.type==='runner_pair'){
-      const piecesPer=parseInt(r.piecesPerAssembly)||2;
+      // Each row in HARDWARE_LIST represents ONE assembly (pair), not one piece.
+      // This matches Blum's catalog convention where parts like 378M5002SA are sold
+      // as pairs and exported as qty=1 per pair. If a CAD writes pieces instead of
+      // pairs, set rule.unitMeaning='piece' to divide by piecesPerAssembly.
+      const unitMeaning=r.unitMeaning||'pair';
+
+      // ── TANDEMBOX path: split into M-drawers and D-drawers by railing presence ──
+      // The drawer count anchor is sides (sides = total drawers at this depth).
+      // Railings indicate D-height; remaining sides without a railing are M-height.
+      // If railings > sides, the surplus means one or more drawers have 2+ railing pairs
+      // (a taller D variant) — show that explicitly rather than warning.
+      if(r.detectTandemboxSubparts && (b.sides>0 || b.railings>0)){
+        const totalDrawers=b.sides; // anchor
+        const dDrawersSimple=Math.min(b.sides, b.railings);
+        const surplusRailings=Math.max(0, b.railings-b.sides);        const mDrawers=Math.max(0, b.sides-b.railings);
+        const depthStr=b.depth?`${b.depth}mm`:'';
+
+        // M-drawer card
+        if(mDrawers>0){
+          const components=[
+            {role:'Šono profilis (pora) — M', qty:mDrawers, perDrawer:1, sourceHint:'TANDEMBOX Side '+depthStr},
+            {role:'Bėgelis (pora)', qty:mDrawers, perDrawer:1, sourceHint:'TANDEMBOX Runner '+depthStr},
+          ];
+          assemblies.push({
+            assemblyKind:'drawer',
+            title:`TANDEMBOX M ${depthStr}`.trim(),
+            qty:mDrawers,
+            unit:r.assemblyUnit||'stalč.',
+            derivedFrom:`${mDrawers} šono porų be reling`,
+            warn:null,
+            components,
+            sourceLines:b.sourceLines.filter(s=>s.tbxSub==='side'||s.tbxSub==='runner'),
+            params:{depth:b.depth, height:'M'},
+            ruleId:r.id, ruleName:r.name,
+          });
+        }
+
+        // D-drawer card(s). If surplus railings exist, group them: e.g. for the file
+        // "1× Side 400 + 2× Railing 400", we show one D-drawer at 400mm with 2 railing pairs.
+        if(dDrawersSimple>0 || surplusRailings>0){
+          // Drawers that have ≥1 railing pair
+          const dCount=b.sides>0?Math.min(b.sides, b.railings)||(surplusRailings>0?b.sides:0):0;
+          // If we have any drawers carrying railings, distribute the railing pairs across them.
+          // Simplest model: all D-drawers at this depth get the same average count.
+          //   railingsPerD = ceil(railings / dCount)   when dCount > 0
+          // Edge case: railings present but no sides — flag it (unusual).
+          let dDrawers, railingsPerD, mixedNote;
+          if(b.sides>0){
+            // Assume all railings belong to D-drawers; remaining sides are M.
+            // If railings ≥ sides, every side is D (and some have multiple railing pairs).
+            // If railings < sides, only `railings` drawers are D (each with 1 pair).
+            if(b.railings>=b.sides){
+              dDrawers=b.sides-mDrawers; // = b.sides since mDrawers=0 in this branch
+              railingsPerD=b.sides>0?Math.round(b.railings/b.sides*10)/10:0;
+            } else {
+              dDrawers=b.railings;
+              railingsPerD=1;
+            }
+            mixedNote=null;
+            // Distribute railings: avg if uneven
+            if(b.railings % Math.max(dDrawers,1) !== 0 && dDrawers>0){
+              mixedNote=`Reling pasiskirstymas netolygus: ${b.railings} porų ${dDrawers} stalčiams (vidut. ${railingsPerD}/stalčius)`;
+            }
+          } else {
+            dDrawers=0; railingsPerD=0;
+            mixedNote=`${b.railings} reling porų be šonų — nelogiška`;
+          }
+
+          if(dDrawers>0){
+            const components=[
+              {role:'Šono profilis (pora) — M', qty:dDrawers, perDrawer:1, sourceHint:'TANDEMBOX Side '+depthStr},
+              {role:'Bėgelis (pora)', qty:dDrawers, perDrawer:1, sourceHint:'TANDEMBOX Runner '+depthStr},
+              {role:`Reling (pora)${railingsPerD!==1?` ×${railingsPerD}/stalč.`:''}`, qty:b.railings, perDrawer:railingsPerD, sourceHint:'TANDEMBOX Side Longitudinal Tube '+depthStr},
+            ];
+            const heightLabel=railingsPerD>=2?'D+':'D';
+            assemblies.push({
+              assemblyKind:'drawer',
+              title:`TANDEMBOX ${heightLabel} ${depthStr}${railingsPerD>1?` (${railingsPerD} reling porų)`:''}`.trim(),
+              qty:dDrawers,
+              unit:r.assemblyUnit||'stalč.',
+              derivedFrom:`${dDrawers} šono porų + ${b.railings} reling porų`,
+              warn:mixedNote,
+              components,
+              sourceLines:b.sourceLines.filter(s=>s.tbxSub==='side'||s.tbxSub==='runner'||s.tbxSub==='railing'),
+              params:{depth:b.depth, height:heightLabel, railingsPerD},
+              ruleId:r.id, ruleName:r.name,
+            });
+          }
+        }
+
+        // Cross-check: runners should equal total drawers at this depth.
+        // If they don't, surface it as a soft note (the assembly cards are already drawn).
+        if(b.runners>0 && b.runners!==b.sides){
+          assemblies.push({
+            assemblyKind:'discrepancy',
+            title:`⚠ TANDEMBOX ${depthStr} neatitikimas`,
+            qty:0, unit:'',
+            derivedFrom:`Bėgelių porų: ${b.runners}, šonų porų: ${b.sides}`,
+            warn:`Bėgelių porų skaičius (${b.runners}) nesutampa su šonų porų skaičiumi (${b.sides}). Tikriausiai CAD'e trūksta vieno iš.`,
+            components:[],
+            sourceLines:b.sourceLines,
+            params:{depth:b.depth},
+            ruleId:r.id, ruleName:r.name,
+          });
+        }
+
+        // Accessory note (back/front connectors, locking pieces, design elements)
+        // — these aren't drawer-defining but worth surfacing.
+        if(b.accessories>0){
+          assemblies.push({
+            assemblyKind:'accessory_group',
+            title:`TANDEMBOX priedai ${depthStr}`.trim(),
+            qty:b.accessories, unit:'eil.',
+            derivedFrom:`${b.accessoryLines.length} eilutės: jungiklės, fiksatoriai, dekoro elementai`,
+            warn:null,
+            components:b.accessoryLines.slice(0,8).map(l=>({role:l.name.split('-')[0].slice(0,55), qty:l.qty, perDrawer:null})),
+            sourceLines:b.sourceLines.filter(s=>s.tbxSub==='accessory'),
+            params:{depth:b.depth},
+            ruleId:r.id, ruleName:r.name,
+          });
+        }
+
+        continue; // done with this bucket
+      }
+
+      // ── TANDEMBOX bucket with only accessories (no sides/railings/runners) ──
+      // Front Connectors, locking pieces etc. that match "TANDEMBOX" but carry no
+      // depth or drawer-defining info still deserve surfacing. Emit one accessory_group.
+      if(r.detectTandemboxSubparts && b.accessories>0 && b.runners===0){
+        assemblies.push({
+          assemblyKind:'accessory_group',
+          title:`TANDEMBOX priedai${b.depth?` ${b.depth}mm`:''}`.trim(),
+          qty:b.accessories,
+          unit:'eil.',
+          derivedFrom:`${b.accessoryLines.length} eilutės: jungiklės, fiksatoriai, dekoro elementai`,
+          warn:null,
+          components:b.accessoryLines.slice(0,8).map(l=>({role:l.name.split('-')[0].slice(0,55), qty:l.qty, perDrawer:null})),
+          sourceLines:b.sourceLines,
+          params:{depth:b.depth},
+          ruleId:r.id, ruleName:r.name,
+        });
+        continue;
+      }
+      // ── Generic runner_pair path (TANDEM, custom rules) ──
       const total=b.runners;
-      const sets=Math.floor(total/piecesPer);
-      const odd=total%piecesPer;
+      let sets, odd;
+      if(unitMeaning==='piece'){
+        const piecesPer=parseInt(r.piecesPerAssembly)||2;
+        sets=Math.floor(total/piecesPer);
+        odd=total%piecesPer;
+      } else {
+        // pair mode: one row = one assembly
+        sets=total;
+        odd=0;
+      }
+      // Skip empty buckets — these are usually accessory rows that matched a runner_pair
+      // rule's broad pattern (e.g. "TANDEMBOX Front Connector Hit In" matches "TANDEMBOX"
+      // but has no runners under the sub-part detector). The accessory_group card already
+      // surfaces these; we don't need a degenerate empty drawer card.
+      if(sets===0 && total===0){
+        continue;
+      }
       // Build display title
       let title=r.assemblyTitle||r.name;
       title=title.replace('{depth}', b.depth||'').replace(/\s+mm/g,'mm');
@@ -3253,7 +3506,9 @@ function fcCombine(hardware, opts={}){
         title:title||r.name,
         qty:sets,
         unit:r.assemblyUnit||'stalč.',
-        derivedFrom:`${total} bėgeliai = ${sets} stalčiai${odd?` (+${odd} nepilnas)`:''}`,
+        derivedFrom:unitMeaning==='pair'
+          ? `${total} eil. (po porą) = ${sets} stalčiai`
+          : `${total} bėgeliai = ${sets} stalčiai${odd?` (+${odd} nepilnas)`:''}`,
         warn:odd?`Nelyginis bėgelių skaičius: ${odd} likutis nepriklauso komplektui`:null,
         components,
         sourceLines:b.sourceLines,
@@ -3261,28 +3516,120 @@ function fcCombine(hardware, opts={}){
         ruleId:r.id, ruleName:r.name,
       });
     } else if(r.type==='cup_plate'){
-      const sets=Math.min(b.cups, b.plates);
-      const orphanCups=Math.max(0, b.cups-sets);
-      const orphanPlates=Math.max(0, b.plates-sets);
-      const components=[
-        {role:'Lankstas', qty:b.cups, perDrawer:null, sourceHint:r.cupPattern},
-        {role:'Plokštelė', qty:b.plates, perDrawer:null, sourceHint:r.platePattern},
-      ];
-      let warn=null;
-      if(orphanCups>0) warn=`${orphanCups} lankstas(-ai) be plokštelių`;
-      if(orphanPlates>0) warn=(warn?warn+'; ':'')+`${orphanPlates} plokštelė(-s) be lankstų`;
-      assemblies.push({
-        assemblyKind:'hinge_set',
-        title:r.setTitle||r.name,
-        qty:sets,
-        unit:r.setUnit||'kompl.',
-        derivedFrom:`${b.cups} lankstų + ${b.plates} plokštelių`,
-        warn,
-        components,
-        sourceLines:b.sourceLines,
-        params:{},
-        ruleId:r.id, ruleName:r.name,
-      });
+      // Split cups by detected mechanism (softclose / tipon / straight_tipon / undifferentiated).
+      // The classifier (fcClassify) attaches a mech tag to each cup line; here we count
+      // them per mech so we can produce separate kit cards.
+      const cupsByMech={softclose:0, tipon:0, straight_tipon:0, tipon_or_softclose:0, undifferentiated:0};
+      for(const sl of b.sourceLines){
+        if(sl.role!=='cup') continue;
+        // Combine name + supplier ref so the classifier can read part-number suffixes
+        // like 78T9550.83 (straight tip-on) and 70T3550.TL (lumped TIP-ON/soft-close)
+        // which the CAD usually puts in the Supplier Ref column, not the name.
+        const blob=(sl.original||'')+' '+(sl.ref||'');
+        const cls=fcClassify(blob, sl.original||'');
+        const mech=(cls.params&&cls.params.mech)||'undifferentiated';
+        if(cupsByMech[mech]===undefined) cupsByMech[mech]=0;
+        cupsByMech[mech]+=sl.qty;
+      }
+      const totalCups=b.cups;
+      const totalPlates=b.plates;
+      const totalSets=Math.min(totalCups, totalPlates);
+      const orphanCups=Math.max(0, totalCups-totalPlates);
+      const orphanPlates=Math.max(0, totalPlates-totalCups);
+
+      const mechLabel={
+        softclose:'Soft-close (BLUMOTION)',
+        tipon:'TIP-ON',
+        straight_tipon:'Tiesusis (zero protrusion)',
+        tipon_or_softclose:'Neaiškios — TIP-ON / soft-close (CAD'+'\'e suplakta)',
+        undifferentiated:'Neaiškios mechanizmas',
+      };
+
+      // Auto-detected subtypes get their own kit card. Plates are shared across all subtypes
+      // (the CAD doesn't distinguish plates by hinge mech), so we allocate plates proportionally
+      // for display purposes: each subtype gets ceil(cupsInSubtype/totalCups * totalPlates) plates.
+      // The total still equals b.plates so warehouse picking stays correct.
+      const knownMechs=['softclose','straight_tipon','tipon'];
+      let hasKnown=false;
+      for(const m of knownMechs){ if(cupsByMech[m]>0){ hasKnown=true; break; } }
+
+      // Produce one card per detected mech that has cups; lump unidentifiable into one
+      // "undifferentiated" card. If only one mech exists, fall back to the original single card.
+      const mechOrder=['softclose','tipon','straight_tipon','tipon_or_softclose','undifferentiated'];
+      const presentMechs=mechOrder.filter(m=>cupsByMech[m]>0);
+
+      if(presentMechs.length<=1){
+        // No useful split possible — render the original combined card.
+        const components=[
+          {role:'Lankstas', qty:totalCups, perDrawer:null, sourceHint:r.cupPattern},
+          {role:'Plokštelė', qty:totalPlates, perDrawer:null, sourceHint:r.platePattern},
+        ];
+        let warn=null;
+        if(orphanCups>0) warn=`${orphanCups} lankstas(-ai) be plokštelių`;
+        if(orphanPlates>0) warn=(warn?warn+'; ':'')+`${orphanPlates} plokštelė(-s) be lankstų`;
+        assemblies.push({
+          assemblyKind:'hinge_set',
+          title:r.setTitle||r.name,
+          qty:totalSets,
+          unit:r.setUnit||'kompl.',
+          derivedFrom:`${totalCups} lankstų + ${totalPlates} plokštelių`,
+          warn,
+          components,
+          sourceLines:b.sourceLines,
+          params:{},
+          ruleId:r.id, ruleName:r.name,
+        });
+      } else {
+        // Split by mech. Plates can't be attributed per-mech from the file, so we show
+        // each mech's cup count alongside a note about shared plates.
+        for(const m of presentMechs){
+          const cups=cupsByMech[m];
+          // Plates allocated to this mech proportionally to its cup share
+          const platesAlloc=totalCups>0?Math.round(totalPlates*cups/totalCups):0;
+          const sets=Math.min(cups, platesAlloc);
+          const components=[
+            {role:'Lankstas', qty:cups, perDrawer:null, sourceHint:mechLabel[m]||m},
+            {role:'Plokštelė (paskirstyta)', qty:platesAlloc, perDrawer:null, sourceHint:r.platePattern},
+          ];
+          const warn=m==='undifferentiated'||m==='tipon_or_softclose'
+            ? 'CAD nediferencijuoja šio mechanizmo — sandėliui reikės pasirinkti rankiniu būdu'
+            : null;
+          assemblies.push({
+            assemblyKind:'hinge_set',
+            title:`Lankstai · ${mechLabel[m]||m}`,
+            qty:sets,
+            unit:r.setUnit||'kompl.',
+            derivedFrom:`${cups} lankstų (${m})`,
+            warn,
+            components,
+            sourceLines:b.sourceLines.filter(sl=>{
+              if(sl.role!=='cup') return false;
+              const blob=(sl.original||'')+' '+(sl.ref||'');
+              const cls=fcClassify(blob, sl.original||'');
+              return ((cls.params&&cls.params.mech)||'undifferentiated')===m;
+            }),
+            params:{mech:m},
+            ruleId:r.id, ruleName:r.name,
+          });
+        }
+        // One summary line for the shared plates so the totals are auditable.
+        if(orphanCups>0 || orphanPlates>0){
+          assemblies.push({
+            assemblyKind:'discrepancy',
+            title:'⚠ Lankstai vs plokštelės — neatitikimas',
+            qty:0, unit:'',
+            derivedFrom:`Iš viso ${totalCups} lankstų / ${totalPlates} plokštelių`,
+            warn:orphanCups>0
+              ?`${orphanCups} lankstas(-ai) be plokštelių`
+              :`${orphanPlates} plokštelė(-s) be lankstų`,
+            components:[],
+            sourceLines:b.sourceLines,
+            params:{},
+            ruleId:r.id, ruleName:r.name,
+          });
+        }
+      }
+      continue;
     }
   }
 
@@ -3320,6 +3667,19 @@ function fcCombine(hardware, opts={}){
 // ══════════════════════════════════════════════
 function fcSeedDefaultRulesIfEmpty(){
   if(!DB.fittingPairingRules) DB.fittingPairingRules=[];
+
+  // Migration: ensure built-in rules carry the new fields introduced for M/D split
+  // and pair-vs-piece semantics. Runs every load; idempotent.
+  for(const r of DB.fittingPairingRules){
+    if(r.builtIn && r.id==='fr_tandembox'){
+      if(r.unitMeaning===undefined) r.unitMeaning='pair';
+      if(r.detectTandemboxSubparts===undefined) r.detectTandemboxSubparts=true;
+    }
+    if(r.builtIn && r.id==='fr_tandem'){
+      if(r.unitMeaning===undefined) r.unitMeaning='pair';
+    }
+  }
+
   if(DB.fittingPairingRules.length>0) return;
   if(DB._fittingRulesSeeded) return; // guard against double-seed within session
   DB._fittingRulesSeeded=true;
@@ -3333,6 +3693,7 @@ function fcSeedDefaultRulesIfEmpty(){
       pattern:'TANDEM',
       excludePattern:'TANDEMBOX',
       piecesPerAssembly:2,
+      unitMeaning:'pair',           // each row = 1 pair (Blum standard)
       extractDepth:true,
       assemblyTitle:'Stalčius {depth}mm (TANDEM)',
       assemblyUnit:'stalč.',
@@ -3351,6 +3712,8 @@ function fcSeedDefaultRulesIfEmpty(){
       pattern:'TANDEMBOX',
       excludePattern:'',
       piecesPerAssembly:2,
+      unitMeaning:'pair',           // each row = 1 pair (Blum standard)
+      detectTandemboxSubparts:true, // splits Runner/Side/Railing/Accessory → M/D drawers
       extractDepth:true,
       assemblyTitle:'Stalčius {depth}mm (TANDEMBOX)',
       assemblyUnit:'stalč.',
@@ -3444,13 +3807,14 @@ function renderFittings(pid){
   </div>`;
 
   // Group cards by category for visual hierarchy.
-  // Auto-assembly applies ONLY to drawers and hinges — these are the parts that need
-  // production-meaningful pairing (left+right runners, cup+plate hinge sets).
-  // Everything else (screws, legs, tubes, lift mechs, TIP-ON, dowels, connectors) is
-  // shown as raw line items because they don't compose into kits the same way.
+  // drawer + hinge_set are the auto-assembled production kits.
+  // accessory_group lists informational TANDEMBOX accessories (connectors, locking pieces).
+  // discrepancy surfaces cross-check failures (e.g., runners ≠ sides at a depth).
   const sections=[
     {kind:['drawer'], title:'Stalčiai', icon:'🗄', color:'#7c3aed'},
     {kind:['hinge_set'], title:'Lankstai', icon:'🔩', color:'#0ea5e9'},
+    {kind:['accessory_group'], title:'TANDEMBOX priedai', icon:'📎', color:'#64748b'},
+    {kind:['discrepancy'], title:'Neatitikimai', icon:'⚠', color:'#dc2626'},
   ];
 
   const renderAssemblyCard=a=>{
@@ -3466,9 +3830,9 @@ function renderFittings(pid){
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:11px 13px;box-shadow:var(--sh)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px">
         <div style="font-weight:600;font-size:12px;flex:1">${escHtml(a.title)}</div>
-        <div style="font-family:var(--mono);font-weight:700;font-size:14px;color:var(--blue-t);white-space:nowrap">${a.qty} ${a.unit}</div>
+        ${a.qty>0?`<div style="font-family:var(--mono);font-weight:700;font-size:14px;color:var(--blue-t);white-space:nowrap">${a.qty} ${a.unit||''}</div>`:''}
       </div>
-      <div style="font-size:10px;color:var(--hint);margin-bottom:6px">📐 ${escHtml(a.derivedFrom)} ${sourceCount>0?`<span title="Eilutės XLSM faile">· ${sourceCount} eil.</span>`:''}</div>
+      <div style="font-size:10px;color:var(--hint);margin-bottom:6px">📐 ${escHtml(a.derivedFrom||'')} ${sourceCount>0?`<span title="Eilutės XLSM faile">· ${sourceCount} eil.</span>`:''}</div>
       ${componentsHtml?`<div style="display:grid;gap:3px;margin-top:5px">${componentsHtml}</div>`:''}
       ${warnBox}
     </div>`;
@@ -7757,12 +8121,93 @@ function parseWorkbook(wb){
 
     data.hardware=hw;
 
-    // Also build the legacy drawers[] for the existing 🗄 Stalčiai view (English-only patterns)
-    const runners=hw.filter(h=>/runner/i.test(h.name));
-    const byD={};
-    runners.forEach(r=>{const m=r.name.match(/Runner\s+(\d+)/i);if(m){const dep=parseInt(m[1]);if(!byD[dep])byD[dep]={depth:dep,height:98,qty:Math.ceil(r.qty/2),parts:[]}}});
-    hw.filter(h=>/tandembox/i.test(h.name)).forEach(h=>{const dm=h.name.match(/(\d{3,4})/g);const dep=dm?parseInt(dm[0]):500;const dr=byD[dep];if(dr)dr.parts.push({name:h.name.split('-')[0].trim().slice(0,40),qty:Math.ceil(h.qty/(dr.qty||1))})});
-    data.drawers=Object.values(byD);
+    // Build legacy drawers[] for the 🗄 Stalčiai view.
+    // CONVENTION: each HARDWARE_LIST row qty represents one PAIR (Blum standard).
+    // For TANDEMBOX, we split into M (no railing) and D (has railing) by depth.
+    // - Side qty at depth N        = total drawer pairs at N
+    // - Runner qty at depth N      = total drawer pairs at N (cross-check)
+    // - Longitudinal Tube at N     = D-drawer pairs (railings = D-height)
+    //   surplus tubes → multiple railing pairs per drawer (D+ variant)
+    //
+    // Anchor on sides because that's what gives the drawer count.
+    const STD_DEPTHS=[270,300,350,400,450,500,550,600,650];
+    const extractDepth=(name)=>{
+      const tokens=String(name||'').match(/\b\d{3}\b/g)||[];
+      for(const t of tokens){ const d=parseInt(t); if(STD_DEPTHS.includes(d)) return d; }
+      const m=String(name||'').match(/(\d{2,4})\s*mm/i);
+      if(m){ const d=parseInt(m[1]); if(d>=200&&d<=800) return d; }
+      return null;
+    };
+    const tbxSub=(name)=>{
+      const n=String(name||'').toLowerCase();
+      if(!n.includes('tandembox')) return null;
+      if(/longitudinal\s*tube|gallery\s*rail|design\s*element/.test(n)) return 'railing';
+      if(/\brunner\b/.test(n)) return 'runner';
+      if(/\bside\b/.test(n)) return 'side';
+      return 'accessory';
+    };
+
+    // Aggregate TANDEMBOX sub-parts per depth
+    const tbxAgg={}; // {depth: {sides, runners, railings, accessoryLines:[]}}
+    for(const h of hw){
+      const sub=tbxSub(h.name); if(!sub) continue;
+      const dep=extractDepth(h.name); if(!dep) continue;
+      if(!tbxAgg[dep]) tbxAgg[dep]={sides:0, runners:0, railings:0, accessoryLines:[]};
+      if(sub==='side')      tbxAgg[dep].sides    += h.qty;
+      else if(sub==='runner') tbxAgg[dep].runners += h.qty;
+      else if(sub==='railing') tbxAgg[dep].railings += h.qty;
+      else tbxAgg[dep].accessoryLines.push({name:h.name.split('-')[0].trim().slice(0,50), qty:h.qty});
+    }
+
+    // Build drawer cards: split M and D per depth.
+    const drawerCards=[];
+    for(const [depStr,agg] of Object.entries(tbxAgg)){
+      const dep=parseInt(depStr);
+      const totalDrawers=agg.sides;
+      if(totalDrawers===0 && agg.railings===0) continue;
+
+      const dDrawers=Math.min(agg.sides, agg.railings);
+      const mDrawers=Math.max(0, agg.sides-agg.railings);
+      const surplusRailings=Math.max(0, agg.railings-agg.sides);
+      const railingsPerD=agg.sides>0 && agg.railings>=agg.sides
+        ? Math.round(agg.railings/agg.sides*10)/10
+        : 1;
+
+      // M-drawers
+      if(mDrawers>0){
+        drawerCards.push({
+          depth:dep, height:98, heightLabel:'M', qty:mDrawers,
+          parts:[
+            {name:`TANDEMBOX Side ${dep} 98 (pora)`, qty:mDrawers},
+            {name:`TANDEMBOX Runner ${dep} (pora)`, qty:mDrawers},
+          ],
+        });
+      }
+      // D-drawers
+      if(dDrawers>0 || surplusRailings>0){
+        const dCount=agg.sides>0 ? (agg.railings>=agg.sides ? agg.sides : agg.railings) : 0;
+        if(dCount>0){
+          drawerCards.push({
+            depth:dep, height:224, heightLabel: railingsPerD>=2?'D+':'D', qty:dCount,
+            parts:[
+              {name:`TANDEMBOX Side ${dep} 98 (pora)`, qty:dCount},
+              {name:`TANDEMBOX Runner ${dep} (pora)`, qty:dCount},
+              {name:`TANDEMBOX Longitudinal Tube ${dep} (pora)${railingsPerD>1?` ×${railingsPerD}`:''}`, qty:agg.railings},
+            ],
+            railingsPerD,
+          });
+        }
+      }
+      // Cross-check warning
+      if(agg.runners>0 && agg.runners!==agg.sides){
+        // Attach as a note on the last card produced for this depth
+        const lastIdx=drawerCards.length-1;
+        if(lastIdx>=0 && drawerCards[lastIdx].depth===dep){
+          drawerCards[lastIdx].warn=`Bėgelių porų: ${agg.runners}, šonų porų: ${agg.sides} (CAD'e netolygu)`;
+        }
+      }
+    }
+    data.drawers=drawerCards;
   }
   return data;
 }
@@ -9692,9 +10137,36 @@ function whKPIs(){
 // ══════════════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════════════
+// Debounced re-render for the warehouse, so typing in the search field doesn't
+// thrash the DOM on every keystroke. Also preserves focus + cursor position
+// across the re-render so the input keeps "feeling responsive".
+let _whRenderDebounce = null;
+function renderWarehouseDebounced(){
+  if(_whRenderDebounce) clearTimeout(_whRenderDebounce);
+  _whRenderDebounce = setTimeout(()=>{ _whRenderDebounce=null; renderWarehouse(); }, 120);
+}
+
 function renderWarehouse(){
   const el = document.getElementById('warehouse-content');
   if(!el) return;
+
+  // ── Capture focus + cursor before destroying the DOM ──
+  // The warehouse panel rebuilds its full HTML on every render, which means any
+  // <input> the user is currently typing in gets destroyed and recreated. Without
+  // restoring focus afterwards, the cursor jumps out, the user has to click back
+  // in, and any checkbox/select they just touched appears to "lose state" because
+  // re-engaging it takes a second click. We capture focus state here and restore
+  // it at the end of this function.
+  const activeEl = document.activeElement;
+  let focusSnapshot = null;
+  if(activeEl && el.contains(activeEl) && activeEl.id && (activeEl.tagName==='INPUT' || activeEl.tagName==='SELECT' || activeEl.tagName==='TEXTAREA')){
+    focusSnapshot = {
+      id: activeEl.id,
+      selStart: activeEl.selectionStart!==undefined ? activeEl.selectionStart : null,
+      selEnd:   activeEl.selectionEnd  !==undefined ? activeEl.selectionEnd   : null,
+    };
+  }
+
   // Auto-recompute ABC if stale (only on significant value changes)
   // - cheap operation, don't gate it
   const tabs = `<div class="wh-tabs">
@@ -9715,6 +10187,20 @@ function renderWarehouse(){
   else if(_whTab==='rules') body = renderWhRules();
   else body = renderWhLog();
   el.innerHTML = tabs + body;
+
+  // ── Restore focus + cursor ──
+  if(focusSnapshot){
+    const newEl = document.getElementById(focusSnapshot.id);
+    if(newEl && typeof newEl.focus === 'function'){
+      newEl.focus();
+      // Restore caret/selection for text-like inputs
+      if(focusSnapshot.selStart !== null && typeof newEl.setSelectionRange === 'function'){
+        try {
+          newEl.setSelectionRange(focusSnapshot.selStart, focusSnapshot.selEnd);
+        } catch(_) { /* some input types (number, etc.) don't support selection */ }
+      }
+    }
+  }
 }
 
 // ── Dashboard ─────────────────────────────────────────
@@ -9932,7 +10418,11 @@ function submitReceiving(){
 // ── Stock ─────────────────────────────────────────────
 function renderWhStock(){
   const items = DB.warehouse.filter(w=>!w.archived);
-  const search = (document.getElementById('wh-search')?.value||'').toLowerCase();
+  // Prefer the live DOM value (what the user is actively typing) but fall back to
+  // _whFilter.search so the search survives tab switches, sub-tab clicks, and any
+  // render path that doesn't preserve the input element.
+  const liveDomValue = document.getElementById('wh-search')?.value;
+  const search = ((liveDomValue!==undefined && liveDomValue!==null) ? liveDomValue : (_whFilter.search||'')).toLowerCase();
   const cls = document.getElementById('wh-class-filter')?.value||'';
   const subcatFilter = document.getElementById('wh-subcat-filter')?.value||'';
   const lowOnly = _whFilter.lowOnly;
@@ -9987,7 +10477,7 @@ function renderWhStock(){
     : '';
 
   const filters = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-    <input id="wh-search" placeholder="🔍 Medžiaga, SKU, MPN..." value="${escHtml(search)}" style="font-size:11px;padding:5px 10px;max-width:240px" oninput="renderWarehouse()">
+    <input id="wh-search" placeholder="🔍 Medžiaga, SKU, MPN..." value="${escHtml(search)}" style="font-size:11px;padding:5px 10px;max-width:240px" oninput="_whFilter.search=this.value;renderWarehouseDebounced()">
     <select id="wh-class-filter" onchange="renderWarehouse()" style="font-size:11px;padding:5px 10px;width:auto">
       <option value="">Visos ABC klasės</option>
       <option value="A" ${cls==='A'?'selected':''}>A — kritinė</option>
