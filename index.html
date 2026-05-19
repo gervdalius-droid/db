@@ -8236,6 +8236,59 @@ function doImport(data){
   applyImport(data,pid);
 }
 
+// Classify a part's role (DETALĖ column, e.g. "FASADAS", "DUGNAS", "KAIRE") as
+// facade material (door / visible front) or carcass material (frame / interior).
+// Used by pjovimas & briaunavimas task creation to split materials and edgebands
+// by where they end up in the finished cabinet.
+function classifyPartRole(role){
+  if(!role) return 'karkasai';
+  const r = String(role).toUpperCase().trim();
+  // FASADAI (facade / doors / visible exterior surfaces)
+  if(/^FASADAS/.test(r))            return 'fasadai';
+  if(r.includes('FASADAS'))         return 'fasadai';
+  if(r.startsWith('FRONT'))         return 'fasadai';
+  if(r==='SIENELĖ' || r==='SIENELE')return 'fasadai';
+  if(r==='STALVIRSIS')              return 'fasadai';
+  if(r==='PLINTUSAS')               return 'fasadai';
+  // Everything else (KAIRE, DESINE, DUGNAS, STOGAS, NUGARA, LENTYNA, SURISIMAS,
+  // BACK, PLAUSAS, GART.*, INDAPLOVES SURISIMO *, etc.) → carcass / frame
+  return 'karkasai';
+}
+
+// For each material that appears in the parts list, decide whether it is
+// predominantly used as facade (door) material or carcass (frame) material.
+// A material is "fasadai" if MOST of the parts cut from it are facade parts.
+function classifyMaterialsByUsage(parts){
+  const byMat = {};
+  for(const p of (parts||[])){
+    if(!p.mat) continue;
+    const cls = classifyPartRole(p.name);
+    const m = byMat[p.mat] || (byMat[p.mat] = {fasadai:0, karkasai:0});
+    m[cls]++;
+  }
+  const out = {};
+  for(const mat in byMat){
+    const m = byMat[mat];
+    out[mat] = m.fasadai > m.karkasai ? 'fasadai' : 'karkasai';
+  }
+  return out;
+}
+
+// Decide which group an edgeband belongs to (Karkasai / Fasadai) by finding all
+// parts that use it on any of their 4 edges and seeing which role wins.
+function classifyEdgebandByUsage(edgebandName, parts){
+  if(!edgebandName) return 'karkasai';
+  const target = String(edgebandName).trim().toLowerCase();
+  let fasadai = 0, karkasai = 0;
+  for(const p of (parts||[])){
+    const edges = [p.edgeF, p.edgeB, p.edgeL, p.edgeR].filter(Boolean);
+    if(edges.some(e => String(e).trim().toLowerCase() === target)){
+      if(classifyPartRole(p.name) === 'fasadai') fasadai++; else karkasai++;
+    }
+  }
+  return fasadai > karkasai ? 'fasadai' : 'karkasai';
+}
+
 function applyImport(data,pid){
   const p=getProject(pid);if(!p)return;
   p.importData={stocks:data.stocks,edgebands:data.edgebands,parts:data.parts,drawers:data.drawers,hardware:data.hardware||[]};
@@ -8244,12 +8297,85 @@ function applyImport(data,pid){
   const sm=data.stocks.map(s=>`${s.material} ${s.thickness}mm (${s.m2} m²)`);
   const em=data.edgebands.map(e=>`${e.material} (${e.meters} m)`);
   const dm=data.drawers.map(d=>`TANDEMBOX ${d.depth}/${d.height||98} ×${d.qty}`);
+
+  // ── PJOVIMAS: one task per material found in PARTLIST ─────────────────
+  // e.g. "PA_BU_VIRT – KARKASAI 18mm", "PA_BU_VIRT – Basalt L927", etc.
+  // Materials are pulled from the parts list (PLOKŠTĖ column), so they reflect
+  // exactly what the cutter has to load on the saw. Each material task carries
+  // a count of how many panels are cut from it and the total m² when known.
+  if(!existing.has('pjovimas')){
+    const matCounts = {};
+    for(const part of (data.parts||[])){
+      if(!part.mat) continue;
+      const k = part.mat;
+      if(!matCounts[k]) matCounts[k] = {qty:0, T:part.T||0};
+      matCounts[k].qty++;
+    }
+    const stockByMat = {};
+    for(const s of (data.stocks||[])) stockByMat[String(s.material).trim().toLowerCase()] = s;
+    const matList = Object.keys(matCounts);
+    if(matList.length === 0){
+      // No parts data — fall back to old behaviour so the import never silently
+      // skips creating a pjovimas task.
+      DB.tasks.push({id:uid(),projectId:pid,stepId:'pjovimas',name:`Pjovimas – ${pName}`,status:'pending',assigneeId:USERS[0].id,materials:sm.slice(0,4),created:new Date().toISOString()});
+    } else {
+      matList.forEach((mat,idx)=>{
+        const info = matCounts[mat];
+        const stock = stockByMat[mat.toLowerCase()];
+        const detail = stock ? ` (${stock.m2} m²)` : (info.T?` (${info.T}mm)`:'');
+        DB.tasks.push({
+          id:uid(), projectId:pid, stepId:'pjovimas',
+          name:`${pName} ${mat}`,
+          status:'pending',
+          assigneeId:USERS[idx % USERS.length].id,
+          materials:[`${mat}${detail} · ${info.qty} det.`],
+          created:new Date().toISOString()
+        });
+      });
+    }
+    existing.add('pjovimas');
+  }
+
+  // ── BRIAUNAVIMAS: two tasks — Karkasai (frame edges) & Fasadai (door edges) ──
+  // Each edgeband is routed to the bucket where it is actually applied, so the
+  // operator only sees the rolls relevant to their batch. Empty buckets are
+  // skipped — no point creating a task with no material.
+  if(!existing.has('briaunavimas')){
+    const buckets = {karkasai:[], fasadai:[]};
+    for(const e of (data.edgebands||[])){
+      const cls = classifyEdgebandByUsage(e.material, data.parts);
+      buckets[cls].push(`${e.material} (${e.meters} m)`);
+    }
+    const briaunaJobs = [
+      {suffix:'Karkasai', mats:buckets.karkasai},
+      {suffix:'Fasadai',  mats:buckets.fasadai},
+    ];
+    let createdAny = false;
+    briaunaJobs.forEach((job,idx)=>{
+      if(!job.mats.length) return;
+      DB.tasks.push({
+        id:uid(), projectId:pid, stepId:'briaunavimas',
+        name:`${pName} ${job.suffix}`,
+        status:'pending',
+        assigneeId:USERS[(idx+1) % USERS.length].id,
+        materials:job.mats,
+        created:new Date().toISOString()
+      });
+      createdAny = true;
+    });
+    // Fallback: if no edgebands had usage data we can classify, still create
+    // a single task so the step isn't lost.
+    if(!createdAny && em.length){
+      DB.tasks.push({id:uid(),projectId:pid,stepId:'briaunavimas',name:`Briaunavimas – ${pName}`,status:'pending',assigneeId:USERS[1 % USERS.length].id,materials:em,created:new Date().toISOString()});
+    }
+    existing.add('briaunavimas');
+  }
+
+  // ── All other steps: unchanged (one generic task per step) ─────────────
   STEPS.forEach((step,i)=>{
     if(existing.has(step.id))return;
     let mats=[];
-    if(step.id==='pjovimas')mats=sm.slice(0,4);
-    else if(step.id==='briaunavimas')mats=em;
-    else if(step.id==='surinkimas')mats=dm.length?dm:sm.slice(0,2);
+    if(step.id==='surinkimas')mats=dm.length?dm:sm.slice(0,2);
     DB.tasks.push({id:uid(),projectId:pid,stepId:step.id,name:`${step.label} – ${pName}`,status:'pending',assigneeId:USERS[i%USERS.length].id,materials:mats,created:new Date().toISOString()});
   });
   addNotif('step-move','Excel importuotas sėkmingai',p.name,pid);
