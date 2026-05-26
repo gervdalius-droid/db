@@ -6,6 +6,8 @@
 <title>Dėdės Baldai — Gamybos Valdymas</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -879,12 +881,11 @@ const STEPS = [
 ];
 // Design phase steps (Projektavimas) — comes BEFORE production
 const DESIGN_STEPS = [
-  {id:'briefas',      label:'Briefas',          short:'BRF', color:'#64748b', bg:'#f1f5f9', icon:'📋', desc:'Užklausa: matmenys, medžiagos, terminas'},
-  {id:'koncepcija',   label:'Koncepcija',       short:'KNC', color:'#a855f7', bg:'#faf5ff', icon:'✏️', desc:'Pradinis eskizas, 3D peržiūra klientui'},
-  {id:'modelis3d',    label:'3D Modelis',       short:'3DM', color:'#6366f1', bg:'#eef2ff', icon:'🎯', desc:'Detalus parametrinis modelis'},
-  {id:'breziniai',    label:'Brėžiniai',        short:'BRZ', color:'#0891b2', bg:'#ecfeff', icon:'📐', desc:'2D brėžiniai, matmenys, sujungimai'},
+  {id:'koncepcija',   label:'Idėja + Projekto info', short:'IDJ', color:'#a855f7', bg:'#faf5ff', icon:'💡', desc:'Idėja, projekto informacija, matmenys, medžiagos, terminas', defaultRole:'manager'},
+  {id:'breziniai',    label:'Eskizas',          short:'ESK', color:'#0891b2', bg:'#ecfeff', icon:'✏️', desc:'Pradinis eskizas, klientui peržiūrai'},
+  {id:'modelis3d',    label:'Gamybinis modelis ir brėžiniai', short:'GMB', color:'#6366f1', bg:'#eef2ff', icon:'📐', desc:'Detalus parametrinis modelis ir 2D brėžiniai'},
   {id:'cam',          label:'CAM / Nesting',    short:'CAM', color:'#0284c7', bg:'#e0f2fe', icon:'⚙️', desc:'CNC kodai, nesting, pjovimo planas'},
-  {id:'perdavimas',   label:'Perdavimas',       short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', desc:'Failai perduoti į gamybą'},
+  {id:'perdavimas',   label:'Perdavimas į gamybą', short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', desc:'Failai perduoti į gamybą'},
 ];
 const ALL_STEPS_BY_ID={};STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);DESIGN_STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);
 
@@ -993,6 +994,39 @@ function normalizeTaskQuantities(){
   if(fixed>0){
     try{console.info('normalizeTaskQuantities: fixed',fixed,'task fields');}catch(e){}
   }
+}
+// One-time migration: design-step labels were renamed (Koncepcija→"Idėja + Projekto info",
+// Brėžiniai→"Eskizas", 3D Modelis→"Gamybinis modelis ir brėžiniai", Perdavimas→"Perdavimas į gamybą").
+// Tasks store their name as "<StepLabel> – <ProjectName>" at creation time, so older tasks still
+// carry the previous labels. Here we rewrite only the auto-generated prefix to the current label,
+// leaving the project-name suffix (and any custom task names) untouched.
+function migrateDesignTaskNames(){
+  if(!Array.isArray(DB.tasks)) return;
+  // Map of stepId -> list of previous auto-generated labels that should be upgraded.
+  const OLD_LABELS={
+    koncepcija:['Koncepcija'],
+    breziniai :['Brėžiniai'],
+    modelis3d :['3D Modelis','3D modelis'],
+    perdavimas:['Perdavimas'],
+  };
+  let renamed=0;
+  DB.tasks.forEach(t=>{
+    const old=OLD_LABELS[t.stepId];
+    if(!old || typeof t.name!=='string') return;
+    const cur=getStep(t.stepId)?.label;
+    if(!cur) return;
+    for(const ol of old){
+      // Only touch names that follow the auto-generated "<Label> – <rest>" pattern,
+      // and only if they aren't already using the current label.
+      if(ol===cur) continue;
+      if(t.name===ol){ t.name=cur; renamed++; break; }
+      if(t.name.startsWith(ol+' – ')){ t.name=cur+t.name.slice(ol.length); renamed++; break; }
+    }
+  });
+  if(renamed>0){
+    try{console.info('migrateDesignTaskNames: renamed',renamed,'tasks');}catch(e){}
+  }
+  return renamed;
 }
 function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
 function ava(uid2,sz=22){const u=getUser(uid2);return'<div class="avatar" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Math.floor(sz*.38)+'px;background:'+u.bg+';color:'+u.color+'">'+u.initials+'</div>';}
@@ -1191,6 +1225,7 @@ async function loadFromCloud(){
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
     if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];DB.fittingPairingRules=s.fittingPairingRules||[];}
     normalizeTaskQuantities();
+    migrateDesignTaskNames();
     // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     // Refresh the diff snapshot so the next save() doesn't think everything changed
@@ -1294,6 +1329,7 @@ function load(){
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
     normalizeTaskQuantities();
+    migrateDesignTaskNames();
     return true;
   }catch(e){return false;}
 }
@@ -1715,9 +1751,9 @@ function showView(name,extra){
       <button class="btn btn-sm btn-primary" onclick="syncFromOneDrive()" title="Atsisiųsti naujausią failą iš OneDrive ir importuoti">
         ☁️ Sync OneDrive
       </button>
-      <label class="btn btn-sm" style="cursor:pointer" title="Arba pasirinkite failą rankiniu būdu">
+      <label class="btn btn-sm" style="cursor:pointer" title="Importuoti užsakymą iš PDF / Excel / CSV: sukuria užsakymą su pozicijomis (artikulai, kiekiai, datos)">
         📥 Failas
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importOrdersExcel(this)">
+        <input type="file" accept=".pdf,.xlsx,.xls,.csv" style="display:none" onchange="importOrderFile(this)">
       </label>
       <button class="btn btn-sm btn-primary" onclick="openOrderModal()">+ Naujas</button>
     `:'';
@@ -5493,6 +5529,12 @@ function getStepAssignees(stepId, fallback){
   const def=DB.stepDefaults[stepId];
   if(Array.isArray(def)&&def.length)return def;
   if(typeof def==='string'&&def)return[def];
+  // Step-level default role (e.g. "Idėja + Projekto info" defaults to ADMIN/Vadyba)
+  const step=ALL_STEPS_BY_ID[stepId];
+  if(step&&step.defaultRole){
+    const roleUser=USERS.find(u=>u.role===step.defaultRole);
+    if(roleUser)return[roleUser.id];
+  }
   return fallback?[fallback]:[];
 }
 function advanceTask(tid){
@@ -5763,7 +5805,7 @@ function openModal(html){
   }
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open')}
-function openNewProjectModal(fromOrder){
+function openNewProjectModal(fromOrder, presetType){
   _selColor=PROJ_COLORS[DB.projects.length%PROJ_COLORS.length];
   const fo=fromOrder||{};
   const userOpts=USERS.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
@@ -5833,6 +5875,9 @@ function openNewProjectModal(fromOrder){
     <div class="form-field"><label class="form-label">Pastabos</label><textarea id="np-notes" style="min-height:44px">${escHtml(fo.notes||'')}</textarea></div>
     <div class="form-field"><label class="form-label">Spalva</label><div class="color-picker">${PROJ_COLORS.map((c,i)=>`<div class="color-swatch ${c===_selColor?'selected':''}" style="background:${c}" onclick="selCol('${c}')" id="sw${i}"></div>`).join('')}</div></div>
     <div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button><button class="btn btn-primary" onclick="createProject('${fo.id||''}','${encodeURIComponent(JSON.stringify(lines))}')">Sukurti</button></div>`);
+  // If a project type was requested (e.g. converting an order straight to Paslauga),
+  // switch the modal to that type once the buttons exist in the DOM.
+  if(presetType){ setTimeout(()=>{ try{ switchProjType(presetType); }catch(e){} },30); }
 }
 
 function toggleProjectLines(pid){
@@ -6639,7 +6684,7 @@ function renderDesignProjects(){
   if(!el)return;
   const all=(DB.projects||[]).filter(p=>p.designStatus==='design'&&canSeeProject(p));
   if(!all.length){
-    el.innerHTML='<div class="empty-state" style="padding:48px;text-align:center"><div style="font-size:48px;margin-bottom:12px">📐</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nėra projektavimo darbų</div><div style="font-size:12px;color:var(--hint);max-width:360px;margin:0 auto">Sukurkite naują projektavimo darbą paspaudę <strong>"+ Projektavimo darbas"</strong> viršuje.<br><br>Projektavimo etapas turi 6 žingsnius: Briefas → Koncepcija → 3D Modelis → Brėžiniai → CAM → Perdavimas. Užbaigus visus žingsnius, projektas automatiškai pereina į gamybą.</div></div>';
+    el.innerHTML='<div class="empty-state" style="padding:48px;text-align:center"><div style="font-size:48px;margin-bottom:12px">📐</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nėra projektavimo darbų</div><div style="font-size:12px;color:var(--hint);max-width:360px;margin:0 auto">Sukurkite naują projektavimo darbą paspaudę <strong>"+ Projektavimo darbas"</strong> viršuje.<br><br>Projektavimo etapas turi '+DESIGN_STEPS.length+' žingsnius: '+DESIGN_STEPS.map(s=>s.label).join(' → ')+'. Užbaigus visus žingsnius, projektas automatiškai pereina į gamybą.</div></div>';
     return;
   }
   const summary=[
@@ -7076,7 +7121,7 @@ function renderOrders(){
           :(isPending?'<span style="font-size:10px;color:var(--hint)">—</span>':'<span style="font-size:10px;color:var(--green-t)">✓</span>'))
       +'</td>'
       +'<td style="padding:6px 8px;white-space:nowrap;text-align:right">'
-        +(isPending&&!linkedProj?'<button onclick="convertOrder(\''+o.id+'\')" class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 7px;margin-right:2px" title="Sukurti projektą">▶</button>':'')
+        +(isPending&&!linkedProj?'<button onclick="convertOrder(\''+o.id+'\')" class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 7px;margin-right:2px" title="Sukurti projektą / paslaugą">▶</button>':'')
         +(isPending?'<button onclick="openLinkProjectModal(\''+o.id+'\')" class="btn btn-sm" style="font-size:10px;padding:3px 7px;margin-right:2px" title="Susieti su projektu">🔗</button>':'')
         +'<button onclick="openOrderModal(\''+o.id+'\')" class="btn btn-sm" style="font-size:10px;padding:3px 6px;margin-right:2px" title="Redaguoti">✏</button>'
         +'<button onclick="deleteOrder(\''+o.id+'\')" class="btn btn-sm btn-danger" style="font-size:10px;padding:3px 6px" title="Ištrinti">🗑</button>'
@@ -7300,6 +7345,319 @@ function _processOrdersWorkbook(wb){
   });
   save();renderOrders();renderSidebar();
   toast('✅ '+imported+' nauji, '+updated+' atnaujinti','success');
+}
+
+// ══════════════════════════════════════════════
+// PART-LEVEL ORDER IMPORT (FAILAS button)
+// Reads an Excel/CSV file where each row is a PART (article + quantity + dates)
+// and builds one order per "order number" (or one order for the whole file when
+// no order-number column exists). Each part becomes a line {art, desc, qty, date}.
+// Shows a preview before saving; saved orders can then be converted to a
+// Projektas or directly to a Paslauga.
+// ══════════════════════════════════════════════
+
+// Robust date formatter: handles JS Date, Excel serial numbers, and dd.mm.yyyy / dd/mm/yyyy / yyyy-mm-dd strings.
+function _impFmtDate(v){
+  if(v===null||v===undefined||v==='')return'';
+  if(v instanceof Date && !isNaN(v))return v.toISOString().slice(0,10);
+  // Excel stores dates as serial numbers (days since 1899-12-30)
+  if(typeof v==='number' && v>20000 && v<80000){
+    const d=new Date(Math.round((v-25569)*86400*1000));
+    if(!isNaN(d))return d.toISOString().slice(0,10);
+  }
+  const s=String(v).trim();
+  if(!s)return'';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  // dd.mm.yyyy or dd/mm/yyyy or dd-mm-yyyy
+  const m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+  if(m){
+    let[, d,mo,y]=m; if(y.length===2)y='20'+y;
+    return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+  return s;
+}
+
+// Find a header column index by trying several keyword variants (case-insensitive, accent-tolerant).
+function _impFindCol(hdr,keywords){
+  for(const kw of keywords){
+    const i=hdr.findIndex(h=>h.includes(kw));
+    if(i>=0)return i;
+  }
+  return -1;
+}
+
+function importOrderFile(input){
+  const file=input.files[0];
+  if(!file){return;}
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(ext==='pdf'){
+    importOrderPDF(file);
+    input.value='';
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const parsed=_parseOrderPartsWorkbook(wb,file.name);
+      if(parsed&&parsed.length){
+        _openImportPreviewModal(parsed);
+      } else {
+        toast('Faile nerasta tinkamų eilučių','error');
+      }
+    }catch(err){
+      console.error(err);
+      toast('Klaida skaitant failą: '+err.message,'error');
+    }
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── PDF purchase-order import (e.g. "Pirkimo užsakymas" from Stansefabrikken) ──
+// Uses PDF.js to read positioned text, reconstructs rows, and extracts the order
+// number, order date, client (Prekių gavėjas / buyer) and the part-lines
+// (article nr, description, quantity, delivery date). One PDF = one order.
+async function importOrderPDF(file){
+  if(typeof pdfjsLib==='undefined'){toast('PDF biblioteka neįsikėlė — patikrinkite interneto ryšį','error');return;}
+  toast('⏳ Skaitomas PDF…','');
+  try{
+    const buf=await file.arrayBuffer();
+    const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+    let items=[];
+    for(let p=1;p<=doc.numPages;p++){
+      const page=await doc.getPage(p);
+      const tc=await page.getTextContent();
+      tc.items.forEach(it=>{
+        if(it.str && it.str.trim()){
+          items.push({str:it.str, x:Math.round(it.transform[4]), y:Math.round(it.transform[5]), page:p});
+        }
+      });
+    }
+    const rows=_pdfBuildRows(items);
+    const order=_parsePurchaseOrderRows(rows, file.name);
+    if(order && order.lines.length){
+      _openImportPreviewModal([order]);
+    } else {
+      toast('PDF eilučių nepavyko atpažinti. Patikrinkite, ar tai tekstinis (ne skenuotas) užsakymas.','error');
+    }
+  }catch(err){
+    console.error(err);
+    toast('Klaida skaitant PDF: '+err.message,'error');
+  }
+}
+
+// Group positioned text items into visual rows (top-to-bottom, left-to-right).
+function _pdfBuildRows(items){
+  items.sort((a,b)=> b.y - a.y || a.x - b.x);
+  const rows=[]; const TOL=3;
+  items.forEach(it=>{
+    let row=rows.find(r=>r.page===it.page && Math.abs(r.y-it.y)<=TOL);
+    if(!row){row={y:it.y,page:it.page,items:[]};rows.push(row);}
+    row.items.push(it);
+  });
+  rows.sort((a,b)=> a.page-b.page || b.y-a.y);
+  rows.forEach(r=>r.items.sort((a,b)=>a.x-b.x));
+  return rows;
+}
+
+function _poFmtDate(s){
+  s=String(s||'').trim();
+  let m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+  if(m){let[,d,mo,y]=m;if(y.length===2)y='20'+y;return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  return '';
+}
+
+// Parse purchase-order rows into one order with multiple part-lines.
+function _parsePurchaseOrderRows(rows, fileName){
+  const rowText=rows.map(r=>({
+    y:r.y, page:r.page, items:r.items,
+    text:r.items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()
+  }));
+
+  // Order number + order date (header line: "Užsakymo 2026-05-26 ... Nr. 110335")
+  let orderNr='', orderDate='';
+  for(const r of rowText){
+    if(!orderNr){const nrM=r.text.match(/Nr\.?\s*(\d{4,})/); if(nrM)orderNr=nrM[1];}
+    if(!orderDate){const dM=r.text.match(/(\d{4}-\d{2}-\d{2})/); if(dM && /Užsakymo|data/i.test(r.text))orderDate=dM[1];}
+  }
+  if(!orderDate){ // fallback: first ISO date anywhere near the top
+    for(const r of rowText.slice(0,6)){const dM=r.text.match(/(\d{4}-\d{2}-\d{2})/);if(dM){orderDate=dM[1];break;}}
+  }
+
+  // Client = "Prekių gavėjas" (the buyer). Take the name row beneath the label,
+  // restricted to items on/after the label's x-position (right-hand column).
+  let client='';
+  const lblIdx=rowText.findIndex(r=>/Prekių\s*gavėjas|Prekiu\s*gavejas/i.test(r.text));
+  if(lblIdx>=0){
+    const lblItem=rowText[lblIdx].items.find(i=>/Prekių|Prekiu/i.test(i.str));
+    const lblX=lblItem?lblItem.x:300;
+    for(let k=lblIdx+1;k<rowText.length;k++){
+      const cand=rowText[k].items.filter(i=>i.x>=lblX-20);
+      if(cand.length){client=cand.map(i=>i.str).join(' ').trim();break;}
+    }
+  }
+
+  // Line items between the table header and the totals block.
+  const hdrIdx=rowText.findIndex(r=>/Eilutė/i.test(r.text) && /Artikul/i.test(r.text));
+  let endIdx=rowText.findIndex(r=>/Line\(s\)\s*Subtotal|Įgaliojo|Bendra\s*suma|Subtotal/i.test(r.text));
+  const lines=[];
+  if(hdrIdx>=0){
+    const stop = endIdx>hdrIdx ? endIdx : rowText.length;
+    let cur=null;
+    for(let k=hdrIdx+1;k<stop;k++){
+      const r=rowText[k];
+      if(!r.text)continue;
+      const dataM=r.text.match(/(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})\s+([\d.,]+)\s*vnt/i);
+      const startM=r.text.match(/^(\d{1,3})\s+([0-9A-Za-z][0-9A-Za-z\-\/]*)\s*(.*)$/);
+      if(dataM){
+        if(cur){cur.date=_poFmtDate(dataM[1]); cur.qty=dataM[2].replace(/,/g,'')+' vnt';}
+      } else if(startM){
+        if(cur)lines.push(cur);
+        cur={art:startM[2], desc:(startM[3]||'').trim(), qty:'', date:''};
+      } else if(cur && !cur.desc){
+        cur.desc=r.text;
+      }
+    }
+    if(cur)lines.push(cur);
+  }
+
+  // Deadline for the order = the latest line delivery date.
+  let deadline='';
+  lines.forEach(l=>{ if(l.date && l.date>deadline)deadline=l.date; });
+
+  const baseName=orderNr?(client?orderNr+' — '+client:('Užsakymas '+orderNr)):(client||fileName.replace(/\.pdf$/i,''));
+  return {orderNr, orderDate, client, deadline, name:baseName, lines};
+}
+
+// Parse a workbook into an array of order objects, each with a `lines` array of parts.
+function _parseOrderPartsWorkbook(wb,fileName){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+  if(!rows.length)return[];
+
+  // Locate the header row: first row that mentions an article/quantity-style keyword.
+  const HEAD_HINTS=['ARTIKUL','KODAS','KIEKIS','APRAŠ','APRAS','DETAL','POZICIJ','QTY','QUANTITY','ARTICLE'];
+  let hdrIdx=rows.findIndex(r=>r.some(c=>{
+    const t=String(c).trim().toUpperCase();
+    return HEAD_HINTS.some(h=>t.includes(h));
+  }));
+  if(hdrIdx<0)hdrIdx=0;
+  const hdr=rows[hdrIdx].map(c=>String(c).trim().toUpperCase());
+
+  // Detect columns (flexible — tolerates several naming conventions / languages).
+  const iOrderNr=_impFindCol(hdr,['UŽSAKYMO NR','UZSAKYMO NR','UŽSAKYMAS','UZSAKYMAS','ORDER NR','ORDER NO','ORDER #']);
+  const iArt    =_impFindCol(hdr,['ARTIKUL','KODAS','ART','CODE','ARTICLE','SKU']);
+  const iDesc   =_impFindCol(hdr,['APRAŠ','APRAS','PAVADIN','DETAL','POZICIJ','DESCRIPTION','NAME','PRODUKT']);
+  const iQty    =_impFindCol(hdr,['KIEKIS','QTY','QUANTITY','VNT']);
+  const iOrdDate=_impFindCol(hdr,['UŽSAKYMO DATA','UZSAKYMO DATA','ORDER DATE','DATA']);
+  const iDelDate=_impFindCol(hdr,['PRISTATYMO DATA','TERMINAS','DEADLINE','DELIVERY','DUE','PRIST']);
+  const iClient =_impFindCol(hdr,['KLIENTAS','CLIENT','CUSTOMER','UŽSAKOVAS','UZSAKOVAS']);
+  const iName   =_impFindCol(hdr,['PROJEKT','OBJEKT','PROJECT','PAVADINIMAS']);
+
+  // If we couldn't find any usable part column, bail out.
+  if(iArt<0 && iDesc<0 && iQty<0)return[];
+
+  const cell=(row,i)=>i>=0?row[i]:'';
+  const groups={}; // keyed by order number (or '__single__')
+  const orderList=[];
+
+  rows.slice(hdrIdx+1).forEach(row=>{
+    if(!row||!row.length)return;
+    const art =String(cell(row,iArt)||'').trim();
+    const desc=String(cell(row,iDesc)||'').trim();
+    const qtyRaw=cell(row,iQty);
+    const qty =qtyRaw===''||qtyRaw===null||qtyRaw===undefined?'':String(qtyRaw).trim();
+    // Skip empty / total rows
+    if(!art && !desc && !qty)return;
+    const lowDesc=desc.toLowerCase();
+    if(!art && (lowDesc.startsWith('viso')||lowDesc.startsWith('total')||lowDesc.startsWith('suma')))return;
+
+    const orderNr=String(cell(row,iOrderNr)||'').trim();
+    const client =String(cell(row,iClient)||'').trim();
+    const projName=String(cell(row,iName)||'').trim();
+    const delDate=_impFmtDate(cell(row,iDelDate));
+    const ordDate=_impFmtDate(cell(row,iOrdDate));
+
+    const key=orderNr||'__single__';
+    if(!groups[key]){
+      const baseName=projName||(orderNr?(client?orderNr+' — '+client:orderNr):(client||fileName.replace(/\.(xlsx|xls|csv)$/i,'')));
+      const ord={orderNr,client,name:baseName,orderDate:ordDate,deadline:delDate,lines:[]};
+      groups[key]=ord;
+      orderList.push(ord);
+    }
+    const ord=groups[key];
+    // Order-level dates: keep the earliest order date and the latest delivery date seen.
+    if(ordDate && (!ord.orderDate || ordDate<ord.orderDate))ord.orderDate=ordDate;
+    if(delDate && (!ord.deadline || delDate>ord.deadline))ord.deadline=delDate;
+    if(!ord.client && client)ord.client=client;
+    ord.lines.push({art,desc,qty,date:delDate});
+  });
+
+  return orderList.filter(o=>o.lines.length);
+}
+
+// Hold parsed orders between preview and confirm.
+let _pendingImport=[];
+
+function _openImportPreviewModal(orders){
+  _pendingImport=orders;
+  const totalLines=orders.reduce((s,o)=>s+o.lines.length,0);
+  const blocks=orders.map((o,oi)=>{
+    const linesHtml=o.lines.map((l,i)=>`<tr style="border-top:1px solid var(--border)">
+      <td style="padding:3px 8px;color:var(--hint)">${i+1}</td>
+      <td style="padding:3px 8px;font-family:var(--mono);color:var(--blue-t);font-weight:600">${escHtml(l.art||'')}</td>
+      <td style="padding:3px 8px">${escHtml(l.desc||'')}</td>
+      <td style="padding:3px 8px;text-align:right;font-weight:600">${escHtml(String(l.qty||''))}</td>
+      <td style="padding:3px 8px;text-align:right;color:var(--hint);white-space:nowrap">${l.date||''}</td>
+    </tr>`).join('');
+    return`<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">
+      <div style="background:var(--surface2);padding:7px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:600;font-size:12px">${escHtml(o.name||('Užsakymas '+(oi+1)))}</span>
+        ${o.client?`<span style="font-size:10px;color:var(--muted)">👤 ${escHtml(o.client)}</span>`:''}
+        ${o.deadline?`<span style="font-size:10px;color:var(--amber-t)">📅 ${o.deadline}</span>`:''}
+        <span style="margin-left:auto;font-size:10px;color:var(--hint)">${o.lines.length} pozicijos</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr style="background:var(--surface)"><th style="padding:3px 8px;text-align:left;color:var(--muted)">#</th><th style="padding:3px 8px;text-align:left;color:var(--muted)">Artikulas</th><th style="padding:3px 8px;text-align:left;color:var(--muted)">Aprašymas</th><th style="padding:3px 8px;text-align:right;color:var(--muted)">Kiekis</th><th style="padding:3px 8px;text-align:right;color:var(--muted)">Prist.</th></tr></thead>
+        <tbody>${linesHtml}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  openModal(`<div class="modal-title">📥 Importuoti iš failo <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Rasta <strong>${orders.length}</strong> užsakym(-as/-ai) su <strong>${totalLines}</strong> pozicijomis. Patikrinkite ir patvirtinkite.</div>
+    <div style="max-height:50vh;overflow-y:auto;padding-right:4px">${blocks}</div>
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn" onclick="closeModal()">Atšaukti</button>
+      <button class="btn btn-primary" onclick="confirmImportOrders()">✅ Sukurti užsakymus</button>
+    </div>`);
+}
+
+function confirmImportOrders(){
+  if(!_pendingImport.length){closeModal();return;}
+  if(!DB.orders)DB.orders=[];
+  let created=0;
+  _pendingImport.forEach(o=>{
+    DB.orders.unshift({
+      id:uid(),
+      name:o.name||'Užsakymas',
+      orderNr:o.orderNr||'',
+      client:o.client||'',
+      priority:'mid',
+      orderDate:o.orderDate||'',
+      deadline:o.deadline||'',
+      notes:'',
+      lines:o.lines||[],
+      status:'pending',
+      created:new Date().toISOString(),
+    });
+    created++;
+  });
+  _pendingImport=[];
+  closeModal();save();renderOrders();renderSidebar();
+  toast('✅ Sukurta '+created+' užsakym'+(created===1?'as':'ai'),'success');
 }
 // ══════════════════════════════════════════════
 // DAILY BACKUP — exports all data to Excel
