@@ -2184,6 +2184,7 @@ function renderProjectView(pid,tab){
         ${p.importData?'<span class="badge badge-purple">📊 Excel</span>':''}
         ${p.files?.length?`<span class="badge badge-gray">📎 ${p.files.length}</span>`:''}
         ${p.lines?.length?`<span class="badge badge-blue" style="cursor:pointer" onclick="toggleProjectLines('${p.id}')">📋 ${p.lines.length} poz.</span>`:''}
+        ${combinedBadgeHtml(p)}
       </div>
       ${p.notes?`<div style="font-size:11px;color:var(--hint);margin-top:4px;font-style:italic">${escHtml(p.notes)}</div>`:''}
       ${p.status==='archived'?'<div style="margin-top:5px"><span class="archive-badge">📦 Archyvuotas '+(p.completedAt?new Date(p.completedAt).toLocaleDateString('lt-LT'):'')+' </span>'+(p.completionNote?' <span style="font-size:11px;color:var(--hint);font-style:italic">— '+escHtml(p.completionNote)+'</span>':'')+'</div>':''}
@@ -2949,8 +2950,15 @@ function renderWorkload(pid){
 // ── MATERIALS TAB ──
 function renderMaterials(pid){
   const p=getProject(pid);const d=p?.importData;
-  if(!d)return`<div class="empty-state"><div>Importuokite Excel failą</div><div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="openProjectImportModal('${pid}')">📥 Importuoti</button></div></div>`;
   const mgr=isManager();
+  if(!d){
+    // No Excel import — still allow manual material entry.
+    return `<div style="background:var(--surface2);border:1px dashed var(--border);border-radius:var(--rl);padding:16px;text-align:center;margin-bottom:14px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Šis projektas neturi importuoto Excel SUMMARY lapo.</div>
+        <button class="btn btn-primary btn-sm" onclick="openProjectImportModal('${pid}')">📥 Importuoti Excel</button>
+      </div>`
+      + manualMaterialsCard(p,mgr);
+  }
   const totalM2=d.stocks.reduce((s,x)=>s+x.m2,0);
 
   const summaryCards=`<div style="display:grid;grid-template-columns:repeat(${mgr?4:3},1fr);gap:10px;margin-bottom:16px">
@@ -2965,6 +2973,8 @@ function renderMaterials(pid){
   // Status summary bar
   const statusCounts={reikia:0,sandely:0,uzsakyta:0};
   d.stocks.forEach((_,i)=>{const ms=getMatStatus(pid,i);statusCounts[ms.status]=(statusCounts[ms.status]||0)+1;});
+  // Fold in manually-added materials so the readiness summary is complete.
+  (p.manualMaterials||[]).forEach(m=>{statusCounts[m.status]=(statusCounts[m.status]||0)+1;});
   const statusBar=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
     <span style="font-size:11px;display:flex;align-items:center;gap:5px"><span class="ms-dot ms-reikia"></span>Reikia užsakyti: <strong>${statusCounts.reikia}</strong></span>
     <span style="font-size:11px;display:flex;align-items:center;gap:5px"><span class="ms-dot ms-uzsakyta"></span>Užsakyta: <strong>${statusCounts.uzsakyta}</strong></span>
@@ -3039,7 +3049,127 @@ function renderMaterials(pid){
     +'<button class="btn btn-sm btn-green" onclick="showView(\'materials\')">Peržiūrėti ↗</button>'
     +'</div></div>';
 
-  return summaryCards+statusBar+stocksCard+edgesCard+nestBtn;
+  return summaryCards+statusBar+stocksCard+edgesCard+manualMaterialsCard(p,mgr)+nestBtn;
+}
+
+// ── MANUAL MATERIALS — user-entered required materials (separate from Excel import) ──
+// Stored on p.manualMaterials = [{id,name,qty,unit,note,status,eta}].
+// status: 'reikia' | 'uzsakyta' | 'sandely'. Survives Excel re-imports.
+const MAT_UNITS=['vnt','m','m²','kompl','kg','l'];
+function manualMaterialsCard(p,mgr){
+  const list=p.manualMaterials||[];
+  const pid=p.id;
+  const statusPill=(st)=>{
+    const map={reikia:['🔴','Reikia užsakyti','var(--red-t)','var(--red-bg)'],uzsakyta:['🟡','Užsakyta','var(--amber-t)','var(--amber-bg)'],sandely:['🟢','Sandėlyje','var(--green-t)','var(--green-bg)']};
+    const m=map[st]||map.reikia;
+    return '<span style="font-size:10px;font-weight:600;color:'+m[2]+';background:'+m[3]+';padding:2px 7px;border-radius:5px;white-space:nowrap">'+m[0]+' '+m[1]+'</span>';
+  };
+  const rows=list.map(m=>{
+    const statusSel=mgr?`<select onchange="setManualMatStatus('${pid}','${m.id}',this.value)" style="font-size:10px;padding:3px 6px;border-radius:5px">
+        <option value="reikia" ${m.status==='reikia'?'selected':''}>🔴 Reikia</option>
+        <option value="uzsakyta" ${m.status==='uzsakyta'?'selected':''}>🟡 Užsakyta</option>
+        <option value="sandely" ${m.status==='sandely'?'selected':''}>🟢 Sandėlyje</option>
+      </select>`:statusPill(m.status);
+    return `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 12px"><div style="font-weight:600;font-size:12px">${escHtml(m.name||'')}</div>${m.note?`<div style="font-size:10px;color:var(--hint);font-style:italic">${escHtml(m.note)}</div>`:''}</td>
+      <td style="padding:6px 12px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap">${escHtml(String(m.qty||''))} <span style="color:var(--hint);font-weight:400">${escHtml(m.unit||'')}</span></td>
+      <td style="padding:6px 12px">${statusSel}${m.status==='uzsakyta'&&m.eta?`<div style="font-size:9px;color:var(--amber-t);margin-top:2px">📅 ${escHtml(m.eta)}</div>`:''}</td>
+      ${mgr?`<td style="padding:6px 12px;text-align:right;white-space:nowrap">
+        <button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="openMaterialModal('${pid}','${m.id}')" title="Redaguoti">✏</button>
+        <button class="btn btn-sm btn-danger" style="font-size:10px;padding:3px 7px" onclick="deleteMaterial('${pid}','${m.id}')" title="Ištrinti">🗑</button>
+      </td>`:''}
+    </tr>`;
+  }).join('');
+
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px">
+      <div style="width:28px;height:28px;border-radius:7px;background:#fef3c7;display:flex;align-items:center;justify-content:center">✍️</div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:600">Rankiniu būdu pridėtos medžiagos</div><div style="font-size:10px;color:var(--muted)">Papildomos medžiagos, kurių nėra SUMMARY lape</div></div>
+      ${canEdit()?`<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="openMaterialModal('${pid}')">+ Pridėti medžiagą</button>`:''}
+    </div>
+    ${list.length?`<table class="mat-table" style="width:100%">
+      <thead><tr>
+        <th style="text-align:left">Medžiaga</th>
+        <th style="text-align:right">Kiekis</th>
+        <th style="min-width:140px">Statusas</th>
+        ${mgr?'<th style="text-align:right">Veiksmai</th>':''}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`:`<div style="padding:18px;text-align:center;color:var(--hint);font-size:11px">Dar nepridėta jokių medžiagų rankiniu būdu.</div>`}
+  </div>`;
+}
+
+function openMaterialModal(pid,mid){
+  const p=getProject(pid);if(!p)return;
+  const m=mid?(p.manualMaterials||[]).find(x=>x.id===mid):null;
+  const unitOpts=MAT_UNITS.map(u=>`<option value="${u}" ${m&&m.unit===u?'selected':''}>${u}</option>`).join('');
+  openModal(`<div class="modal-title">${m?'✏ Redaguoti medžiagą':'+ Pridėti medžiagą'} <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-field"><label class="form-label">Pavadinimas *</label>
+      <input id="mat-name" placeholder="pvz. Tvirtinimo varžtai 4×40" autofocus value="${m?escHtml(m.name||''):''}"></div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Kiekis</label>
+        <input id="mat-qty" type="number" step="any" min="0" placeholder="0" value="${m&&m.qty!=null?escHtml(String(m.qty)):''}"></div>
+      <div class="form-field"><label class="form-label">Matas</label>
+        <select id="mat-unit">${unitOpts}</select></div>
+    </div>
+    <div class="form-field"><label class="form-label">Statusas</label>
+      <select id="mat-status" onchange="document.getElementById('mat-eta-wrap').style.display=this.value==='uzsakyta'?'block':'none'">
+        <option value="reikia" ${!m||m.status==='reikia'?'selected':''}>🔴 Reikia užsakyti</option>
+        <option value="uzsakyta" ${m&&m.status==='uzsakyta'?'selected':''}>🟡 Užsakyta</option>
+        <option value="sandely" ${m&&m.status==='sandely'?'selected':''}>🟢 Sandėlyje</option>
+      </select></div>
+    <div class="form-field" id="mat-eta-wrap" style="display:${m&&m.status==='uzsakyta'?'block':'none'}"><label class="form-label">Planuojama pristatymo data</label>
+      <input id="mat-eta" type="date" value="${m?escHtml(m.eta||''):''}"></div>
+    <div class="form-field"><label class="form-label">Pastaba (neprivaloma)</label>
+      <textarea id="mat-note" style="min-height:44px" placeholder="Tiekėjas, užsakymo nr., specifikacija...">${m?escHtml(m.note||''):''}</textarea></div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeModal()">Atšaukti</button>
+      <button class="btn btn-primary" onclick="saveMaterial('${pid}','${mid||''}')">${m?'Išsaugoti':'Pridėti'}</button>
+    </div>`);
+}
+
+function saveMaterial(pid,mid){
+  const p=getProject(pid);if(!p)return;
+  const name=(document.getElementById('mat-name')?.value||'').trim();
+  if(!name){toast('Įveskite pavadinimą','error');return;}
+  const qtyRaw=(document.getElementById('mat-qty')?.value||'').trim();
+  const status=document.getElementById('mat-status')?.value||'reikia';
+  const rec={
+    name,
+    qty:qtyRaw===''?'':(parseFloat(qtyRaw.replace(',','.'))||0),
+    unit:document.getElementById('mat-unit')?.value||'vnt',
+    status,
+    eta:status==='uzsakyta'?(document.getElementById('mat-eta')?.value||''):'',
+    note:(document.getElementById('mat-note')?.value||'').trim(),
+  };
+  if(!p.manualMaterials)p.manualMaterials=[];
+  if(mid){
+    const m=p.manualMaterials.find(x=>x.id===mid);
+    if(m)Object.assign(m,rec);
+  } else {
+    p.manualMaterials.push({id:uid(),...rec});
+  }
+  closeModal();save();renderSidebar();
+  if(DB.currentView==='project'&&DB.currentProjectId===pid)renderProjectView(pid,'materials');
+  toast(mid?'✅ Medžiaga atnaujinta':'✅ Medžiaga pridėta','success');
+}
+
+function deleteMaterial(pid,mid){
+  if(!confirm('Ištrinti medžiagą?'))return;
+  const p=getProject(pid);if(!p)return;
+  p.manualMaterials=(p.manualMaterials||[]).filter(x=>x.id!==mid);
+  save();renderSidebar();
+  if(DB.currentView==='project'&&DB.currentProjectId===pid)renderProjectView(pid,'materials');
+}
+
+function setManualMatStatus(pid,mid,status){
+  const p=getProject(pid);if(!p)return;
+  const m=(p.manualMaterials||[]).find(x=>x.id===mid);
+  if(!m)return;
+  m.status=status;
+  if(status!=='uzsakyta')m.eta='';
+  save();renderSidebar();
+  if(DB.currentView==='project'&&DB.currentProjectId===pid)renderProjectView(pid,'materials');
 }
 
 // ── DRAWERS TAB ──
@@ -5804,7 +5934,7 @@ function openModal(html){
     },10);
   }
 }
-function closeModal(){document.getElementById('modal-overlay').classList.remove('open')}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');_combineSourceIds=[];_combineSourceMeta=[];_combineLineSources={};}
 function openNewProjectModal(fromOrder, presetType){
   _selColor=PROJ_COLORS[DB.projects.length%PROJ_COLORS.length];
   const fo=fromOrder||{};
@@ -5887,14 +6017,20 @@ function toggleProjectLines(pid){
     const p=getProject(pid);if(!p?.lines?.length)return;
     const header=document.querySelector(`#project-content .project-header`)||document.getElementById('project-content')?.firstElementChild;
     if(!header)return;
+    const isCombined=p.combined&&(p.sourceOrders||[]).length;
     const div=document.createElement('div');
     div.id='proj-lines-'+pid;
     div.style.cssText='margin:8px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:10px';
-    div.innerHTML=`<table style="width:100%;border-collapse:collapse">
+    // For combined projects, list the source order numbers above the table.
+    const legend=isCombined?`<div style="padding:6px 10px;background:var(--amber-bg);border-bottom:1px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;font-weight:700;color:var(--amber-t)">🔗 Sujungta iš užsakymų:</span>
+      ${p.sourceOrders.map(s=>`<span style="font-size:10px;color:var(--text)"><strong>${escHtml(s.nr)}</strong> <span style="color:var(--hint)">(prist. ${s.lo===s.hi?s.lo:s.lo+'…'+s.hi})</span></span>`).join('')}
+    </div>`:'';
+    div.innerHTML=legend+`<table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:var(--surface2)">
         <th style="padding:5px 10px;text-align:left;color:var(--muted);font-weight:600">Eil.</th>
         <th style="padding:5px 10px;text-align:left;color:var(--muted);font-weight:600">Artikulas / Aprašymas</th>
-        <th style="padding:5px 10px;text-align:right;color:var(--muted);font-weight:600">Kiekis</th>
+        <th style="padding:5px 10px;text-align:right;color:var(--muted);font-weight:600">${isCombined?'Σ Kiekis':'Kiekis'}</th>
         <th style="padding:5px 10px;text-align:right;color:var(--muted);font-weight:600;white-space:nowrap">Prist. data</th>
       </tr></thead>
       <tbody>${p.lines.map((l,i)=>`<tr style="border-top:1px solid var(--border)">
@@ -5993,6 +6129,31 @@ async function createProject(fromOrderId){
     const o=(DB.orders||[]).find(x=>x.id===fromOrderId);
     if(o?.lines)lines=o.lines.map(l=>({...l,qtyDone:0}));
   }
+  // If this is a COMBINED order, the modal showed positions read-only (not editable
+  // inputs), so rebuild the merged lines from the combine state, attaching the
+  // per-source-order breakdown so the project can show "264 (110335) + 200 (110340)".
+  if(!lines.length&&_combineSourceIds.length&&Object.keys(_combineLineSources).length){
+    // Build art-key → description map from the source orders.
+    const descByKey={};
+    (DB.orders||[]).filter(o=>_combineSourceIds.includes(o.id)).forEach(o=>{
+      (o.lines||[]).forEach(l=>{
+        const k=String(l.art||'').trim().toUpperCase()||('~'+String(l.desc||'').trim().toUpperCase());
+        if(!descByKey[k]&&l.desc)descByKey[k]=l.desc;
+      });
+    });
+    lines=Object.entries(_combineLineSources).map(([key,srcs])=>{
+      const total=srcs.reduce((s,x)=>s+(x.qtyNum||parseFloat(String(x.qty).replace(/[^\d.,]/g,'').replace(',','.'))||0),0);
+      let date='';srcs.forEach(x=>{if(x.date&&(!date||x.date<date))date=x.date;});
+      return {
+        art:(key.startsWith('~')?'':key)||(srcs[0]&&srcs[0].art)||'',
+        desc:descByKey[key]||'',
+        qty:String(total).replace(/\.0+$/,''),
+        date,
+        sources:srcs.map(x=>({oid:x.oid,nr:x.nr,qty:x.qty,date:x.date})),
+        qtyDone:0,
+      };
+    });
+  }
 
   const isDesign=type==='projektavimas'||isEngineer();
   const p={
@@ -6039,7 +6200,19 @@ async function createProject(fromOrderId){
   }
 
   DB.projects.push(p);
-  if(fromOrderId&&fromOrderId!==''){const o=(DB.orders||[]).find(x=>x.id===fromOrderId);if(o)o.status='converted';}
+  if(fromOrderId&&fromOrderId!==''){const o=(DB.orders||[]).find(x=>x.id===fromOrderId);if(o){o.status='converted';o.projectId=p.id;}}
+  // If this project was created by combining several orders, mark them all converted
+  // and link them to the new project, then clear the combine state.
+  if(_combineSourceIds&&_combineSourceIds.length){
+    _combineSourceIds.forEach(cid=>{
+      const co=(DB.orders||[]).find(x=>x.id===cid);
+      if(co){co.status='converted';co.projectId=p.id;}
+    });
+    p.sourceOrderIds=_combineSourceIds.slice();
+    p.sourceOrders=_combineSourceMeta.slice(); // [{oid,nr,color,lo,hi}]
+    p.combined=true;
+    _combineSourceIds=[];_combineSourceMeta=[];_combineLineSources={};
+  }
   // Save immediately and wait for it to complete BEFORE closing modal/navigating
   _isSaving=true;
   _lastSavedAt=Date.now(); // block auto-refresh
@@ -6845,8 +7018,9 @@ function renderAllProjects(){
     const leftBorder=isDesign?'border-left:3px solid #6366f1;':isPaslauga?'border-left:3px solid var(--amber-t);':'border-left:3px solid '+p.color+';';
 
     const iconEl = isDesign?'📐':isPaslauga?'⚡':initials(p.name);
+    const combinedTag = (p.combined&&(p.sourceOrders||[]).length)?'<span style="font-size:8px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);border:1px solid var(--amber-t);padding:0 4px;border-radius:4px;margin-left:5px" title="Sujungta iš: '+escHtml((p.sourceOrders||[]).map(s=>s.nr).join(', '))+'">🔗 '+p.sourceOrders.length+' užs.</span>':'';
     const subBadge = isDesign?'<div style="font-size:9px;color:#4338ca;font-weight:600">📐 Projektavimas</div>'
-                   : isPaslauga?'<div style="font-size:9px;color:var(--amber-t);font-weight:600">⚡ Paslauga</div>':'';
+                   : isPaslauga?'<div style="font-size:9px;color:var(--amber-t);font-weight:600">⚡ Paslauga'+combinedTag+'</div>':'';
 
     return'<tr style="background:'+rowBg+';border-bottom:1px solid var(--border);'+leftBorder+'cursor:pointer" onclick="showView(\'project\',\''+p.id+'\')" onmouseover="this.style.background=\'var(--blue-bg)\'" onmouseout="this.style.background=\''+rowBg+'\'">'
       // Icon + Name
@@ -7150,9 +7324,13 @@ function renderOrders(){
   const headerStyle='padding:9px 10px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none';
   const sortHeader=(field,label)=>'<th style="'+headerStyle+'" onclick="setOrdSort(\''+field+'\')">'+label+'<span style="color:var(--blue-t);font-size:10px">'+arrow(field)+'</span></th>';
 
+  // Combine suggestions (shown on filters where pending orders are visible)
+  const combineHtml=(_ordFilter==='all'||_ordFilter==='pending')?_combineSuggestHtml():'';
+
   el.innerHTML=
+    combineHtml
     // Controls bar
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">'
     +'<div style="position:relative;flex:1;min-width:200px;max-width:340px">'
     +'<input type="text" placeholder="🔍 Paieška pagal nr., klientą, aprašymą..." value="'+escHtml(_ordSearch)+'" oninput="setOrdSearch(this.value)" style="width:100%;padding:7px 10px 7px 10px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--surface)">'
     +(_ordSearch?'<span onclick="setOrdSearch(\'\')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--hint);font-size:14px">✕</span>':'')
@@ -7628,11 +7806,39 @@ function _openImportPreviewModal(orders){
 
   openModal(`<div class="modal-title">📥 Importuoti iš failo <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Rasta <strong>${orders.length}</strong> užsakym(-as/-ai) su <strong>${totalLines}</strong> pozicijomis. Patikrinkite ir patvirtinkite.</div>
+    ${_importCombineNoticeHtml(orders)}
     <div style="max-height:50vh;overflow-y:auto;padding-right:4px">${blocks}</div>
     <div class="form-actions" style="margin-top:14px">
       <button class="btn" onclick="closeModal()">Atšaukti</button>
       <button class="btn btn-primary" onclick="confirmImportOrders()">✅ Sukurti užsakymus</button>
     </div>`);
+}
+
+// If any order being imported shares its positions with an EXISTING pending,
+// unlinked order (and delivery dates are close), show a heads-up in the preview
+// so the user knows they'll be able to combine right after creating them.
+function _importCombineNoticeHtml(incoming){
+  const pend=(DB.orders||[]).filter(o=>o.status==='pending'&&!o.projectId&&(o.lines||[]).length);
+  const matches=[];
+  incoming.forEach(inc=>{
+    const incKey=_orderPositionKey(inc);
+    if(!incKey)return;
+    pend.forEach(ex=>{
+      if(_orderPositionKey(ex)!==incKey)return;
+      const a=_orderDelivRange(inc), b=_orderDelivRange(ex);
+      const lo=[a.lo,b.lo].filter(Boolean).sort()[0]||'';
+      const hi=[a.hi,b.hi].filter(Boolean).sort().slice(-1)[0]||'';
+      const within=_daysBetween(lo,hi)<=_combineWindowDays;
+      matches.push({inc:inc.orderNr||inc.name, ex:ex.orderNr||ex.name, within, lo, hi});
+    });
+  });
+  if(!matches.length)return '';
+  const items=matches.map(m=>'<div style="font-size:10px;color:var(--amber-t);line-height:1.6">• <strong>'+escHtml(m.inc)+'</strong> turi tas pačias pozicijas kaip jau esantis <strong>'+escHtml(m.ex)+'</strong>'+(m.within?' — pristatymai artimi ('+escHtml(m.lo)+'…'+escHtml(m.hi)+'), galima sujungti.':' — pristatymai per toli vienas nuo kito, kol kas nesujungiama.')+'</div>').join('');
+  return '<div style="border:1px solid var(--amber-t);background:var(--amber-bg);border-radius:8px;padding:10px 12px;margin-bottom:12px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--amber-t);margin-bottom:5px">💡 Pasikartojantis užsakymas</div>'
+    +items
+    +'<div style="font-size:10px;color:var(--amber-t);opacity:.85;margin-top:6px">Sukūrę užsakymus, sąraše viršuje matysite pasiūlymą <strong>„Sujungti į Paslaugą"</strong>.</div>'
+    +'</div>';
 }
 
 function confirmImportOrders(){
@@ -8105,6 +8311,243 @@ function convertOrder(oid){
   openNewProjectModal(o);
 }
 function deleteOrder(oid){if(!confirm('Ištrinti užsakymą?'))return;DB.orders=(DB.orders||[]).filter(x=>x.id!==oid);save();renderOrders();renderSidebar();}
+
+// ══════════════════════════════════════════════
+// COMBINE SUGGESTIONS — group repeated orders with the same positions
+// Stansefabrikken re-orders the "same" parts again and again; only the
+// delivery date changes. When two (or more) pending orders share the same set
+// of article numbers and their delivery dates are close together, suggest
+// combining them into a single Paslauga so material is procured once for all.
+// ══════════════════════════════════════════════
+
+// How many days apart deliveries may be and still be combinable.
+let _combineWindowDays = 14;
+// Source order ids carried through createProject so all get marked converted.
+let _combineSourceIds = [];
+// Source-order metadata (number + color + delivery range) carried into createProject
+// so the combined Paslauga can show which orders it was built from.
+let _combineSourceMeta = [];
+// Per-article source breakdown {articleKey: [{nr,qty,...}]} for the positions table.
+let _combineLineSources = {};
+
+// A stable signature of an order's positions = its set of article numbers
+// (falls back to normalized descriptions when an article number is missing).
+function _orderPositionKey(o){
+  const arts=(o.lines||[])
+    .map(l=>String(l.art||'').trim().toUpperCase() || ('~'+String(l.desc||'').trim().toUpperCase().replace(/\s+/g,' ')))
+    .filter(Boolean);
+  if(!arts.length)return '';
+  return Array.from(new Set(arts)).sort().join('|');
+}
+
+// Earliest / latest delivery date among an order's lines (fallback to deadline).
+function _orderDelivRange(o){
+  const ds=(o.lines||[]).map(l=>l.date).filter(Boolean).sort();
+  const lo=ds[0]||o.deadline||'';
+  const hi=ds[ds.length-1]||o.deadline||lo;
+  return {lo,hi};
+}
+function _daysBetween(a,b){
+  if(!a||!b)return 9999;
+  return Math.abs(Math.round((new Date(a)-new Date(b))/86400000));
+}
+
+// Find groups of 2+ pending, unlinked orders that share the same positions and
+// whose delivery dates all fall within _combineWindowDays of each other.
+function _findCombineSuggestions(){
+  const pend=(DB.orders||[]).filter(o=>o.status==='pending'&&!o.projectId&&(o.lines||[]).length);
+  // Bucket by identical position signature.
+  const buckets={};
+  pend.forEach(o=>{
+    const key=_orderPositionKey(o);
+    if(!key)return;
+    (buckets[key]=buckets[key]||[]).push(o);
+  });
+  const groups=[];
+  Object.values(buckets).forEach(list=>{
+    if(list.length<2)return;
+    // Sort by earliest delivery, then greedily cluster: an order joins the current
+    // cluster when its delivery range is within the window of the PREVIOUS order's
+    // range (consecutive gap), which is what matters for buying material together —
+    // not the total span of the whole cluster.
+    const sorted=list.slice().sort((a,b)=>(_orderDelivRange(a).lo||'9999').localeCompare(_orderDelivRange(b).lo||'9999'));
+    let cluster=[];
+    let prevRange=null;
+    const flush=()=>{ if(cluster.length>=2)groups.push(cluster.slice()); cluster=[]; prevRange=null; };
+    sorted.forEach(o=>{
+      const r=_orderDelivRange(o);
+      if(!cluster.length){cluster=[o];prevRange=r;return;}
+      // Gap between the previous order's latest delivery and this order's earliest.
+      const gap=_daysBetween(prevRange.hi||prevRange.lo, r.lo||r.hi);
+      if(gap<=_combineWindowDays){
+        cluster.push(o);
+        // Advance the reference range so the next gap is measured from this order.
+        prevRange=r;
+      } else { flush(); cluster=[o];prevRange=r; }
+    });
+    flush();
+  });
+  return groups;
+}
+
+// Merge a group of orders into one virtual order object suitable for
+// openNewProjectModal: positions are summed per article, deadline = earliest.
+function _mergeOrders(group){
+  const byArt={};
+  const order=[];
+  group.forEach(o=>{
+    (o.lines||[]).forEach(l=>{
+      const key=String(l.art||'').trim().toUpperCase()||('~'+String(l.desc||'').trim().toUpperCase());
+      if(!byArt[key]){byArt[key]={art:l.art||'',desc:l.desc||'',qty:0,date:l.date||'',sources:[]};order.push(key);}
+      const m=byArt[key];
+      const q=parseFloat(String(l.qty).replace(/[^\d.,]/g,'').replace(',','.'))||0;
+      m.qty+=q;
+      m.sources.push({oid:o.id, nr:o.orderNr||o.name, qty:l.qty, qtyNum:q, date:l.date});
+      // Keep the earliest delivery date as the line's date.
+      if(l.date&&(!m.date||l.date<m.date))m.date=l.date;
+    });
+  });
+  const lines=order.map(k=>{
+    const m=byArt[k];
+    // Keep per-order breakdown on the line so the UI can show "264 (110335) + 200 (110340)".
+    return {art:m.art,desc:m.desc,qty:String(m.qty).replace(/\.0+$/,''),date:m.date,sources:m.sources};
+  });
+  // Earliest delivery across the whole group = the combined deadline (most urgent wins).
+  let deadline='';
+  group.forEach(o=>{const lo=_orderDelivRange(o).lo;if(lo&&(!deadline||lo<deadline))deadline=lo;});
+  const nrs=group.map(o=>o.orderNr).filter(Boolean);
+  const client=group[0].client||'';
+  const name=(nrs.length?nrs.join(' + '):'Sujungtas')+(client?' — '+client:'');
+  // A stable color per source order, used for the dots in the positions table.
+  const sourceOrders=group.map((o,i)=>{
+    const {lo,hi}=_orderDelivRange(o);
+    return {oid:o.id, nr:o.orderNr||o.name, color:ORDER_COMBINE_COLORS[i%ORDER_COMBINE_COLORS.length], lo, hi};
+  });
+  const noteLines=sourceOrders.map(s=>'• '+s.nr+' (prist. '+(s.lo===s.hi?s.lo:s.lo+'…'+s.hi)+')');
+  return {
+    name, client, deadline,
+    lines,
+    sourceOrders,
+    notes:'Sujungta iš '+group.length+' užsakymų:\n'+noteLines.join('\n'),
+    _combineIds:group.map(o=>o.id),
+  };
+}
+
+// Distinct, legible colors for source-order dots in combined Paslaugos.
+const ORDER_COMBINE_COLORS=['#2563eb','#d97706','#059669','#7c3aed','#dc2626','#0891b2','#ca8a04','#db2777'];
+
+// Small colored dot for a source order.
+function _srcDot(color){return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;vertical-align:middle"></span>';}
+
+// Map a project's source order id → its assigned color (for the positions table).
+function _projSourceColor(p,oid){
+  const s=(p.sourceOrders||[]).find(x=>x.oid===oid);
+  return s?s.color:'var(--hint)';
+}
+function _projSourceNr(p,oid){
+  const s=(p.sourceOrders||[]).find(x=>x.oid===oid);
+  return s?s.nr:'?';
+}
+
+// "🔗 Sujungta" badge showing each source order number.
+function combinedBadgeHtml(p){
+  if(!p||!p.combined||!(p.sourceOrders||[]).length)return '';
+  const nrs=p.sourceOrders.map(s=>escHtml(s.nr));
+  const titleNrs=p.sourceOrders.map(s=>s.nr).join(', ');
+  return '<span class="badge" style="cursor:pointer;background:var(--amber-bg);color:var(--amber-t);border:1px solid var(--amber-t)" '
+    +'onclick="toggleProjectLines(\''+p.id+'\')" title="Sujungta iš užsakymų: '+escHtml(titleNrs)+'">'
+    +'🔗 Sujungta: '+nrs.join(' + ')+'</span>';
+}
+
+// Open the Paslauga creation modal pre-filled with the merged positions.
+function combineOrdersToPaslauga(ids){
+  const group=(DB.orders||[]).filter(o=>ids.includes(o.id));
+  if(group.length<2){toast('Reikia bent dviejų užsakymų','error');return;}
+  const merged=_mergeOrders(group);
+  closeModal();
+  // Set AFTER closeModal (which clears combine state) so the IDs survive into createProject.
+  _combineSourceIds=merged._combineIds.slice();
+  _combineSourceMeta=merged.sourceOrders.slice();
+  // Keep the per-line breakdown so it can be persisted onto the project lines.
+  _combineLineSources={};
+  merged.lines.forEach(l=>{const key=String(l.art||'').trim().toUpperCase()||('~'+String(l.desc||'').trim().toUpperCase());_combineLineSources[key]=l.sources;});
+  openNewProjectModal(merged,'paslauga');
+}
+
+// Build the suggestion banner shown above the orders table.
+function _combineSuggestHtml(){
+  const groups=_findCombineSuggestions();
+  if(!groups.length)return '';
+  const cards=groups.map(g=>{
+    const ids=g.map(o=>o.id);
+    const nrs=g.map(o=>escHtml(o.orderNr||o.name||'?'));
+    const posKey=_orderPositionKey(g[0]);
+    const posCount=posKey?posKey.split('|').length:0;
+    // Delivery spread for the whole group.
+    let lo='',hi='';
+    g.forEach(o=>{const r=_orderDelivRange(o);if(r.lo&&(!lo||r.lo<lo))lo=r.lo;if(r.hi&&(!hi||r.hi>hi))hi=r.hi;});
+    const spread=_daysBetween(lo,hi);
+    const idsJson=encodeURIComponent(JSON.stringify(ids));
+    const totalQty=(()=>{
+      const merged=_mergeOrders(g);
+      return merged.lines.reduce((s,l)=>s+(parseFloat(String(l.qty).replace(',','.'))||0),0);
+    })();
+    return '<div style="border:1px solid var(--amber-t);background:var(--surface);border-radius:9px;padding:11px 13px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:200px">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px">⚡ '+nrs.join(' <span style="color:var(--amber-t)">+</span> ')+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);line-height:1.6">'
+          +'Tos pačios <strong>'+posCount+'</strong> pozicijos · pristatymai '
+          +'<span style="font-family:var(--mono)">'+(lo===hi?lo:lo+' … '+hi)+'</span>'
+          +' <span style="color:var(--hint)">(skirtumas '+spread+' d.)</span>'
+          +' · bendras kiekis <strong>'+String(totalQty).replace(/\.0+$/,'')+'</strong>'
+        +'</div>'
+      +'</div>'
+      +'<button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="combineOrdersToPaslauga(JSON.parse(decodeURIComponent(\''+idsJson+'\')))">⚡ Sujungti į Paslaugą</button>'
+      +'<button class="btn btn-sm" style="white-space:nowrap" onclick="previewCombineGroup(JSON.parse(decodeURIComponent(\''+idsJson+'\')))" title="Peržiūrėti sujungtas pozicijas">👁</button>'
+      +'</div>';
+  }).join('');
+  return '<div style="border:1px solid var(--amber-t);background:var(--amber-bg);border-radius:var(--rl);padding:12px 14px;margin-bottom:14px">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+      +'<span style="font-size:13px;font-weight:700;color:var(--amber-t)">💡 Galima sujungti užsakymus</span>'
+      +'<span style="font-size:10px;color:var(--amber-t);opacity:.8">— tos pačios pozicijos, artimi pristatymo terminai. Sujungus medžiagas užsakysite vieną kartą abiem.</span>'
+      +'<span style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10px;color:var(--amber-t)">'
+        +'Terminų langas: '
+        +'<select onchange="_combineWindowDays=parseInt(this.value);renderOrders()" style="font-size:10px;padding:2px 4px;border:1px solid var(--amber-t);border-radius:5px;background:var(--surface);color:var(--text)">'
+        +[7,14,21,30].map(d=>'<option value="'+d+'"'+(d===_combineWindowDays?' selected':'')+'>'+d+' d.</option>').join('')
+        +'</select>'
+      +'</span>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px">'+cards+'</div>'
+    +'</div>';
+}
+
+// Read-only preview of what the merged Paslauga positions would look like.
+function previewCombineGroup(ids){
+  const group=(DB.orders||[]).filter(o=>ids.includes(o.id));
+  if(group.length<2)return;
+  const merged=_mergeOrders(group);
+  const rowsHtml=merged.lines.map((l,i)=>'<tr style="border-top:1px solid var(--border)">'
+    +'<td style="padding:4px 8px;color:var(--hint)">'+(i+1)+'</td>'
+    +'<td style="padding:4px 8px;font-family:var(--mono);color:var(--blue-t);font-weight:600">'+escHtml(l.art||'')+'</td>'
+    +'<td style="padding:4px 8px">'+escHtml(l.desc||'')+'</td>'
+    +'<td style="padding:4px 8px;text-align:right;font-weight:700">'+escHtml(String(l.qty||''))+'</td>'
+    +'<td style="padding:4px 8px;text-align:right;color:var(--hint);white-space:nowrap">'+(l.date||'')+'</td>'
+    +'</tr>').join('');
+  const srcHtml=group.map(o=>{
+    const {lo,hi}=_orderDelivRange(o);
+    return '<div style="font-size:10px;color:var(--muted)">• <strong>'+escHtml(o.orderNr||o.name)+'</strong> — '+(o.lines||[]).length+' poz., prist. <span style="font-family:var(--mono)">'+(lo===hi?lo:lo+'…'+hi)+'</span></div>';
+  }).join('');
+  const idsJson=encodeURIComponent(JSON.stringify(ids));
+  openModal('<div class="modal-title">👁 Sujungtos pozicijos <button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Sujungus '+group.length+' užsakymus, kiekiai sumuojami pagal artikulą. Bendras terminas — anksčiausias pristatymas (<strong>'+escHtml(merged.deadline||'—')+'</strong>).</div>'
+    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-bottom:10px">'+srcHtml+'</div>'
+    +'<div style="border:1px solid var(--border);border-radius:7px;overflow:hidden">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:10px">'
+    +'<thead><tr style="background:var(--surface2)"><th style="padding:4px 8px;text-align:left;color:var(--muted)">#</th><th style="padding:4px 8px;text-align:left;color:var(--muted)">Artikulas</th><th style="padding:4px 8px;text-align:left;color:var(--muted)">Aprašymas</th><th style="padding:4px 8px;text-align:right;color:var(--muted)">Σ Kiekis</th><th style="padding:4px 8px;text-align:right;color:var(--muted)">Anksč. prist.</th></tr></thead>'
+    +'<tbody>'+rowsHtml+'</tbody></table></div>'
+    +'<div class="form-actions" style="margin-top:14px"><button class="btn" onclick="closeModal()">Uždaryti</button>'
+    +'<button class="btn btn-primary" onclick="combineOrdersToPaslauga(JSON.parse(decodeURIComponent(\''+idsJson+'\')))">⚡ Sujungti į Paslaugą</button></div>');
+}
 
 // ══════════════════════════════════════════════
 // TEAM VIEW — add/edit/remove members + step defaults
