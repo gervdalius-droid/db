@@ -6868,11 +6868,21 @@ function renderDesignProjects(){
   ];
   const cards=all.sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')).map(p=>{
     const owner=getUser(p.owner);
-    const tasks=projTasks(p.id);
+    // In the Projektavimas view, only count DESIGN-phase tasks. A design project may
+    // also carry production tasks (e.g. created on a later transition or from legacy
+    // data); those must NOT drive the "dabartinis žingsnis" or the progress bar here.
+    const designStepIds=new Set(DESIGN_STEPS.map(s=>s.id));
+    const allProjTasks=projTasks(p.id);
+    const tasks=allProjTasks.filter(t=>designStepIds.has(t.stepId));
     const done=tasks.filter(t=>t.status==='done').length;
     const pct=tasks.length?Math.round(done/tasks.length*100):0;
-    const cur=tasks.find(t=>t.status==='in-progress')||tasks.find(t=>t.status!=='done');
-    const curStep=cur?getStep(cur.stepId):null;
+    // Current design step: first in-progress design task, else first not-done design
+    // task, following the canonical DESIGN_STEPS order rather than task array order.
+    const designOrder=DESIGN_STEPS.map(s=>s.id);
+    const orderedTasks=tasks.slice().sort((a,b)=>designOrder.indexOf(a.stepId)-designOrder.indexOf(b.stepId));
+    const cur=orderedTasks.find(t=>t.status==='in-progress')||orderedTasks.find(t=>t.status!=='done');
+    // Resolve strictly against DESIGN_STEPS so it can never fall back to a production step.
+    const curStep=cur?(DESIGN_STEPS.find(s=>s.id===cur.stepId)||null):null;
     const dl=p.deadline?daysUntilDeadline(p.deadline):null;
     const dlText=p.deadline?(dl<0?'⚠ Vėluoja '+(-dl)+' d.':dl===0?'🔴 Šiandien':dl===1?'🟠 Rytoj':dl+' d.'):'—';
     const dlColor=dl===null?'var(--hint)':dl<0?'var(--red-t)':dl<3?'var(--amber-t)':'var(--text)';
@@ -6996,15 +7006,21 @@ function renderAllProjects(){
   const isPaslaugaCat = _projFilter.category==='paslauga';
 
   const rows=filtered.map((p,idx)=>{
-    const tasks=projTasks(p.id);
-    const pct=projProgress(p.id);
+    const isPaslauga=p.type==='paslauga';
+    const isDesign=p.designStatus==='design';
+    // For design projects, restrict status/current-step to DESIGN steps so it never
+    // shows a production step (e.g. Pjovimas) by mistake.
+    const designStepIds=new Set(DESIGN_STEPS.map(s=>s.id));
+    const allTasks=projTasks(p.id);
+    const tasks=isDesign?allTasks.filter(t=>designStepIds.has(t.stepId)):allTasks;
+    const pct=isDesign?(tasks.length?Math.round(tasks.filter(t=>t.status==='done').length/tasks.length*100):0):projProgress(p.id);
     const inProg=tasks.filter(t=>t.status==='in-progress');
-    const curStep=inProg[0]?getStep(inProg[0].stepId):null;
+    const curStep=isDesign
+      ? (inProg[0]?DESIGN_STEPS.find(s=>s.id===inProg[0].stepId):null)
+      : (inProg[0]?getStep(inProg[0].stepId):null);
     const doneTasks=tasks.filter(t=>t.status==='done').length;
     const dlDays=p.deadline?daysUntilDeadline(p.deadline):null;
     const dlColor=dlDays===null?'var(--hint)':dlDays<0?'var(--red-t)':dlDays<3?'var(--amber-t)':dlDays<7?'var(--text)':'var(--muted)';
-    const isPaslauga=p.type==='paslauga';
-    const isDesign=p.designStatus==='design';
     const allDone=tasks.length&&doneTasks===tasks.length;
     const statusBadge=p.status==='archived'?'<span style="font-size:10px;color:var(--hint)">📦 Archyvuotas</span>'
       :allDone?'<span style="font-size:10px;color:var(--green-t);font-weight:600">✅ Baigtas</span>'
