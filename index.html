@@ -77,7 +77,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .nav-item.active{color:var(--blue-t);background:var(--blue-bg);font-weight:500}
 .nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--blue)}
 .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0}
-.nav-badge{margin-left:auto;font-size:9px;font-family:var(--mono);background:var(--red);color:#fff;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center}
+.nav-badge{margin-left:auto;font-size:9px;font-family:var(--mono);background:var(--surface3);color:var(--muted);border-radius:10px;padding:1px 5px;min-width:16px;text-align:center}
+.nav-badge.critical{background:var(--red);color:#fff}
+.nav-badge.info{background:var(--blue);color:#fff}
 .proj-item{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .12s}
 .proj-item:hover{color:var(--text);background:var(--surface2)}
 .proj-item.active{color:var(--text);font-weight:500;background:var(--surface2)}
@@ -245,6 +247,21 @@ span.in-progress-text{color:var(--blue-t)}
 .sg-task-mats{font-size:9px;color:var(--hint);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .sg-empty{font-size:11px;color:var(--hint);text-align:center;padding:14px 8px}
 .sg-add{width:100%;justify-content:center;margin-top:6px;font-size:10px;padding:4px}
+.sg-parts{margin-top:5px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface2)}
+.sg-parts-hd{font-size:8.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;padding:3px 7px;background:var(--surface3)}
+.sg-part-row{display:flex;justify-content:space-between;gap:6px;font-size:9.5px;padding:2px 7px;border-top:1px solid var(--border)}
+.sg-part-art{font-family:var(--mono);color:var(--blue-t);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sg-part-desc{color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.sg-part-qty{font-family:var(--mono);font-weight:700;flex-shrink:0}
+.sg-log{margin-top:8px;border-top:1px dashed var(--border);padding-top:6px}
+.sg-log-head{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;padding:3px 2px;user-select:none}
+.sg-log-head:hover{color:var(--text)}
+.sg-log-count{margin-left:auto;background:var(--surface3);color:var(--muted);border-radius:8px;padding:0 6px;font-size:9px;font-family:var(--mono)}
+.sg-log-body{margin-top:4px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px}
+.sg-log-row{display:flex;gap:6px;align-items:flex-start;font-size:10px}
+.sg-log-main{flex:1;min-width:0}
+.sg-log-line{line-height:1.35;color:var(--text)}
+.sg-log-meta{font-size:9px;color:var(--hint);font-family:var(--mono);line-height:1.3;word-break:break-word}
 /* Status pill on task */
 .sg-pill{font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap}
 .sg-pill.pending{background:var(--surface3);color:var(--muted)}
@@ -708,13 +725,13 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
         <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-design" onclick="showView('design')"><span class="nav-icon">📐</span>Projektavimas<span class="nav-badge" id="design-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
-        <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge" id="mat-badge" style="display:none">!</span></div>
-        <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge" id="wh-badge" style="display:none;background:var(--blue)">0</span></div>
+        <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge critical" id="mat-badge" style="display:none">!</span></div>
+        <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge info" id="wh-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span>Grafikas / Lean</div>
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
         <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span>Disciplina (4DX)</div>
         <div class="nav-item" id="nav-report" onclick="showView('report')"><span class="nav-icon">📊</span>Ataskaita</div>
-        <div class="nav-item" id="nav-notifs" onclick="showView('notifs')"><span class="nav-icon">🔔</span>Pranešimai<span class="nav-badge" id="notif-badge" style="display:none">0</span></div>
+        <div class="nav-item" id="nav-notifs" onclick="showView('notifs')"><span class="nav-icon">🔔</span>Pranešimai<span class="nav-badge info" id="notif-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-import" onclick="showView('import')"><span class="nav-icon">📥</span>Importuoti Excel</div>
         <div class="nav-item" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
@@ -2404,6 +2421,7 @@ function renderKanban(pid){
         ${stepTasks.length?stepTasks.map(t=>taskCardHtml(t,pid,s.id)).join('')
         :`<div class="sg-empty">Nėra užduočių</div>`}
         <button class="btn sg-add" onclick="openAddTaskModal('${pid}','${s.id}')">+ Pridėti</button>
+        ${stepLogHtml(pid,s.id)}
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -5773,6 +5791,101 @@ function advanceTask(tid){
 function addNotif(type,title,sub,pid,userId){DB.notifications.unshift({id:uid(),type,title,sub,time:new Date().toISOString(),read:false,projectId:pid,userId:userId||null});renderSidebar()}
 
 // Patch a single kanban column in-place (no scroll jump)
+// ══════════════════════════════════════════════
+// ACTIVITY LOG (žurnalas) — who completed / changed what, per step
+// ══════════════════════════════════════════════
+// Exact local date + time, e.g. "2026-05-29 14:32"
+function fmtDateTime(iso){
+  if(!iso)return '—';
+  return new Date(iso).toLocaleString('lt-LT',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+// Human duration from milliseconds, e.g. "1 val. 38 min." / "2 d. 3 val."
+function fmtDuration(ms){
+  if(ms==null||isNaN(ms)||ms<0)return '';
+  const min=Math.round(ms/60000);
+  if(min<1)return '<1 min.';
+  if(min<60)return min+' min.';
+  const h=Math.floor(min/60), m=min%60;
+  if(h<24)return h+' val.'+(m?' '+m+' min.':'');
+  const d=Math.floor(h/24), hh=h%24;
+  return d+' d.'+(hh?' '+hh+' val.':'');
+}
+// Append an entry to a task's timeLog. Quantity edits by the same user on the
+// same task within 5 min are coalesced into one entry so rapid +/- clicks
+// don't flood the log.
+function pushLog(t, ev){
+  if(!t)return;
+  if(!t.timeLog)t.timeLog=[];
+  ev.at=ev.at||new Date().toISOString();
+  if(ev.by===undefined)ev.by=DB.currentUserId;
+  if(ev.event==='qty'){
+    const last=t.timeLog[t.timeLog.length-1];
+    if(last&&last.event==='qty'&&last.by===ev.by&&(new Date(ev.at)-new Date(last.at))<300000){
+      last.done=ev.done;last.ordered=ev.ordered;last.at=ev.at;return;
+    }
+  }
+  t.timeLog.push(ev);
+}
+function logEntryText(e){
+  switch(e.event){
+    case 'created':        return '✨ sukūrė užduotį';
+    case 'started':        return '🔄 pradėjo darbą';
+    case 'completed':      return '✅ užbaigė žingsnį';
+    case 'auto-completed': return '✅ žingsnis užbaigtas automatiškai';
+    case 'reopened':       return '↩️ vėl atidarė';
+    case 'moved':          return '↔️ perkėlė: '+(getStep(e.from)?.label||e.from)+' → '+(getStep(e.to)?.label||e.to);
+    case 'status':         return '🔁 statusas → '+({pending:'Laukia','in-progress':'Vykdoma',done:'Atlikta'}[e.to]||e.to);
+    case 'qty':            return '📊 kiekis → '+(e.done)+'/'+(e.ordered)+' vnt.';
+    case 'assign-add':     return '👤 priskyrė: '+(getUser(e.who)?.name||'?');
+    case 'assign-remove':  return '👥 pašalino: '+(getUser(e.who)?.name||'?');
+    case 'blocker-set':    return '🚫 pažymėjo bloką: '+escHtml(e.text||'');
+    case 'blocker-clear':  return '✅ pašalino bloką';
+    case 'material-add':   return '📦 pridėjo medžiagą: '+escHtml(e.text||'');
+    case 'material-remove':return '🗑️ pašalino medžiagą: '+escHtml(e.text||'');
+    case 'deadline':       return '📅 terminas → '+(e.to||'—');
+    default:               return escHtml(e.event||'pakeitimas');
+  }
+}
+// Collapsible log of all activity on tasks belonging to one step column
+function stepLogHtml(pid, stepId){
+  const tasks=projTasks(pid).filter(t=>t.stepId===stepId);
+  const entries=[];
+  tasks.forEach(t=>(t.timeLog||[]).forEach(e=>entries.push({e,task:t})));
+  if(!entries.length)return '';
+  entries.sort((a,b)=>new Date(b.e.at)-new Date(a.e.at));
+  const rows=entries.slice(0,40).map(({e,task})=>{
+    const u=getUser(e.by);
+    // Duration for completion events: time since the matching 'started' entry
+    let durTxt='';
+    if(e.event==='completed'||e.event==='auto-completed'){
+      const log=task.timeLog||[];
+      const idx=log.indexOf(e);
+      let startAt=null;
+      for(let i=idx-1;i>=0;i--){ if(log[i].event==='started'){startAt=log[i].at;break;} }
+      if(!startAt) startAt=task.startedAt;
+      const dur=startAt?fmtDuration(new Date(e.at)-new Date(startAt)):'';
+      if(dur) durTxt=' · ⏱ truko '+dur;
+    }
+    const meta=escHtml(task.name)+' · '+fmtDateTime(e.at)+durTxt;
+    return '<div class="sg-log-row">'+ava(e.by,16)
+      +'<div class="sg-log-main"><div class="sg-log-line"><strong>'+escHtml(u.name)+'</strong> '+logEntryText(e)+'</div>'
+      +'<div class="sg-log-meta">'+meta+'</div></div></div>';
+  }).join('');
+  const id='log-'+pid+'-'+stepId;
+  return '<div class="sg-log">'
+    +'<div class="sg-log-head" onclick="event.stopPropagation();toggleStepLog(\''+id+'\')">'
+    +'<span id="'+id+'-caret" style="transition:transform .15s;display:inline-block">▸</span>'
+    +'<span>📋 Žurnalas</span><span class="sg-log-count">'+entries.length+'</span></div>'
+    +'<div id="'+id+'" class="sg-log-body" style="display:none">'+rows+'</div></div>';
+}
+function toggleStepLog(id){
+  const b=document.getElementById(id);const c=document.getElementById(id+'-caret');
+  if(!b)return;
+  const open=b.style.display!=='none';
+  b.style.display=open?'none':'block';
+  if(c)c.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+}
+
 function patchKanbanColumn(pid, stepId){
   const colEl=document.getElementById('sgcol-'+stepId);
   if(!colEl)return;
@@ -5797,7 +5910,8 @@ function patchKanbanColumn(pid, stepId){
   const body=colEl.querySelector('.sg-body');
   if(!body)return;
   body.innerHTML=(stepTasks.length?stepTasks.map(t=>taskCardHtml(t,pid,stepId)).join(''):`<div class="sg-empty">Nėra užduočių</div>`)
-  +`<button class="btn sg-add" onclick="openAddTaskModal('${pid}','${stepId}')">+ Pridėti</button>`;
+  +`<button class="btn sg-add" onclick="openAddTaskModal('${pid}','${stepId}')">+ Pridėti</button>`
+  +stepLogHtml(pid,stepId);
 }
 
 // Shared task card renderer used by both renderKanban and patchKanbanColumn
@@ -5842,11 +5956,26 @@ function taskCardHtml(t, pid, stepId){
   const matsHtml=t.materials.length?'<div class="sg-task-mats">'+t.materials[0]+(t.materials.length>1?' +'+(t.materials.length-1):'')+'</div>':'';
   const commentHtml=commentCount?'<div style="font-size:9px;color:var(--blue-t);margin-top:2px">💬 '+commentCount+' koment.</div>':'';
 
+  // Paslauga: show the parts/positions required to make, with per-part progress
+  let partsHtml='';
+  const projForCard=getProject(pid);
+  if((projForCard?.type==='paslauga'||projForCard?.serviceSteps)&&t.qtyLines&&t.qtyLines.length){
+    const rows=t.qtyLines.map(ql=>{
+      const left=(ql.qty||0)-(ql.done||0);
+      const qtyCls=left<=0?'done-text':'';
+      const label=ql.art||ql.desc||'—';
+      const descPart=(ql.art&&ql.desc)?'<span class="sg-part-desc">'+escHtml(ql.desc)+'</span>':'';
+      return '<div class="sg-part-row"><span class="sg-part-art">'+escHtml(label)+'</span>'+descPart
+        +'<span class="sg-part-qty '+qtyCls+'">'+(ql.done||0)+'/'+(ql.qty||0)+'</span></div>';
+    }).join('');
+    partsHtml='<div class="sg-parts"><div class="sg-parts-hd">📋 Detalės ('+t.qtyLines.length+')</div>'+rows+'</div>';
+  }
+
   return'<div class="sg-task '+t.status+'" draggable="'+(isDone?'false':'true')+'" ondragstart="dragTaskStart(event,\''+t.id+'\')" ondragend="dragTaskEnd(event)" onclick="openTaskModal(\''+t.id+'\')" style="'+cardStyle+'">'
     +'<div class="sg-status"></div>'
     +'<div style="flex:1;min-width:0">'
     +'<div class="sg-task-name'+(isDone?' done-text':'')+'">'+escHtml(t.name)+'</div>'
-    +blockerHtml+qtyHtml+matsHtml+dlBadge+commentHtml
+    +blockerHtml+qtyHtml+partsHtml+matsHtml+dlBadge+commentHtml
     +'</div>'
     +'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'+avatars+advBtn+'</div>'
     +'</div>';
@@ -6182,7 +6311,8 @@ async function createProject(fromOrderId){
       status:'pending',assigneeId:defIds[0]||owner,assigneeIds:defIds,
       qtyOrdered:totalQty,qtyDone:0,
       qtyLines:qtyLines.length?qtyLines.map(l=>({...l,done:0})):null,
-      materials:[],created:new Date().toISOString()};
+      materials:[],created:new Date().toISOString(),
+      timeLog:[{event:'created',at:new Date().toISOString(),by:owner||DB.currentUserId}]};
   };
 
   const shortName=name.split('—')[0].trim();
@@ -6263,7 +6393,7 @@ function createTask(pid){
   const name=document.getElementById('nt-name').value.trim();if(!name)return;
   const mats=document.getElementById('nt-mats').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const deadline=document.getElementById('nt-deadline')?.value||'';
-  DB.tasks.push({id:uid(),projectId:pid,stepId:document.getElementById('nt-step').value,name,status:'pending',assigneeId:_selAssignee,materials:mats,deadline,created:new Date().toISOString()});
+  DB.tasks.push({id:uid(),projectId:pid,stepId:document.getElementById('nt-step').value,name,status:'pending',assigneeId:_selAssignee,materials:mats,deadline,created:new Date().toISOString(),timeLog:[{event:'created',at:new Date().toISOString(),by:DB.currentUserId}]});
   closeModal();toast('✅ Sukurta!','success');renderProjectView(pid,_projTab);renderSidebar();save();
 }
 
@@ -6391,8 +6521,10 @@ function toggleTaskAssignee(tid, uid2){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   if(!t.assigneeIds)t.assigneeIds=[t.assigneeId].filter(Boolean);
   const idx=t.assigneeIds.indexOf(uid2);
-  if(idx>=0){ if(t.assigneeIds.length>1)t.assigneeIds.splice(idx,1); }
-  else t.assigneeIds.push(uid2);
+  let changed=null;
+  if(idx>=0){ if(t.assigneeIds.length>1){t.assigneeIds.splice(idx,1);changed='assign-remove';} }
+  else { t.assigneeIds.push(uid2); changed='assign-add'; }
+  if(changed) pushLog(t,{event:changed,who:uid2});
   t.assigneeId=t.assigneeIds[0]||uid2; // keep primary for backwards compat
   // Update visual
   const u=getUser(uid2);
@@ -6424,7 +6556,10 @@ function updateTask(id,f,v){
   const oldA=t.assigneeId;
   const oldStep=t.stepId;
   t[f]=v;
-  if(f==='assigneeId'&&v!==oldA) addNotif('assign',`Priskirta: ${t.name}`,`→ ${getUser(v).name}`,t.projectId);
+  if(f==='status'&&v!==undefined) pushLog(t,{event:'status',to:v});
+  if(f==='stepId'&&v!==oldStep) pushLog(t,{event:'moved',from:oldStep,to:v});
+  if(f==='deadline') pushLog(t,{event:'deadline',to:v});
+  if(f==='assigneeId'&&v!==oldA){ pushLog(t,{event:'assign-add',who:v}); addNotif('assign',`Priskirta: ${t.name}`,`→ ${getUser(v).name}`,t.projectId); }
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban'){
     patchKanbanColumn(t.projectId, t.stepId);
@@ -6440,6 +6575,7 @@ function setBlocker(tid){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   const val=(document.getElementById('blocker-'+tid)?.value||'').trim();
   t.blocker=val||null;
+  pushLog(t, val?{event:'blocker-set',text:val}:{event:'blocker-clear'});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban'){
     patchKanbanColumn(t.projectId,t.stepId);
@@ -6451,6 +6587,7 @@ function setBlocker(tid){
 function clearBlocker(tid){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   t.blocker=null;
+  pushLog(t,{event:'blocker-clear'});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban'){
     patchKanbanColumn(t.projectId,t.stepId);
@@ -6468,6 +6605,7 @@ function addLineQty(tid,qi,delta){
   t.qtyDone=t.qtyLines.reduce((s,l)=>s+(l.done||0),0);
   const td=document.getElementById('qty-total-done-'+tid);if(td)td.textContent=t.qtyDone;
   const tl=document.getElementById('qty-total-left-'+tid);if(tl)tl.textContent=(t.qtyOrdered||0)-t.qtyDone;
+  pushLog(t,{event:'qty',done:t.qtyDone,ordered:t.qtyOrdered||0});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban')patchKanbanColumn(t.projectId,t.stepId);
 }
@@ -6478,6 +6616,7 @@ function setLineQty(tid,qi,val){
   t.qtyDone=t.qtyLines.reduce((s,l)=>s+(l.done||0),0);
   const td=document.getElementById('qty-total-done-'+tid);if(td)td.textContent=t.qtyDone;
   const tl=document.getElementById('qty-total-left-'+tid);if(tl)tl.textContent=(t.qtyOrdered||0)-t.qtyDone;
+  pushLog(t,{event:'qty',done:t.qtyDone,ordered:t.qtyOrdered||0});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban')patchKanbanColumn(t.projectId,t.stepId);
 }
@@ -6485,17 +6624,19 @@ function addQtyDone(tid,delta){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   t.qtyDone=Math.max(0,Math.min(t.qtyOrdered||9999,(t.qtyDone||0)+delta));
   const inp=document.getElementById('qty-done-'+tid);if(inp)inp.value=t.qtyDone;
+  pushLog(t,{event:'qty',done:t.qtyDone,ordered:t.qtyOrdered||0});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban')patchKanbanColumn(t.projectId,t.stepId);
 }
 function setQtyDone(tid,val){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   t.qtyDone=Math.max(0,Math.min(t.qtyOrdered||9999,val||0));
+  pushLog(t,{event:'qty',done:t.qtyDone,ordered:t.qtyOrdered||0});
   save();
   if(DB.currentProjectId===t.projectId&&_projTab==='kanban')patchKanbanColumn(t.projectId,t.stepId);
 }
-function addMat(id){const i=document.getElementById('nm-'+id)||document.getElementById('nm');if(!i?.value.trim())return;const t=DB.tasks.find(x=>x.id===id);if(t){t.materials.push(i.value.trim());save();openTaskModal(id)}}
-function rmMatIdx(id,idx){const t=DB.tasks.find(x=>x.id===id);if(t){t.materials.splice(idx,1);save();openTaskModal(id)}}
+function addMat(id){const i=document.getElementById('nm-'+id)||document.getElementById('nm');if(!i?.value.trim())return;const t=DB.tasks.find(x=>x.id===id);if(t){const m=i.value.trim();t.materials.push(m);pushLog(t,{event:'material-add',text:m});save();openTaskModal(id)}}
+function rmMatIdx(id,idx){const t=DB.tasks.find(x=>x.id===id);if(t){const m=t.materials[idx];t.materials.splice(idx,1);pushLog(t,{event:'material-remove',text:m});save();openTaskModal(id)}}
 function rmMat(id,m){const t=DB.tasks.find(x=>x.id===id);if(t){t.materials=t.materials.filter(x=>x!==m);save();}}
 function addComment(tid){const i=document.getElementById('ci-'+tid);const text=i?.value.trim();if(!text)return;const t=DB.tasks.find(x=>x.id===tid);DB.comments.push({id:uid(),taskId:tid,userId:DB.currentUserId,text,created:new Date().toISOString()});addNotif('comment',`${curUser().name} paliko komentarą`,t?.name||'',t?.projectId||'');save();openTaskModal(tid)}
 function delTask(id){if(!confirm('Ištrinti?'))return;DB.tasks=DB.tasks.filter(t=>t.id!==id);DB.comments=DB.comments.filter(c=>c.taskId!==id);closeModal();toast('Ištrinta');if(DB.currentProjectId)renderProjectView(DB.currentProjectId,_projTab);renderSidebar();save()}
