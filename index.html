@@ -9526,9 +9526,20 @@ function parseWorkbook(wb){
   // ─ SUMMARY ─
   if(wb.SheetNames.includes('SUMMARY')){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets['SUMMARY'],{header:1,defval:null});
+    // In the SUMMARY/Stocks sheet the "m²" unit label (col A) appears only on the FIRST
+    // board row; the remaining boards in that group leave col A blank. Track the group so
+    // every board under "m²" is imported — not just the first one (e.g. KARKASAI).
+    let inSheetGroup=false;
     for(const r of rows){
-      if(r[0]==='m²'&&r[1]&&typeof r[5]==='number')
-        data.stocks.push({material:r[1],supplier:r[3]||'—',m2:Math.round(r[5]*100)/100,cost:Math.round((r[6]||0)*100)/100,thickness:guessT(r[1])});
+      const unit=(r[0]==null?'':String(r[0]).trim());
+      if(unit==='m²'||unit.toLowerCase()==='m2') inSheetGroup=true;
+      else if(unit) inSheetGroup=false; // a different non-empty unit ends the boards group
+      const matStr=(r[1]==null?'':String(r[1]).trim());
+      const isTotal=/bendroji suma|grand total/i.test(matStr);
+      const isHeaderOrEmpty=matStr===''||matStr==='Material';
+      if(isTotal) inSheetGroup=false;
+      if(inSheetGroup && !isTotal && !isHeaderOrEmpty && typeof r[5]==='number')
+        data.stocks.push({material:matStr,supplier:r[3]||'—',m2:Math.round(r[5]*100)/100,cost:Math.round((r[6]||0)*100)/100,thickness:guessT(matStr)});
       if(r[8]&&typeof r[12]==='number'&&r[8]!=='Grand Total'&&r[8]!=='Material')
         data.edgebands.push({material:r[8],unitCost:r[9]||0,meters:Math.round(r[12]*100)/100,totalCost:Math.round((r[13]||0)*100)/100});
     }
