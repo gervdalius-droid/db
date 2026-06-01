@@ -724,6 +724,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
         <div class="nav-item active" id="nav-floor" onclick="showView('floor')"><span class="nav-icon">▦</span>Cecho rodinys</div>
         <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-design" onclick="showView('design')"><span class="nav-icon">📐</span>Projektavimas<span class="nav-badge" id="design-badge" style="display:none">0</span></div>
+        <div class="nav-item" id="nav-production" onclick="showView('production')"><span class="nav-icon">⚙️</span>Gamybos projektai<span class="nav-badge" id="prod-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge critical" id="mat-badge" style="display:none">!</span></div>
         <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge info" id="wh-badge" style="display:none">0</span></div>
@@ -844,6 +845,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
       <div class="view" id="view-orders"><div id="orders-content"></div></div>
       <div class="view" id="view-projects"><div id="projects-content"></div></div>
       <div class="view" id="view-design"><div id="design-content"></div></div>
+      <div class="view" id="view-production"><div id="production-content"></div></div>
       <div class="view" id="view-team"><div id="team-content"></div></div>
       <div class="view" id="view-discipline"><div id="discipline-content"></div></div>
       <div class="view" id="view-report"><div id="report-content"></div></div>
@@ -1750,6 +1752,12 @@ function showView(name,extra){
     if(act)act.innerHTML=(isManager()||isEngineer())&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Projektavimo darbas</button>':'';
     renderDesignProjects();
   }
+  else if(name==='production'){
+    document.getElementById('topbar-title').textContent='⚙️ Gamybos projektai';
+    document.getElementById('topbar-sub').textContent='Gamybos etapo projektai';
+    if(act)act.innerHTML=(isManager()||isEngineer())&&!isReadOnly()?'<button class="btn btn-sm btn-primary" onclick="openNewProjectModal()">+ Naujas projektas</button>':'';
+    renderProductionProjects();
+  }
   else if(name==='project'){
     DB.currentProjectId=extra;const p=getProject(extra);if(!p)return showView('floor');
     document.getElementById('topbar-title').textContent=p.name;
@@ -1912,6 +1920,12 @@ function renderSidebar(){
   if(db){
     const designCount=DB.projects.filter(p=>p.designStatus==='design'&&p.status!=='archived'&&canSeeProject(p)).length;
     db.textContent=designCount;db.style.display=designCount?'inline-block':'none';
+  }
+  // Production projects badge
+  const prb=document.getElementById('prod-badge');
+  if(prb){
+    const prodCount=DB.projects.filter(p=>p.designStatus!=='design'&&p.status!=='archived'&&canSeeProject(p)).length;
+    prb.textContent=prodCount;prb.style.display=prodCount?'inline-block':'none';
   }
 
   // Materials badge — any "reikia" status across all projects
@@ -2121,15 +2135,17 @@ function renderFloor(){
     const tasks=projTasks(p.id),pct=projProgress(p.id),inp2=tasks.filter(t=>t.status==='in-progress');
     const curStep=inp2[0]?getStep(inp2[0].stepId):null;
     const overdueTasks=tasks.filter(t=>t.deadline&&t.status!=='done'&&new Date(t.deadline)<now).length;
+    const blockedCount=tasks.filter(t=>t.blocker).length;
     // Schedule: days left vs total needed
     const sched=p.deadline?calcProjectSchedule(p):null;
     const daysLeft=p.deadline?daysUntilDeadline(p.deadline):null;
     const canFinish=sched&&daysLeft!==null?daysLeft>=sched._totalDays:null;
-    const cardStyle=(overdueTasks?'border-color:var(--red-t);':'')+(p.type==='paslauga'?'border-left:3px solid var(--amber-t);':'');
+    const cardStyle=(overdueTasks?'border-color:var(--red-t);':'')+(p.type==='paslauga'?'border-left:3px solid var(--amber-t);':'')+(blockedCount?'background:var(--red-bg);border-color:var(--red-t);border-left:3px solid var(--red-t);':'');
     const iconContent=p.type==='paslauga'?'⚡':initials(p.name);
     const paslaugaBadge=p.type==='paslauga'?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:1px 5px;border-radius:4px">⚡ Paslauga</span>':'';
     const designBadge=p.designStatus==='design'?'<span style="font-size:9px;font-weight:700;color:#4338ca;background:#eef2ff;padding:1px 5px;border-radius:4px">📐 Projektavimas</span>':'';
     const overdueBadge=overdueTasks?'<span style="font-size:9px;font-weight:700;color:var(--red-t);background:var(--red-bg);padding:1px 5px;border-radius:4px">⚠ '+overdueTasks+' vėluoja</span>':'';
+    const blockBadge=blockedCount?'<span style="font-size:9px;font-weight:700;color:#fff;background:var(--red-t);padding:1px 6px;border-radius:4px">🚫 '+(blockedCount>1?blockedCount+' blokai':'Blokas')+'</span>':'';
     const deadlineLine=p.deadline?'<div style="margin-top:2px">'+deadlineHtml(p.deadline)+'</div>':'';
     const routeLine=p.type==='paslauga'&&p.serviceSteps?'<div style="font-size:9px;color:var(--hint);margin-top:2px;font-family:var(--mono)">'+p.serviceSteps.map(id=>{const st=STEPS.find(s=>s.id===id);return st?st.short:id;}).join(' → ')+'</div>':'';
     const stepsToShow=p.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
@@ -2150,7 +2166,7 @@ function renderFloor(){
       +'<div style="flex:1;min-width:0">'
       +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:1px">'
       +'<div style="font-size:12px;font-weight:600;line-height:1.3">'+escHtml(p.name)+'</div>'
-      +paslaugaBadge+designBadge+prioHtml(p.priority||'mid')+overdueBadge
+      +paslaugaBadge+designBadge+prioHtml(p.priority||'mid')+overdueBadge+blockBadge
       +'</div>'
       +'<div style="font-size:10px;color:var(--muted)">'+escHtml(p.client)+'</div>'
       +deadlineLine+routeLine
@@ -2201,6 +2217,7 @@ function renderProjectView(pid,tab){
         ${p.importData?'<span class="badge badge-purple">📊 Excel</span>':''}
         ${p.files?.length?`<span class="badge badge-gray">📎 ${p.files.length}</span>`:''}
         ${p.lines?.length?`<span class="badge badge-blue" style="cursor:pointer" onclick="toggleProjectLines('${p.id}')">📋 ${p.lines.length} poz.</span>`:''}
+        ${p.lines?.length?`<span class="badge badge-green" style="cursor:pointer" onclick="printPackingList('${p.id}')">🖨 Pakavimo lapas</span>`:''}
         ${combinedBadgeHtml(p)}
       </div>
       ${p.notes?`<div style="font-size:11px;color:var(--hint);margin-top:4px;font-style:italic">${escHtml(p.notes)}</div>`:''}
@@ -4461,6 +4478,90 @@ function clPrint(pid){
     <`+`script>setTimeout(()=>window.print(), 300);<\/`+`script>
   </body></html>`;
   const w=window.open('', '_blank');
+  if(!w){toast('Naršyklė užblokavo iškylantį langą','error');return;}
+  w.document.write(html); w.document.close();
+}
+
+// Printable packing list for production / paslauga projects:
+// Article number, name, ordered qty, and how many are packed (from the Pakavimas step).
+function printPackingList(pid){
+  const p=getProject(pid); if(!p) return;
+  const lines=(p.lines&&p.lines.length)?p.lines.slice():null;
+  const packTask=projTasks(pid).find(t=>t.stepId==='pakavimas');
+  const packLines=(packTask&&packTask.qtyLines&&packTask.qtyLines.length)?packTask.qtyLines:null;
+  const useIndex=packLines&&lines&&packLines.length===lines.length;
+
+  let rows=[];
+  if(lines){
+    rows=lines.map((l,i)=>{
+      let packed=0;
+      if(packLines){
+        const m=useIndex?packLines[i]:packLines.find(q=>q.art&&l.art&&q.art===l.art);
+        if(m)packed=m.done||0;
+      }
+      return {art:l.art||'',name:l.desc||'',ordered:parseInt(l.qty)||0,packed};
+    });
+  } else if(packLines){
+    rows=packLines.map(q=>({art:q.art||'',name:q.desc||'',ordered:parseInt(q.qty)||0,packed:q.done||0}));
+  }
+  if(!rows.length){toast('Šis projektas neturi pozicijų','error');return;}
+
+  const totalOrd=rows.reduce((s,r)=>s+r.ordered,0);
+  const totalPack=rows.reduce((s,r)=>s+r.packed,0);
+
+  const tr=rows.map((r,i)=>`<tr>
+    <td style="border:1px solid #999;padding:6px 8px;text-align:center;color:#666;width:30px">${i+1}</td>
+    <td style="border:1px solid #999;padding:6px 8px;font-family:monospace;font-weight:700;white-space:nowrap">${escHtml(r.art)||'—'}</td>
+    <td style="border:1px solid #999;padding:6px 8px">${escHtml(r.name)||'—'}</td>
+    <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-family:monospace;width:80px">${r.ordered||''}</td>
+    <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-family:monospace;font-weight:700;width:90px">${r.packed||''}</td>
+    <td style="border:1px solid #999;padding:6px 8px;width:90px"></td>
+  </tr>`).join('');
+
+  const html=`<!doctype html><html lang="lt"><head><meta charset="utf-8"><title>Pakavimo lapas – ${escHtml(p.name)}</title>
+    <style>
+      @page{margin:14mm}
+      body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111;padding:0;margin:0}
+      h1{font-size:18px;margin:0 0 4px}
+      .meta{font-size:11px;color:#555;margin-bottom:12px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th{border:1px solid #999;padding:6px 8px;background:#eee;text-align:left}
+      tfoot td{border:1px solid #999;padding:6px 8px;font-weight:700;background:#f5f5f5}
+      .sig{margin-top:28px;font-size:11px;display:flex;gap:30px}
+      .sig div{flex:1;border-top:1px solid #999;padding-top:4px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <button onclick="window.print()" style="position:fixed;top:8px;right:8px;padding:6px 12px;font-size:12px">🖨 Spausdinti</button>
+    <h1>📦 Pakavimo lapas</h1>
+    <div class="meta">
+      <strong>${escHtml(p.name)}</strong>${p.client?` · ${escHtml(p.client)}`:''}${p.deadline?` · terminas: ${p.deadline}`:''}<br>
+      ${rows.length} pozicij${rows.length===1?'a':rows.length<10?'os':'ų'} · spausdinta: ${new Date().toLocaleString('lt-LT')}
+    </div>
+    <table>
+      <thead><tr>
+        <th style="text-align:center;width:30px">Eil.</th>
+        <th>Artikulas</th>
+        <th>Pavadinimas</th>
+        <th style="text-align:right">Užsakyta</th>
+        <th style="text-align:right">Supakuota</th>
+        <th style="width:90px">Patikra</th>
+      </tr></thead>
+      <tbody>${tr}</tbody>
+      <tfoot><tr>
+        <td colspan="3" style="text-align:right">Iš viso (vnt.):</td>
+        <td style="text-align:right;font-family:monospace">${totalOrd}</td>
+        <td style="text-align:right;font-family:monospace">${totalPack}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    <div class="sig">
+      <div>Pakavo (vardas, parašas):</div>
+      <div>Patikrino (vardas, parašas):</div>
+      <div>Data:</div>
+    </div>
+    <`+`script>setTimeout(()=>window.print(), 300);<\\/`+`script>
+  </body></html>`;
+  const w=window.open('','_blank');
   if(!w){toast('Naršyklė užblokavo iškylantį langą','error');return;}
   w.document.write(html); w.document.close();
 }
@@ -7015,6 +7116,7 @@ function renderDesignProjects(){
     const designStepIds=new Set(DESIGN_STEPS.map(s=>s.id));
     const allProjTasks=projTasks(p.id);
     const tasks=allProjTasks.filter(t=>designStepIds.has(t.stepId));
+    const blockedCount=allProjTasks.filter(t=>t.blocker).length;
     const done=tasks.filter(t=>t.status==='done').length;
     const pct=tasks.length?Math.round(done/tasks.length*100):0;
     // Current design step: first in-progress design task, else first not-done design
@@ -7027,7 +7129,7 @@ function renderDesignProjects(){
     const dl=p.deadline?daysUntilDeadline(p.deadline):null;
     const dlText=p.deadline?(dl<0?'⚠ Vėluoja '+(-dl)+' d.':dl===0?'🔴 Šiandien':dl===1?'🟠 Rytoj':dl+' d.'):'—';
     const dlColor=dl===null?'var(--hint)':dl<0?'var(--red-t)':dl<3?'var(--amber-t)':'var(--text)';
-    return `<div onclick="showView('project','${p.id}')" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
+    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
       <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
@@ -7046,6 +7148,7 @@ function renderDesignProjects(){
         <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--muted)">${done}/${tasks.length}</span>
       </div>
       ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
+      ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
     </div>`;
   }).join('');
   el.innerHTML=`
@@ -7054,6 +7157,73 @@ function renderDesignProjects(){
     </div>
     <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:16px">
       🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>
+  `;
+}
+
+function renderProductionProjects(){
+  const el=document.getElementById('production-content');
+  if(!el)return;
+  const all=(DB.projects||[]).filter(p=>p.designStatus!=='design'&&p.status!=='archived'&&canSeeProject(p));
+  if(!all.length){
+    el.innerHTML='<div class="empty-state" style="padding:48px;text-align:center"><div style="font-size:48px;margin-bottom:12px">⚙️</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nėra gamybos projektų</div><div style="font-size:12px;color:var(--hint);max-width:360px;margin:0 auto">Naujus projektus sukurkite paspaudę <strong>"+ Naujas projektas"</strong> viršuje. Projektavimo etapą užbaigę projektai automatiškai atsiranda čia.</div></div>';
+    return;
+  }
+  const summary=[
+    {label:'Iš viso',val:all.length,c:'var(--text)'},
+    {label:'Aktyvūs',val:all.filter(p=>projTasks(p.id).some(t=>t.status==='in-progress')).length,c:'var(--blue-t)'},
+    {label:'Šiandien terminas',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)===0).length,c:'var(--amber-t)'},
+    {label:'Vėluoja',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0).length,c:'var(--red-t)'},
+  ];
+  const prodStepIds=new Set(STEPS.map(s=>s.id));
+  const cards=all.sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')).map(p=>{
+    const owner=getUser(p.owner);
+    const allProjTasks=projTasks(p.id);
+    // Production projects use the production STEPS; paslauga projects use their serviceSteps subset
+    const stepsForP=p.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
+    const stepOrder=stepsForP.map(s=>s.id);
+    const tasks=allProjTasks.filter(t=>prodStepIds.has(t.stepId));
+    const blockedCount=allProjTasks.filter(t=>t.blocker).length;
+    const done=tasks.filter(t=>t.status==='done').length;
+    const pct=tasks.length?Math.round(done/tasks.length*100):0;
+    const orderedTasks=tasks.slice().sort((a,b)=>stepOrder.indexOf(a.stepId)-stepOrder.indexOf(b.stepId));
+    const cur=orderedTasks.find(t=>t.status==='in-progress')||orderedTasks.find(t=>t.status!=='done');
+    const curStep=cur?(STEPS.find(s=>s.id===cur.stepId)||null):null;
+    const dl=p.deadline?daysUntilDeadline(p.deadline):null;
+    const dlText=p.deadline?(dl<0?'⚠ Vėluoja '+(-dl)+' d.':dl===0?'🔴 Šiandien':dl===1?'🟠 Rytoj':dl+' d.'):'—';
+    const dlColor=dl===null?'var(--hint)':dl<0?'var(--red-t)':dl<3?'var(--amber-t)':'var(--text)';
+    const typeBadge=p.type==='paslauga'
+      ?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">⚡ Paslauga</span>'
+      :'<span style="font-size:9px;font-weight:700;color:var(--green-t);background:var(--green-bg);padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">⚙️ Gamyba</span>';
+    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escHtml(p.client||'')}</div>
+        </div>
+        ${typeBadge}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px">
+        <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
+        <span style="color:${dlColor};font-weight:600">${dlText}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
+        </div>
+        <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--muted)">${done}/${tasks.length}</span>
+      </div>
+      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
+      ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
+    </div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
+      ${summary.map(c=>`<div class="summary-card"><div class="summary-label">${c.label}</div><div class="summary-value" style="color:${c.c}">${c.val}</div></div>`).join('')}
+    </div>
+    <div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--green-t);margin-bottom:16px">
+      ⚙️ Gamybos etapo projektai — aktyvūs gamyboje. Spauskite kortelę, kad atidarytumėte žingsnius.
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>
   `;
