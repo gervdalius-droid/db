@@ -254,6 +254,7 @@ span.in-progress-text{color:var(--blue-t)}
 .sg-part-art{font-family:var(--mono);color:var(--blue-t);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sg-part-desc{color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .sg-part-qty{font-family:var(--mono);font-weight:700;flex-shrink:0}
+.sg-part-date{font-family:var(--mono);color:var(--amber-t);font-weight:700;flex-shrink:0;font-size:9px;background:var(--amber-bg);padding:0 4px;border-radius:3px}
 .sg-log{margin-top:8px;border-top:1px dashed var(--border);padding-top:6px}
 .sg-log-head{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;padding:3px 2px;user-select:none}
 .sg-log-head:hover{color:var(--text)}
@@ -2258,7 +2259,7 @@ function renderProjectView(pid,tab){
 
   const packPanel=(p.type==='paslauga'||p.serviceSteps)?paslaugaPackPanel(pid):'';
   const deliveryPanel=(p.type==='paslauga'||p.serviceSteps)?paslaugaDeliveryPanel(pid):'';
-  document.getElementById('project-content').innerHTML=header+packPanel+deliveryPanel+`<div class="tab-bar">${tabBar}</div>`+content+renderProjectComments(pid);
+  document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+packPanel+deliveryPanel+renderProjectComments(pid);
 }
 
 // ── PROJECT COMMENTS PANEL (visible under each project tab) ──
@@ -4527,16 +4528,18 @@ function paslaugaPackPanel(pid){
   const distinctDates=[...new Set(rows.map(r=>r.date||''))];
   const multiDate=distinctDates.filter(d=>d).length>1;
 
+  const hasDates=distinctDates.filter(d=>d).length>0;
+  const colgFor=(withDate)=>`<colgroup><col style="width:40px"><col><col style="width:84px"><col style="width:96px">${withDate?'<col style="width:112px">':''}</colgroup>`;
   const renderRow=(r)=>`
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:8px 10px;text-align:center;width:34px"><input type="checkbox" id="pack-${pid}-${r.idx}" checked style="width:18px;height:18px;cursor:pointer"></td>
-      <td style="padding:8px 10px"><div style="font-weight:700;font-family:var(--mono);color:var(--blue-t);font-size:14px">${escHtml(r.art||'—')}</div><div style="font-size:13px;color:var(--text)">${escHtml(r.name||'')}</div></td>
+      <td style="padding:8px 10px;text-align:center"><input type="checkbox" id="pack-${pid}-${r.idx}" checked style="width:18px;height:18px;cursor:pointer"></td>
+      <td style="padding:8px 10px"><div style="font-weight:700;font-family:var(--mono);color:var(--blue-t);font-size:14px;word-break:break-all">${escHtml(r.art||'—')}</div><div style="font-size:13px;color:var(--text)">${escHtml(r.name||'')}</div></td>
       <td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:600;white-space:nowrap">${r.ordered||''}</td>
       <td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--green-t);white-space:nowrap">${r.packed||''}</td>
-      ${(!multiDate&&distinctDates.filter(d=>d).length)?`<td style="padding:8px 10px;text-align:right;color:var(--hint);white-space:nowrap;font-size:11px">${escHtml(r.date||'—')}</td>`:''}
+      ${(!multiDate&&hasDates)?`<td style="padding:8px 10px;text-align:right;color:var(--hint);white-space:nowrap;font-size:11px">${escHtml(r.date||'—')}</td>`:''}
     </tr>`;
 
-  const headCols=`<th style="width:34px"></th><th style="text-align:left;padding:5px 10px;color:var(--muted)">Artikulas / Pavadinimas</th><th style="text-align:right;padding:5px 10px;color:var(--muted)">Užs.</th><th style="text-align:right;padding:5px 10px;color:var(--muted)">Supak.</th>`;
+  const headCols=`<th style="padding:5px 10px"></th><th style="text-align:left;padding:5px 10px;color:var(--muted)">Artikulas / Pavadinimas</th><th style="text-align:right;padding:5px 10px;color:var(--muted)">Užs.</th><th style="text-align:right;padding:5px 10px;color:var(--muted)">Supak.</th>`;
 
   let groupsHtml='';
   if(multiDate){
@@ -4549,18 +4552,21 @@ function paslaugaPackPanel(pid){
           <div style="font-weight:700;font-size:12px">📅 Pristatymas: ${escHtml(dl)} <span style="color:var(--hint);font-weight:400">(${g.rows.length} poz.)</span></div>
           <button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px" onclick="printPaslaugaSelected('${pid}','${idxCsv}','Pristatymas ${escHtml(dl)}')">🖨 Pakavimo lapas</button>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <table style="table-layout:fixed;width:100%;border-collapse:collapse;font-size:12px">
+          ${colgFor(false)}
           <thead><tr style="background:var(--surface)">${headCols}</tr></thead>
           <tbody>${g.rows.map(renderRow).join('')}</tbody>
         </table>
       </div>`;
     }).join('');
   } else {
-    const dateCol=distinctDates.filter(d=>d).length?'<th style="text-align:right;padding:5px 10px;color:var(--muted)">Pristatymas</th>':'';
-    groupsHtml=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    const dateCol=hasDates?'<th style="text-align:right;padding:5px 10px;color:var(--muted)">Pristatymas</th>':'';
+    groupsHtml=`<table style="table-layout:fixed;width:100%;border-collapse:collapse;font-size:12px">
+      ${colgFor(hasDates)}
       <thead><tr style="background:var(--surface2)">${headCols}${dateCol}</tr></thead>
       <tbody>${rows.map(renderRow).join('')}</tbody></table>`;
   }
+
 
   const hist=(p.packPrints||[]).slice().reverse().slice(0,8).map(h=>`<div style="font-size:11px;color:var(--muted);padding:2px 0">🖨 ${fmtDateTime(h.at)} · <strong>${escHtml(h.option||'—')}</strong> · ${h.count} poz.${h.by&&getUser(h.by)?' · '+escHtml(getUser(h.by).name):''}</div>`).join('');
   const allCsv=rows.map(r=>r.idx).join(',');
@@ -4593,54 +4599,119 @@ function printPaslaugaSelected(pid, idxCsv, optionLabel){
 
 // ── Pristatymas (delivery) for paslauga: delivered by us or customer pickup, with chosen date ──
 const DELIVERY_METHODS={delivered:{label:'Pristatėme klientui',icon:'🚚'},pickup:{label:'Klientas atsiėmė',icon:'🤝'}};
+function deliveredMap(p){
+  const m={};
+  (p.deliveries||[]).forEach(d=>(d.lines||[]).forEach(l=>{ if(l.art) m[l.art]=(m[l.art]||0)+(parseInt(l.qty)||0); }));
+  return m;
+}
 function deliveryStatusShort(p){
-  if(!p||!p.delivery)return '';
-  const m=DELIVERY_METHODS[p.delivery.method]||DELIVERY_METHODS.delivered;
-  return m.icon+' '+(p.delivery.method==='pickup'?'Atsiėmė':'Pristatyta')+' '+(p.delivery.date||'');
+  if(!p||!(p.deliveries&&p.deliveries.length)) return '';
+  const rows=paslaugaRows(p.id);
+  const dm=deliveredMap(p);
+  const totalOrd=rows.reduce((s,r)=>s+(r.ordered||0),0);
+  const totalDel=rows.reduce((s,r)=>s+Math.min(dm[r.art]||0,(r.ordered||0)),0);
+  const last=p.deliveries[p.deliveries.length-1];
+  const dateTxt=(last&&last.date)?last.date:'';
+  if(totalOrd>0 && totalDel>=totalOrd) return '🚚 Pristatyta '+dateTxt;
+  if(totalDel>0) return '🚚 Dalinai '+totalDel+'/'+totalOrd;
+  return '';
 }
 function paslaugaDeliveryPanel(pid){
   const p=getProject(pid); if(!p) return '';
-  const d=p.delivery||null;
+  // migrate legacy single-delivery record into the deliveries log
+  if(p.delivery && !p.deliveries){
+    const lr=paslaugaRows(pid);
+    p.deliveries=[{at:p.delivery.recordedAt||new Date().toISOString(),by:p.delivery.by,method:p.delivery.method,date:p.delivery.date,lines:lr.map(r=>({art:r.art,name:r.name,qty:r.ordered}))}];
+    delete p.delivery;
+  }
+  const rows=paslaugaRows(pid);
+  const dm=deliveredMap(p);
   const today=new Date().toISOString().slice(0,10);
   const ro=(typeof isReadOnly==='function'&&isReadOnly());
-  const statusHtml=d?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:8px 12px;margin-bottom:10px">
-      <span style="font-size:13px;font-weight:700;color:var(--green-t)">${(DELIVERY_METHODS[d.method]||DELIVERY_METHODS.delivered).icon} ${escHtml((DELIVERY_METHODS[d.method]||DELIVERY_METHODS.delivered).label)}</span>
-      <span style="font-size:12px;color:var(--text);font-family:var(--mono)">📅 ${escHtml(d.date||'—')}</span>
-      ${d.by&&getUser(d.by)?`<span style="font-size:11px;color:var(--muted)">užfiksavo ${escHtml(getUser(d.by).name)}</span>`:''}
-      ${!ro?`<button class="btn btn-sm" style="margin-left:auto;font-size:11px" onclick="clearPaslaugaDelivery('${pid}')">↩ Atšaukti</button>`:''}
-    </div>`:'';
-  const form=ro?'':`<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+  const totalOrd=rows.reduce((s,r)=>s+(r.ordered||0),0);
+  const totalDel=rows.reduce((s,r)=>s+Math.min(dm[r.art]||0,(r.ordered||0)),0);
+  const allDelivered=totalOrd>0&&totalDel>=totalOrd;
+
+  const formRows=rows.map(r=>{
+    const deliveredSoFar=dm[r.art]||0;
+    const remaining=Math.max(0,(r.ordered||0)-deliveredSoFar);
+    const checked=remaining>0;
+    return `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px;text-align:center"><input type="checkbox" id="del-chk-${pid}-${r.idx}" ${checked?'checked':''} style="width:16px;height:16px;cursor:pointer"></td>
+      <td style="padding:6px 8px"><span style="font-family:var(--mono);font-weight:600;color:var(--blue-t);font-size:12px;word-break:break-all">${escHtml(r.art||'—')}</span> <span style="color:var(--muted);font-size:11px">${escHtml(r.name||'')}</span>${r.date?` <span style="font-size:10px;color:var(--amber-t);font-family:var(--mono);white-space:nowrap">📅 ${escHtml(r.date)}</span>`:''}</td>
+      <td style="padding:6px 8px;text-align:right;font-size:11px;color:${remaining>0?'var(--hint)':'var(--green-t)'};white-space:nowrap;font-family:var(--mono)">${deliveredSoFar}/${r.ordered}</td>
+      <td style="padding:6px 8px;text-align:right"><input type="number" id="del-qty-${pid}-${r.idx}" value="${remaining}" min="0" max="${r.ordered}" style="width:74px;font-size:12px;padding:4px 6px;text-align:right"></td>
+    </tr>`;
+  }).join('');
+
+  const formTable=ro?'':`<table style="table-layout:fixed;width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+      <colgroup><col style="width:36px"><col><col style="width:92px"><col style="width:100px"></colgroup>
+      <thead><tr style="background:var(--surface2)">
+        <th style="padding:5px 8px"></th>
+        <th style="text-align:left;padding:5px 8px;color:var(--muted)">Artikulas / Pavadinimas</th>
+        <th style="text-align:right;padding:5px 8px;color:var(--muted)">Pristatyta/Užs.</th>
+        <th style="text-align:right;padding:5px 8px;color:var(--muted)">Pristatyti dabar</th>
+      </tr></thead>
+      <tbody>${formRows}</tbody>
+    </table>
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div>
         <label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Būdas</label>
         <select id="del-method-${pid}" style="font-size:12px;padding:6px 8px">
-          <option value="delivered"${d&&d.method==='delivered'?' selected':''}>🚚 Pristatėme klientui</option>
-          <option value="pickup"${d&&d.method==='pickup'?' selected':''}>🤝 Klientas atsiėmė</option>
+          <option value="delivered">🚚 Pristatėme klientui</option>
+          <option value="pickup">🤝 Klientas atsiėmė</option>
         </select>
       </div>
       <div>
         <label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Data</label>
-        <input type="date" id="del-date-${pid}" value="${d&&d.date?d.date:today}" style="font-size:12px;padding:6px 8px">
+        <input type="date" id="del-date-${pid}" value="${today}" style="font-size:12px;padding:6px 8px">
       </div>
-      <button class="btn btn-sm btn-primary" style="font-size:12px" onclick="setPaslaugaDelivery('${pid}')">💾 ${d?'Atnaujinti':'Žymėti pristatytą'}</button>
+      <button class="btn btn-sm btn-primary" style="font-size:12px" onclick="recordPaslaugaDelivery('${pid}')">🚚 Žymėti pristatytą</button>
     </div>`;
+
+  const summary=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:${allDelivered?'var(--green-bg)':'var(--surface2)'};border:1px solid ${allDelivered?'var(--green-t)':'var(--border)'};border-radius:8px;padding:8px 12px;margin-bottom:10px">
+      <span style="font-size:12px;font-weight:700;color:${allDelivered?'var(--green-t)':'var(--text)'}">${allDelivered?'✅ Viskas pristatyta':'Pristatyta'}: ${totalDel} / ${totalOrd} vnt.</span>
+    </div>`;
+
+  const hist=(p.deliveries||[]).slice().reverse().map(d=>{
+    const m=DELIVERY_METHODS[d.method]||DELIVERY_METHODS.delivered;
+    const cnt=(d.lines||[]).length;
+    const qty=(d.lines||[]).reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);padding:3px 0">
+      <span>🚚 ${fmtDateTime(d.at)} · ${m.icon} ${escHtml(m.label)} · 📅 ${escHtml(d.date||'—')} · ${cnt} poz. (${qty} vnt.)${d.by&&getUser(d.by)?' · '+escHtml(getUser(d.by).name):''}</span>
+      ${!ro?`<button class="btn btn-sm" style="margin-left:auto;font-size:10px;padding:1px 7px" onclick="removePaslaugaDelivery('${pid}','${d.at}')">↩</button>`:''}
+    </div>`;
+  }).join('');
+
   return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rxl);padding:14px 18px;margin-bottom:16px;box-shadow:var(--sh)">
     <div style="font-size:13px;font-weight:700;margin-bottom:10px">🚚 Pristatymas</div>
-    ${statusHtml}${form}
-    ${(!d&&!ro)?'<div style="font-size:11px;color:var(--hint);margin-top:8px">Pasirinkite, ar pristatėte patys, ar klientas atsiėmė, ir nurodykite faktinę datą (galima pažymėti vėliau).</div>':''}
+    ${summary}
+    ${formTable}
+    ${(!ro&&!(p.deliveries&&p.deliveries.length))?'<div style="font-size:11px;color:var(--hint);margin-top:8px">Pažymėkite, kurios pozicijos pristatytos ir kiek vienetų, pasirinkite būdą ir faktinę datą (galima pažymėti vėliau, dalimis).</div>':''}
+    ${hist?`<div style="margin-top:12px;border-top:1px dashed var(--border);padding-top:8px"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🚚 Pristatymų istorija</div>${hist}</div>`:''}
   </div>`;
 }
-function setPaslaugaDelivery(pid){
+function recordPaslaugaDelivery(pid){
   const p=getProject(pid); if(!p) return;
   const method=(document.getElementById('del-method-'+pid)||{}).value||'delivered';
   const date=(document.getElementById('del-date-'+pid)||{}).value||new Date().toISOString().slice(0,10);
-  p.delivery={method, date, by:DB.currentUserId, recordedAt:new Date().toISOString()};
+  const rows=paslaugaRows(pid);
+  const lines=[];
+  rows.forEach(r=>{
+    const chk=document.getElementById('del-chk-'+pid+'-'+r.idx);
+    const qi=document.getElementById('del-qty-'+pid+'-'+r.idx);
+    if(chk&&chk.checked){ const q=Math.max(0,parseInt(qi&&qi.value)||0); if(q>0) lines.push({art:r.art,name:r.name,qty:q}); }
+  });
+  if(!lines.length){ toast('Pažymėkite bent vieną poziciją su kiekiu','error'); return; }
+  if(!p.deliveries)p.deliveries=[];
+  p.deliveries.push({at:new Date().toISOString(),by:DB.currentUserId,method,date,lines});
   save();
   toast((DELIVERY_METHODS[method]||DELIVERY_METHODS.delivered).icon+' Pristatymas užfiksuotas: '+date,'success');
   if(DB.currentProjectId===pid && typeof renderProjectView==='function') renderProjectView(pid,_projTab);
 }
-function clearPaslaugaDelivery(pid){
-  const p=getProject(pid); if(!p) return;
-  p.delivery=null;
+function removePaslaugaDelivery(pid, at){
+  const p=getProject(pid); if(!p||!p.deliveries) return;
+  p.deliveries=p.deliveries.filter(d=>d.at!==at);
   save();
   if(DB.currentProjectId===pid && typeof renderProjectView==='function') renderProjectView(pid,_projTab);
 }
@@ -6229,12 +6300,16 @@ function taskCardHtml(t, pid, stepId){
   let partsHtml='';
   const projForCard=getProject(pid);
   if((projForCard?.type==='paslauga'||projForCard?.serviceSteps)&&t.qtyLines&&t.qtyLines.length){
+    const lineDateByArt={};
+    (projForCard.lines||[]).forEach(l=>{ if(l.art) lineDateByArt[l.art]=l.date||''; });
     const rows=t.qtyLines.map(ql=>{
       const left=(ql.qty||0)-(ql.done||0);
       const qtyCls=left<=0?'done-text':'';
       const label=ql.art||ql.desc||'—';
       const descPart=(ql.art&&ql.desc)?'<span class="sg-part-desc">'+escHtml(ql.desc)+'</span>':'';
-      return '<div class="sg-part-row"><span class="sg-part-art">'+escHtml(label)+'</span>'+descPart
+      const dt=ql.date||lineDateByArt[ql.art]||'';
+      const datePart=dt?'<span class="sg-part-date">📅 '+escHtml(dt)+'</span>':'';
+      return '<div class="sg-part-row"><span class="sg-part-art">'+escHtml(label)+'</span>'+descPart+datePart
         +'<span class="sg-part-qty '+qtyCls+'">'+(ql.done||0)+'/'+(ql.qty||0)+'</span></div>';
     }).join('');
     partsHtml='<div class="sg-parts"><div class="sg-parts-hd">📋 Detalės ('+t.qtyLines.length+')</div>'+rows+'</div>';
@@ -7393,7 +7468,7 @@ function renderPaslaugaProjects(){
       </div>
       ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
-      ${p.delivery?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--green-bg);color:var(--green-t);padding:2px 7px;border-radius:4px;font-weight:600">${deliveryStatusShort(p)}</span></div>`:''}
+      ${deliveryStatusShort(p)?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--green-bg);color:var(--green-t);padding:2px 7px;border-radius:4px;font-weight:600">${deliveryStatusShort(p)}</span></div>`:''}
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
         <details onclick="event.stopPropagation()" style="margin-bottom:8px">
           <summary style="cursor:pointer;font-size:11px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px">📋 Pozicijos${posCount?` (${posDoneCount}/${prows.length} supakuota)`:''}</summary>
