@@ -7351,7 +7351,8 @@ function renderDesignProjects(){
     {label:'Šiandien terminas',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)===0).length,c:'var(--amber-t)'},
     {label:'Vėluoja',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0).length,c:'var(--red-t)'},
   ];
-  const cards=all.sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')).map(p=>{
+  const sorted=all.slice().sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999'));
+  const card=(p)=>{
     const owner=getUser(p.owner);
     // In the Projektavimas view, only count DESIGN-phase tasks. A design project may
     // also carry production tasks (e.g. created on a later transition or from legacy
@@ -7392,8 +7393,9 @@ function renderDesignProjects(){
       </div>
       ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:flex-end">${folderSelectHtml(p,'design')}</div>
     </div>`;
-  }).join('');
+  };
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
       ${summary.map(c=>`<div class="summary-card"><div class="summary-label">${c.label}</div><div class="summary-value" style="color:${c.c}">${c.val}</div></div>`).join('')}
@@ -7401,8 +7403,101 @@ function renderDesignProjects(){
     <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:16px">
       🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>
+    ${foldersToolbar('design')}
+    ${renderFolderedGrid(sorted, card, 'design')}
   `;
+}
+
+let _folderCollapsed=new Set();
+const FOLDER_COLORS=['#6366f1','#0ea5e9','#16a34a','#d97706','#db2777','#7c3aed','#0891b2','#dc2626'];
+function getFolders(){ if(!DB.folders)DB.folders=[]; return DB.folders; }
+function getFolder(id){ return (DB.folders||[]).find(f=>f.id===id)||null; }
+function projectArea(p){ if(!p)return 'production'; if(p.type==='paslauga')return 'paslauga'; if(p.designStatus==='design')return 'design'; return 'production'; }
+function migrateFolderAreas(){
+  let changed=false;
+  (DB.folders||[]).forEach(f=>{ if(!f.area){ const pr=(DB.projects||[]).find(p=>p.folderId===f.id); if(pr){ f.area=projectArea(pr); changed=true; } } });
+  if(changed) save();
+}
+function foldersForArea(area){ migrateFolderAreas(); return (DB.folders||[]).filter(f=>(f.area||'production')===area); }
+function createFolderPrompt(assignPid, area){
+  const name=prompt('Naujo aplanko pavadinimas (pvz. kliento vardas):');
+  if(name==null)return;
+  const nm=name.trim(); if(!nm)return;
+  const f={id:uid(),name:nm,area:area||'production',color:FOLDER_COLORS[getFolders().length%FOLDER_COLORS.length],created:new Date().toISOString(),by:DB.currentUserId};
+  getFolders().push(f);
+  if(assignPid){ const p=getProject(assignPid); if(p)p.folderId=f.id; }
+  save(); rerenderProjectsViews(); return f.id;
+}
+function renameFolderPrompt(id){
+  const f=getFolder(id); if(!f)return;
+  const name=prompt('Aplanko pavadinimas:', f.name);
+  if(name==null)return; const nm=name.trim(); if(!nm)return;
+  f.name=nm; save(); rerenderProjectsViews();
+}
+function deleteFolder(id){
+  const f=getFolder(id); if(!f)return;
+  const cnt=(DB.projects||[]).filter(p=>p.folderId===id).length;
+  if(!confirm('Ištrinti aplanką „'+f.name+'"? Projektai NEBUS ištrinti'+(cnt?' ('+cnt+' liks be aplanko)':'')+'.'))return;
+  (DB.projects||[]).forEach(p=>{ if(p.folderId===id)p.folderId=null; });
+  DB.folders=(DB.folders||[]).filter(x=>x.id!==id);
+  save(); rerenderProjectsViews();
+}
+function assignProjectFolder(pid, folderId, area){
+  const p=getProject(pid); if(!p)return;
+  if(folderId==='__new__'){ createFolderPrompt(pid, area||projectArea(p)); return; }
+  p.folderId=folderId||null;
+  save(); rerenderProjectsViews();
+}
+function toggleFolder(fid){ if(_folderCollapsed.has(fid))_folderCollapsed.delete(fid); else _folderCollapsed.add(fid); rerenderProjectsViews(); }
+function rerenderProjectsViews(){
+  if(typeof renderDesignProjects==='function'&&document.getElementById('design-content'))renderDesignProjects();
+  if(typeof renderPaslaugaProjects==='function'&&document.getElementById('paslauga-content'))renderPaslaugaProjects();
+  if(typeof renderProductionProjects==='function'&&document.getElementById('production-content'))renderProductionProjects();
+  if(typeof renderSidebar==='function'){try{renderSidebar();}catch(e){}}
+}
+function folderSelectHtml(p, area){
+  area=area||projectArea(p);
+  const opts=foldersForArea(area).map(f=>`<option value="${f.id}" ${p.folderId===f.id?'selected':''}>${escHtml(f.name)}</option>`).join('');
+  return `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();assignProjectFolder('${p.id}',this.value,'${area}')" title="Priskirti aplankui" style="font-size:10px;padding:3px 6px;max-width:150px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer">
+    <option value="" ${!p.folderId?'selected':''}>📁 Be aplanko</option>
+    ${opts}
+    <option value="__new__">➕ Naujas aplankas…</option>
+  </select>`;
+}
+function foldersToolbar(area){
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:11px;color:var(--hint)">📁 Sugrupuota pagal aplankus — priskirkite projektus klientui ar darbui</div>
+    <button class="btn btn-sm" style="font-size:11px" onclick="createFolderPrompt(null,'${area||'production'}')">📁 + Naujas aplankas</button>
+  </div>`;
+}
+function renderFolderedGrid(projects, cardFn, area){
+  area=area||(projects[0]?projectArea(projects[0]):'production');
+  const folders=foldersForArea(area);
+  const sections=[];
+  folders.forEach(f=>{ const items=projects.filter(p=>p.folderId===f.id); if(items.length)sections.push({folder:f,items}); });
+  const unfiled=projects.filter(p=>!p.folderId||!getFolder(p.folderId));
+  if(unfiled.length)sections.push({folder:null,items:unfiled});
+  if(!sections.length)return '';
+  if(folders.length===0){
+    return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${projects.map(cardFn).join('')}</div>`;
+  }
+  return sections.map(sec=>{
+    const f=sec.folder;
+    const fid=f?f.id:'__none__';
+    const collapsed=_folderCollapsed.has(fid);
+    const color=f?f.color:'var(--muted)';
+    const head=`<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+      <div onclick="toggleFolder('${fid}')" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+        <span style="display:inline-block;width:14px;color:var(--muted)">${collapsed?'▸':'▾'}</span>
+        <span style="width:11px;height:11px;border-radius:3px;background:${color};flex-shrink:0"></span>
+        <span style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f?escHtml(f.name):'📁 Be aplanko'}</span>
+        <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${sec.items.length}</span>
+      </div>
+      ${f?`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="renameFolderPrompt('${f.id}')">✏</button><button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="deleteFolder('${f.id}')">🗑</button>`:''}
+    </div>`;
+    const grid=collapsed?'':`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${sec.items.map(cardFn).join('')}</div>`;
+    return head+grid;
+  }).join('');
 }
 
 function renderPaslaugaProjects(){
@@ -7420,7 +7515,8 @@ function renderPaslaugaProjects(){
     {label:'Vėluoja',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0).length,c:'var(--red-t)'},
   ];
   const prodStepIds=new Set(STEPS.map(s=>s.id));
-  const cards=all.sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')).map(p=>{
+  const sorted=all.slice().sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999'));
+  const card=(p)=>{
     const owner=getUser(p.owner);
     const allProjTasks=projTasks(p.id);
     const stepsForP=p.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
@@ -7474,12 +7570,13 @@ function renderPaslaugaProjects(){
           <summary style="cursor:pointer;font-size:11px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:6px">📋 Pozicijos${posCount?` (${posDoneCount}/${prows.length} supakuota)`:''}</summary>
           <div style="margin-top:6px">${posListHtml||'<div style="font-size:11px;color:var(--hint)">Nėra pozicijų</div>'}</div>
         </details>
-        <div style="display:flex;justify-content:flex-end">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          ${folderSelectHtml(p,'paslauga')}
           <button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="event.stopPropagation();printPackingList('${p.id}')">🖨 Pakavimo lapas</button>
         </div>
       </div>
     </div>`;
-  }).join('');
+  };
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
       ${summary.map(c=>`<div class="summary-card"><div class="summary-label">${c.label}</div><div class="summary-value" style="color:${c.c}">${c.val}</div></div>`).join('')}
@@ -7487,7 +7584,8 @@ function renderPaslaugaProjects(){
     <div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--amber-t);margin-bottom:16px">
       ⚡ Paslaugos projektai — gamybos darbai su pozicijomis. Spauskite <strong>🖨 Pakavimo lapas</strong>, kad atspausdintumėte artikulų ir supakuotų kiekių sąrašą.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>
+    ${foldersToolbar('paslauga')}
+    ${renderFolderedGrid(sorted, card, 'paslauga')}
   `;
 }
 
@@ -7506,7 +7604,8 @@ function renderProductionProjects(){
     {label:'Vėluoja',val:all.filter(p=>p.deadline&&daysUntilDeadline(p.deadline)<0).length,c:'var(--red-t)'},
   ];
   const prodStepIds=new Set(STEPS.map(s=>s.id));
-  const cards=all.sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')).map(p=>{
+  const sorted=all.slice().sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999'));
+  const card=(p)=>{
     const owner=getUser(p.owner);
     const allProjTasks=projTasks(p.id);
     // Production projects use the production STEPS; paslauga projects use their serviceSteps subset
@@ -7545,8 +7644,9 @@ function renderProductionProjects(){
       </div>
       ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:flex-end">${folderSelectHtml(p,'production')}</div>
     </div>`;
-  }).join('');
+  };
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
       ${summary.map(c=>`<div class="summary-card"><div class="summary-label">${c.label}</div><div class="summary-value" style="color:${c.c}">${c.val}</div></div>`).join('')}
@@ -7554,7 +7654,8 @@ function renderProductionProjects(){
     <div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--green-t);margin-bottom:16px">
       ⚙️ Gamybos etapo projektai — aktyvūs gamyboje. Spauskite kortelę, kad atidarytumėte žingsnius.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>
+    ${foldersToolbar('production')}
+    ${renderFolderedGrid(sorted, card, 'production')}
   `;
 }
 
