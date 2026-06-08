@@ -887,6 +887,7 @@ let DB = {
   projects:[], tasks:[], comments:[], notifications:[],
   currentUserId:'', orders:[], stepDefaults:{}, matStatus:{}, stepDays:{},
   warehouse:[], warehouseLog:[], pickStatus:{}, kits:[], cycleCounts:[], fittingAliases:[], fittingPairingRules:[],
+  folders:[],
 };
 
 // ══════════════════════════════════════════════
@@ -1167,6 +1168,7 @@ async function saveToCloud(){
     sbSet(wsKey('tasks'),    JSON.stringify(DB.tasks)),
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
+    sbSet(wsKey('folders'),  JSON.stringify(DB.folders||[])),
     sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules})),
   ]);
   _lastSavedAt=Date.now();
@@ -1180,12 +1182,13 @@ async function loadFromCloud(){
   // Don't load if we saved recently — our local data is newer
   if(Date.now()-_lastSavedAt<12000)return false;
   try{
-    const [proj,tasks,comments,users,settings]=await Promise.all([
+    const [proj,tasks,comments,users,settings,folders]=await Promise.all([
       sbGet(wsKey('projects')),
       sbGet(wsKey('tasks')),
       sbGet(wsKey('comments')),
       sbGet(wsKey('users')),
       sbGet(wsKey('settings')),
+      sbGet(wsKey('folders')),
     ]);
     if(!proj&&!users)return false;
     const cloudProjects=proj?JSON.parse(proj):[];
@@ -1247,6 +1250,14 @@ async function loadFromCloud(){
     DB.comments=comments?JSON.parse(comments):[];
     if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
     if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];DB.fittingPairingRules=s.fittingPairingRules||[];}
+    // Folders: union cloud + any local-only folder not yet synced (so a just-created folder isn't wiped)
+    {
+      const cloudFolders=folders?JSON.parse(folders):[];
+      const byId={};
+      cloudFolders.forEach(f=>{ if(f&&f.id)byId[f.id]=f; });
+      (DB.folders||[]).forEach(f=>{ if(f&&f.id&&!byId[f.id])byId[f.id]=f; });
+      DB.folders=Object.values(byId);
+    }
     normalizeTaskQuantities();
     migrateDesignTaskNames();
     // Update localStorage with fresh cloud data
@@ -1349,6 +1360,7 @@ function load(){
     DB.orders=d.orders||[];DB.stepDefaults=d.stepDefaults||{};
     DB.matStatus=d.matStatus||{};DB.stepDays=d.stepDays||{};
     DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];DB.fittingPairingRules=d.fittingPairingRules||[];
+    DB.folders=d.folders||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
     normalizeTaskQuantities();
@@ -6690,6 +6702,7 @@ async function createProject(fromOrderId){
   // Save immediately and wait for it to complete BEFORE closing modal/navigating
   _isSaving=true;
   _lastSavedAt=Date.now(); // block auto-refresh
+  _stampMutated(); // give the new project + its tasks a lastModified so the cloud merge preserves them
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
   toast('💾 Išsaugoma...','');
   try{
@@ -6699,13 +6712,14 @@ async function createProject(fromOrderId){
     showView('project',p.id);
     toast('✅ '+(p.designStatus==='design'?'Projektavimo darbas':type==='paslauga'?'Paslauga':'Projektas')+' išsaugotas!','success');
   }catch(err){
-    console.error('Save failed:',err);
-    // Roll back local change to avoid ghost project
-    const idx=DB.projects.findIndex(pp=>pp.id===p.id);
-    if(idx>=0)DB.projects.splice(idx,1);
-    DB.tasks=DB.tasks.filter(t=>t.projectId!==p.id);
+    console.error('Cloud save failed (project kept locally, will retry):',err);
+    // DON'T roll back — the project is safe in localStorage and stamped, so it survives
+    // a refresh and the next sync. Rolling back here was destroying the user's work.
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
-    toast('❌ Klaida išsaugant: '+err.message+' — projektas neišsaugotas, bandykite vėl','error');
+    closeModal();
+    showView('project',p.id);
+    toast('⚠ Išsaugota lokaliai — debesyje sinchronizuosime automatiškai.','');
+    setTimeout(()=>{ if(WORKSPACE_CODE) save(); }, 4000); // retry cloud sync
   }finally{
     _isSaving=false;
   }
