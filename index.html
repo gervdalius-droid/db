@@ -1177,92 +1177,115 @@ async function saveToCloud(){
 // Snapshot key for per-record change-detection (see _stampMutated below)
 const _SNAPSHOT_KEY='fabflow_v4_snapshot';
 
-async function loadFromCloud(){
+// Per-key cloud timestamps last applied locally. Lets us poll cheaply: a tiny
+// "heartbeat" query returns only key+updated_at, and we download the full value
+// of a key ONLY when its timestamp advanced. This keeps Supabase egress minimal
+// (timestamps are a few hundred bytes vs. the whole dataset every poll).
+let _cloudStamps={};
+async function sbHeartbeat(keys){
+  try{
+    const q=keys.map(k=>encodeURIComponent(k)).join(',');
+    const r=await fetch(SB_URL+'/rest/v1/fabflow?key=in.('+q+')&select=key,updated_at',{headers:sbH()});
+    if(!r.ok)return null;
+    return await r.json(); // [{key, updated_at}]
+  }catch(e){return null;}
+}
+
+async function loadFromCloud(force){
   if(!WORKSPACE_CODE)return false;
   // Don't load if we saved recently — our local data is newer
-  if(Date.now()-_lastSavedAt<12000)return false;
+  if(!force && Date.now()-_lastSavedAt<12000)return false;
   try{
+    const names=['projects','tasks','comments','users','settings','folders'];
+    const keys=names.map(wsKey);
+
+    // 1) Cheap change-check (timestamps only). Decide which keys actually need downloading.
+    const hb=await sbHeartbeat(keys);
+    let want;
+    if(hb){
+      const changed=hb.filter(row=>!_cloudStamps[row.key] || row.updated_at>_cloudStamps[row.key]).map(r=>r.key);
+      if(!force && changed.length===0){
+        // Nothing changed in the cloud since last check — skip the heavy download entirely.
+        hb.forEach(r=>{ _cloudStamps[r.key]=r.updated_at; });
+        return false;
+      }
+      want=new Set(force?keys:changed);
+    } else {
+      // Heartbeat unavailable (older table / transient) → fall back to fetching everything once.
+      want=new Set(keys);
+    }
+
+    // 2) Fetch ONLY the values we need. Unfetched keys stay `undefined` → keep local copy.
+    const get=async(name)=>{ const k=wsKey(name); return want.has(k)?await sbGet(k):undefined; };
     const [proj,tasks,comments,users,settings,folders]=await Promise.all([
-      sbGet(wsKey('projects')),
-      sbGet(wsKey('tasks')),
-      sbGet(wsKey('comments')),
-      sbGet(wsKey('users')),
-      sbGet(wsKey('settings')),
-      sbGet(wsKey('folders')),
+      get('projects'),get('tasks'),get('comments'),get('users'),get('settings'),get('folders'),
     ]);
-    if(!proj&&!users)return false;
-    const cloudProjects=proj?JSON.parse(proj):[];
-    const cloudTasks=tasks?JSON.parse(tasks):[];
 
-    // ── Timestamp-aware merge ─────────────────────────────────────────
-    // For each record, compare lastModified between local and cloud:
-    //   - If local is newer (or cloud is missing the field), keep local copy
-    //   - Otherwise, take cloud copy
-    // Anti-regression rules act as fallback for legacy records without timestamps,
-    // protecting "in-progress" / "done" / qtyDone counters from rollback.
-    const localTasksMap={};DB.tasks.forEach(t=>localTasksMap[t.id]=t);
-    cloudTasks.forEach((ct,i)=>{
-      const lt=localTasksMap[ct.id];
-      if(!lt)return;
-      // Timestamp wins when both sides have one
-      if(lt.lastModified && ct.lastModified){
-        if(lt.lastModified > ct.lastModified){cloudTasks[i]=lt;return;}
-        // cloud is newer or equal — fall through (cloud wins)
-      } else if(lt.lastModified && !ct.lastModified){
-        // Local has been edited locally, cloud hasn't been timestamped yet — keep local
-        cloudTasks[i]=lt;return;
-      }
-      // Anti-regression fallback (also catches the case where cloud is newer
-      // but local has actual completion progress that mustn't be lost)
-      const localQtyDone=(lt.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||lt.qtyDone||0;
-      const cloudQtyDone=(ct.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||ct.qtyDone||0;
-      if(lt.status==='done'&&ct.status!=='done'){cloudTasks[i]=lt;return;}
-      if(localQtyDone>cloudQtyDone){cloudTasks[i]=lt;return;}
-    });
+    let applied=false;
 
-    // Also include local tasks the cloud hasn't seen yet (offline-created)
-    const cloudTaskIds=new Set(cloudTasks.map(t=>t.id));
-    DB.tasks.forEach(lt=>{
-      if(!cloudTaskIds.has(lt.id) && lt.lastModified){
-        // Local-only task that has been touched — preserve it
-        cloudTasks.push(lt);
-      }
-    });
+    // ── Tasks merge (only if downloaded) ──
+    if(tasks!==undefined){
+      const cloudTasks=tasks?JSON.parse(tasks):[];
+      const localTasksMap={};DB.tasks.forEach(t=>localTasksMap[t.id]=t);
+      cloudTasks.forEach((ct,i)=>{
+        const lt=localTasksMap[ct.id];
+        if(!lt)return;
+        if(lt.lastModified && ct.lastModified){
+          if(lt.lastModified > ct.lastModified){cloudTasks[i]=lt;return;}
+        } else if(lt.lastModified && !ct.lastModified){
+          cloudTasks[i]=lt;return;
+        }
+        const localQtyDone=(lt.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||lt.qtyDone||0;
+        const cloudQtyDone=(ct.qtyLines||[]).reduce((s,l)=>s+(l.done||0),0)||ct.qtyDone||0;
+        if(lt.status==='done'&&ct.status!=='done'){cloudTasks[i]=lt;return;}
+        if(localQtyDone>cloudQtyDone){cloudTasks[i]=lt;return;}
+      });
+      const cloudTaskIds=new Set(cloudTasks.map(t=>t.id));
+      DB.tasks.forEach(lt=>{ if(!cloudTaskIds.has(lt.id) && lt.lastModified) cloudTasks.push(lt); });
+      DB.tasks=cloudTasks; applied=true;
+    }
 
-    // Same merge for projects
-    const localProjMap={};DB.projects.forEach(p=>localProjMap[p.id]=p);
-    cloudProjects.forEach((cp,i)=>{
-      const lp=localProjMap[cp.id];
-      if(!lp)return;
-      if(lp.lastModified && cp.lastModified){
-        if(lp.lastModified > cp.lastModified){cloudProjects[i]=lp;return;}
-      } else if(lp.lastModified && !cp.lastModified){
-        cloudProjects[i]=lp;return;
-      }
-    });
-    const cloudProjIds=new Set(cloudProjects.map(p=>p.id));
-    DB.projects.forEach(lp=>{
-      if(!cloudProjIds.has(lp.id) && lp.lastModified) cloudProjects.push(lp);
-    });
+    // ── Projects merge (only if downloaded) ──
+    if(proj!==undefined){
+      const cloudProjects=proj?JSON.parse(proj):[];
+      const localProjMap={};DB.projects.forEach(p=>localProjMap[p.id]=p);
+      cloudProjects.forEach((cp,i)=>{
+        const lp=localProjMap[cp.id];
+        if(!lp)return;
+        if(lp.lastModified && cp.lastModified){
+          if(lp.lastModified > cp.lastModified){cloudProjects[i]=lp;return;}
+        } else if(lp.lastModified && !cp.lastModified){
+          cloudProjects[i]=lp;return;
+        }
+      });
+      const cloudProjIds=new Set(cloudProjects.map(p=>p.id));
+      DB.projects.forEach(lp=>{ if(!cloudProjIds.has(lp.id) && lp.lastModified) cloudProjects.push(lp); });
+      DB.projects=cloudProjects; applied=true;
+    }
 
-    DB.projects=cloudProjects;
-    DB.tasks=cloudTasks;
-    DB.comments=comments?JSON.parse(comments):[];
-    if(users){const u=JSON.parse(users);if(u.length)USERS=u;}
-    if(settings){const s=JSON.parse(settings);DB.stepDefaults=s.stepDefaults||{};DB.stepDays=s.stepDays||{};DB.orders=s.orders||[];DB.matStatus=s.matStatus||{};DB.navVisibility=s.navVisibility||{};DB.warehouse=s.warehouse||[];DB.warehouseLog=s.warehouseLog||[];DB.pickStatus=s.pickStatus||{};DB.kits=s.kits||[];DB.cycleCounts=s.cycleCounts||[];DB.fittingAliases=s.fittingAliases||[];DB.fittingPairingRules=s.fittingPairingRules||[];}
-    // Folders: union cloud + any local-only folder not yet synced (so a just-created folder isn't wiped)
-    {
+    if(comments!==undefined){ DB.comments=comments?JSON.parse(comments):[]; applied=true; }
+    if(users!==undefined && users){ const u=JSON.parse(users); if(u.length){USERS=u; applied=true;} }
+    if(settings!==undefined && settings){
+      const sp=JSON.parse(settings);
+      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];
+      applied=true;
+    }
+    if(folders!==undefined){
       const cloudFolders=folders?JSON.parse(folders):[];
       const byId={};
       cloudFolders.forEach(f=>{ if(f&&f.id)byId[f.id]=f; });
       (DB.folders||[]).forEach(f=>{ if(f&&f.id&&!byId[f.id])byId[f.id]=f; });
-      DB.folders=Object.values(byId);
+      DB.folders=Object.values(byId); applied=true;
     }
+
+    // Remember the cloud timestamps we've now applied
+    if(hb){ hb.forEach(r=>{ _cloudStamps[r.key]=r.updated_at; }); }
+
+    if(!applied) return false;
+
     normalizeTaskQuantities();
     migrateDesignTaskNames();
-    // Update localStorage with fresh cloud data
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
-    // Refresh the diff snapshot so the next save() doesn't think everything changed
     try{localStorage.setItem(_SNAPSHOT_KEY,JSON.stringify({tasks:DB.tasks, projects:DB.projects}));}catch(e){}
     return true;
   }catch(e){console.warn('loadFromCloud:',e);return false;}
@@ -1578,7 +1601,7 @@ async function enterApp(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('main-app').style.display='flex';
   // Load data from cloud
-  const loaded=await loadFromCloud();
+  const loaded=await loadFromCloud(true);
   if(!loaded&&currentUserRole==='manager')seed();
   // Find current user
   const me=USERS.find(u=>u.id===DB.currentUserId)||USERS[0];
@@ -1616,6 +1639,8 @@ function startAutoRefresh(){
   stopAutoRefresh();
   _autoRefreshTimer=setInterval(async()=>{
     if(!WORKSPACE_CODE||_isSaving)return;
+    // Don't poll while the tab is in the background — saves Supabase egress
+    if(typeof document!=='undefined'&&document.hidden)return;
     if(DB.currentView==='project'&&DB.currentProjectId&&_projTab==='kanban'){
       const ok=await loadFromCloud();
       if(ok){STEPS.forEach(s=>patchKanbanColumn(DB.currentProjectId,s.id));patchStepProgressBar(DB.currentProjectId);updateFloorCard(DB.currentProjectId);renderSidebar();}
@@ -1623,7 +1648,7 @@ function startAutoRefresh(){
       const ok=await loadFromCloud();
       if(ok)renderFloor();
     }
-  },5000);
+  },12000);
 }
 function stopAutoRefresh(){clearInterval(_autoRefreshTimer);}
 
