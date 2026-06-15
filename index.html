@@ -645,6 +645,9 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
       <div class="auth-info" style="margin-top:8px">
         Pirmas prisijungimas? <span style="cursor:pointer;color:var(--blue-t)" onclick="showAdminSetup()">Sukurti darbo vietą</span>
       </div>
+      <div class="auth-info" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;font-size:11px">
+        Debesis nepasiekiamas? <span style="cursor:pointer;color:var(--blue-t);font-weight:600" onclick="offlineLogin()">Dirbti lokaliai (be interneto) →</span>
+      </div>
     </div>
 
     <!-- ── PERŽIŪRA: read-only with code ── -->
@@ -827,7 +830,8 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
       <div class="topbar-info"><div class="topbar-title" id="topbar-title">Cecho rodinys</div><div class="topbar-sub" id="topbar-sub">Visi aktyvūs projektai</div></div>
       <div class="topbar-actions" id="topbar-actions"></div>
       <div style="display:flex;align-items:center;gap:6px;margin-left:8px;flex-shrink:0">
-        <button onclick="saveToCloud().then(()=>toast('✅ Sinchronizuota','success'))" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizuoti dabar">⟳</button>
+        <button id="sync-mode-btn" onclick="toggleSyncMode()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizavimo režimas">Auto</button>
+        <button onclick="manualSyncNow()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizuoti dabar (siųsti ir gauti)">⟳ Sync</button>
         <div id="sync-indicator" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;white-space:nowrap"></div>
       </div>
     </div>
@@ -1098,21 +1102,43 @@ const SB_TK_KEY = 'fabflow_tokens';
 
 function sbH(){ return {'apikey':SB_KEY,'Content-Type':'application/json','Authorization':'Bearer '+(SB_TOKEN||SB_KEY)}; }
 
-async function sbGet(k){
+async function sbGet(k, _retries=2){
   try{
     const r=await fetch(SB_URL+'/rest/v1/fabflow?key=eq.'+encodeURIComponent(k)+'&select=value',{headers:sbH()});
-    if(!r.ok)return null;
+    if(!r.ok){
+      // 5xx (e.g. 504 while the project wakes from pause) → brief backoff and retry
+      if(r.status>=500 && _retries>0){ await new Promise(res=>setTimeout(res,900)); return sbGet(k,_retries-1); }
+      return null;
+    }
     const d=await r.json();
     return d.length?d[0].value:null;
-  }catch(e){return null;}
+  }catch(e){
+    if(_retries>0){ await new Promise(res=>setTimeout(res,900)); return sbGet(k,_retries-1); }
+    return null;
+  }
 }
-async function sbSet(k,v){
+// Reads a single key but distinguishes "found / confirmed-empty" from "request failed".
+// Returns {ok:true,value:string|null} on a real response, {ok:false} on timeout/5xx.
+// Used at login so a transient 504 is NEVER mistaken for "no workspace yet".
+async function sbReadKey(k){
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const r=await fetch(SB_URL+'/rest/v1/fabflow?key=eq.'+encodeURIComponent(k)+'&select=value',{headers:sbH()});
+      if(r.ok){ const d=await r.json(); return {ok:true,value:d.length?d[0].value:null}; }
+      if(r.status>=500){ await new Promise(res=>setTimeout(res,900)); continue; }
+      return {ok:false,status:r.status};
+    }catch(e){ await new Promise(res=>setTimeout(res,900)); }
+  }
+  return {ok:false};
+}
+async function sbSet(k,v,_retries=2){
   const r=await fetch(SB_URL+'/rest/v1/fabflow',{
     method:'POST',
     headers:{...sbH(),'Prefer':'resolution=merge-duplicates'},
     body:JSON.stringify({key:k,value:v,updated_at:new Date().toISOString()})
   });
   if(!r.ok){
+    if(r.status>=500 && _retries>0){ await new Promise(res=>setTimeout(res,900)); return sbSet(k,v,_retries-1); }
     const txt=await r.text().catch(()=>'');
     throw new Error('sbSet '+k+' → '+r.status+' '+txt.slice(0,100));
   }
@@ -1348,6 +1374,7 @@ function save(){
   // 1. Always write to localStorage immediately (whole DB for quick reload)
   try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
   _lastSavedAt=Date.now(); // block auto-refresh immediately
+  if(_offline) return; // local-only mode: never write to the cloud
   // 2. Short debounce so cloud save fires fast
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(async()=>{
@@ -1361,7 +1388,7 @@ function save(){
 
 // Flush pending save before page unload
 window.addEventListener('beforeunload',(e)=>{
-  if(_saveTimer&&WORKSPACE_CODE){
+  if(_saveTimer&&WORKSPACE_CODE&&!_offline){
     clearTimeout(_saveTimer);
     // Use sendBeacon for reliable save during unload
     try{
@@ -1435,10 +1462,15 @@ async function adminLogin(){
     }
     saveTokens(res.access_token,res.refresh_token,Date.now()+(res.expires_in||3600)*1000);
     currentUserId_sb=res.user.id;
-    // Load admin profile
-    let profile=await sbGet('fab_admin_'+res.user.id);
+    // Load admin profile — but distinguish "no profile yet" from "server didn't answer".
+    const pr=await sbReadKey('fab_admin_'+res.user.id);
+    if(!pr.ok){
+      setAuthError('auth-error','Serveris laikinai neatsako (Supabase 504). Dažniausiai tai reiškia, kad projektas „pabudo" po pauzės — palaukite ~1 min. ir bandykite dar kartą. (Jūsų duomenys saugūs.)');
+      return;
+    }
+    let profile=pr.value;
     if(!profile){
-      // First login — auto-create workspace
+      // Confirmed first login — auto-create workspace
       const code=Math.random().toString(36).slice(2,7).toUpperCase();
       const name=email.split('@')[0];
       const profileData={name,email,workspaceCode:code,role:'manager',created:Date.now()};
@@ -1459,6 +1491,21 @@ async function adminLogin(){
     await enterApp();
   }catch(e){setAuthError('auth-error','Klaida: '+e.message);}
   finally{if(btn){btn.textContent='Prisijungti →';btn.disabled=false;}}
+}
+
+// Local-only mode — use the app with no Supabase at all (data lives in this browser + JSON backups)
+function offlineLogin(){
+  _offline=true;
+  _syncMode='manual';
+  const had=load(); // pull whatever is cached in this browser
+  currentUserRole='manager';
+  if(!USERS||!USERS.length){ USERS=[{id:'local_admin',name:'Vietinis vartotojas',role:'manager',color:'#6366f1',bg:'#eef2ff',initials:'V'}]; }
+  if(!DB.currentUserId) DB.currentUserId=USERS[0].id;
+  if(!WORKSPACE_CODE) WORKSPACE_CODE='LOCAL';
+  const u=USERS.find(x=>x.id===DB.currentUserId)||USERS[0];
+  CURRENT_USER_NAME=u?u.name:'Vietinis';
+  enterApp();
+  if(!had) setTimeout(()=>toast('Lokalus režimas tuščias. Įkelkite duomenis per kairėje esantį „Atsarginė kopija" → importuoti.',''),900);
 }
 
 // ADMIN SETUP — first time
@@ -1600,20 +1647,22 @@ async function viewLogin(){
 async function enterApp(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('main-app').style.display='flex';
-  // Load data from cloud
-  const loaded=await loadFromCloud(true);
-  if(!loaded&&currentUserRole==='manager')seed();
+  // Load data: from cloud normally, or from localStorage in offline mode
+  const loaded = _offline ? load() : await loadFromCloud(true);
+  if(!loaded&&currentUserRole==='manager'&&!_offline)seed();
   // Find current user
   const me=USERS.find(u=>u.id===DB.currentUserId)||USERS[0];
   if(me)DB.currentUserId=me.id;
   DB.currentView='floor';DB.currentProjectId=null;
   renderSidebar();renderFloor();
-  setSyncStatus('online');
+  setSyncStatus(_offline?'offline':'online');
   setTimeout(checkDeadlines,800);setInterval(checkDeadlines,10*60*1000);
   // Daily backup check — once per browser session per workspace per day
-  setTimeout(checkDailyBackup,3000);
+  if(!_offline) setTimeout(checkDailyBackup,3000);
   startAutoRefresh();
-  toast('Sveiki, '+(CURRENT_USER_NAME||me?.name||'')+'!','success');
+  updateSyncModeBtn();
+  if(_syncMode==='manual'&&!_offline) setSyncStatus('offline');
+  toast(_offline?'Lokalus režimas (be debesies)':'Sveiki, '+(CURRENT_USER_NAME||me?.name||'')+'!','success');
 }
 
 async function logout(){
@@ -1635,8 +1684,48 @@ function setSyncStatus(status){
 }
 
 let _autoRefreshTimer=null;
+let _offline=false; // local-only mode: no Supabase calls at all
+let _syncMode=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_syncMode'))||'auto';
+function setSyncMode(m){
+  _syncMode=m;
+  try{localStorage.setItem('fab_syncMode',m);}catch(e){}
+  if(m==='auto'){ startAutoRefresh(); setSyncStatus('online'); toast('🔄 Automatinis sinchronizavimas įjungtas','success'); }
+  else { stopAutoRefresh(); setSyncStatus('offline'); toast('✋ Rankinis režimas — debesį tikrinsime tik paspaudus „⟳ Sync". Mažiau duomenų naudojimo.',''); }
+  updateSyncModeBtn();
+}
+function toggleSyncMode(){ setSyncMode(_syncMode==='auto'?'manual':'auto'); }
+function updateSyncModeBtn(){
+  const b=document.getElementById('sync-mode-btn'); if(!b)return;
+  b.textContent=_syncMode==='auto'?'Auto':'Rankinis';
+  b.style.color=_syncMode==='auto'?'var(--muted)':'var(--amber-t)';
+  b.title=_syncMode==='auto'
+    ?'Sinchronizavimas: AUTOMATINIS. Spauskite, kad perjungtumėte į rankinį (taupo Supabase duomenis).'
+    :'Sinchronizavimas: RANKINIS. Debesis tikrinamas tik paspaudus „⟳ Sync".';
+}
+function rerenderCurrentView(){
+  try{renderSidebar();}catch(e){}
+  try{
+    if(DB.currentView==='project'&&DB.currentProjectId){ if(typeof renderProjectView==='function') renderProjectView(DB.currentProjectId,_projTab); }
+    else if(DB.currentView==='floor'){ if(typeof renderFloor==='function') renderFloor(); }
+    else if(typeof rerenderProjectsViews==='function'){ rerenderProjectsViews(); }
+  }catch(e){}
+}
+async function manualSyncNow(){
+  if(_offline){toast('Lokalus režimas — debesies sinchronizacija išjungta','');return;}
+  if(!WORKSPACE_CODE){toast('Nėra darbo erdvės','error');return;}
+  setSyncStatus('syncing');
+  try{
+    await saveToCloud();           // push local changes up
+    await loadFromCloud(true);     // pull everything down once
+    rerenderCurrentView();
+    setSyncStatus(_syncMode==='manual'?'offline':'online');
+    toast('✅ Sinchronizuota','success');
+  }catch(e){ setSyncStatus('error'); toast('❌ Sinchronizavimo klaida: '+(e&&e.message||''),'error'); }
+}
 function startAutoRefresh(){
   stopAutoRefresh();
+  if(_offline)return; // local-only: never touch the network
+  if(_syncMode==='manual')return; // manual mode never polls — near-zero egress
   _autoRefreshTimer=setInterval(async()=>{
     if(!WORKSPACE_CODE||_isSaving)return;
     // Don't poll while the tab is in the background — saves Supabase egress
@@ -1648,7 +1737,7 @@ function startAutoRefresh(){
       const ok=await loadFromCloud();
       if(ok)renderFloor();
     }
-  },12000);
+  },20000);
 }
 function stopAutoRefresh(){clearInterval(_autoRefreshTimer);}
 
