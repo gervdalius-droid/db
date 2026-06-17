@@ -603,11 +603,76 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
 .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);transition:background .12s ease}
 .notif-item:hover{background:var(--surface2)}
 
-/* Mobile responsiveness preserved — only refine type */
-@media(max-width:700px){
-  .topbar{padding:12px 16px;min-height:54px}
-  .topbar-title{font-size:15px}
-  .content-area{padding:16px 14px}
+/* ============================================================
+   SHOP-FLOOR USABILITY & ACCESSIBILITY LAYER
+   Bigger tap targets, stronger contrast, clear focus + press
+   feedback, touch/tablet sizing, and reduced-motion support.
+   Additive: overrides earlier rules by source order.
+   ============================================================ */
+:root{
+  --muted:#5f5b53;            /* darker → readable in bright/dusty workshop light */
+  --hint:#8b867d;
+  --focus:0 0 0 3px rgba(37,99,235,.35);
+}
+@media(prefers-color-scheme:dark){:root{ --muted:#a8a399; --hint:#736e65; }}
+
+*{ -webkit-tap-highlight-color:transparent }
+html{ -webkit-text-size-adjust:100% }
+body{ font-size:15px }
+
+/* Visible focus for keyboard / accessibility on every control */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--blue); outline-offset:2px; box-shadow:var(--focus);
+}
+
+/* Everything clickable: pointer cursor + gentle press feedback */
+[onclick]{ cursor:pointer }
+[onclick]:active{ filter:brightness(.97) }
+.btn{ user-select:none }
+
+/* Comfortable minimum tap targets (min-height won't fight inline font-size) */
+.btn{ min-height:40px; font-size:14px }
+.btn-sm{ min-height:34px }
+.btn-xs{ min-height:28px }
+.nav-item{ min-height:44px; display:flex; align-items:center; gap:10px; font-size:13.5px; padding-top:0; padding-bottom:0 }
+.nav-icon{ font-size:16px; width:22px; text-align:center }
+.proj-item{ min-height:34px; display:flex; align-items:center }
+.tab{ min-height:42px }
+
+/* Form controls bigger; 16px on touch devices to stop mobile auto-zoom */
+input, select, textarea{ min-height:38px }
+input[type=checkbox], input[type=radio]{ min-height:0; cursor:pointer; accent-color:var(--blue) }
+@media (pointer:coarse){
+  input:not([style*="font-size"]), select:not([style*="font-size"]), textarea:not([style*="font-size"]){ font-size:16px }
+  .btn{ min-height:44px }
+  .btn-sm{ min-height:40px }
+  .nav-item{ min-height:50px }
+  input[type=checkbox], input[type=radio]{ transform:scale(1.15) }
+}
+
+/* Disabled states read clearly */
+button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; transform:none }
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.001ms !important; transition-duration:.001ms !important; scroll-behavior:auto !important }
+  .btn:hover{ transform:none }
+}
+
+/* Momentum scrolling on touch surfaces */
+.content-area, .kanban{ -webkit-overflow-scrolling:touch }
+
+/* Tablet & phone layout safety */
+@media (max-width:900px){
+  .topbar{ flex-wrap:wrap; row-gap:8px }
+  .topbar-actions{ flex-wrap:wrap; gap:8px }
+}
+@media (max-width:700px){
+  .content-area{ padding:14px 12px }
+  /* Stack project-card / board grids into a single thumb-friendly column */
+  .content-area [style*="minmax(280px"]{ grid-template-columns:1fr !important }
+  table{ font-size:13px }
 }
 </style>
 </head>
@@ -830,6 +895,10 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:var(
       <div class="topbar-info"><div class="topbar-title" id="topbar-title">Cecho rodinys</div><div class="topbar-sub" id="topbar-sub">Visi aktyvūs projektai</div></div>
       <div class="topbar-actions" id="topbar-actions"></div>
       <div style="display:flex;align-items:center;gap:6px;margin-left:8px;flex-shrink:0">
+        <div id="lang-toggle" style="display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden;flex-shrink:0">
+          <button data-lang="lt" onclick="setLang('lt')" style="font-size:10px;padding:3px 7px;border:none;cursor:pointer;background:var(--surface);color:var(--muted)" title="Lietuvių">🇱🇹 LT</button>
+          <button data-lang="en" onclick="setLang('en')" style="font-size:10px;padding:3px 7px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted)" title="English">🇬🇧 EN</button>
+        </div>
         <button id="sync-mode-btn" onclick="toggleSyncMode()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizavimo režimas">Auto</button>
         <button onclick="manualSyncNow()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizuoti dabar (siųsti ir gauti)">⟳ Sync</button>
         <div id="sync-indicator" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;white-space:nowrap"></div>
@@ -897,25 +966,68 @@ let DB = {
 // ══════════════════════════════════════════════
 // CONSTANTS & STATE
 // ══════════════════════════════════════════════
-const STEPS = [
-  {id:'pjovimas',     label:'Pjovimas',        short:'PJV', color:'#0ea5e9', bg:'#e0f2fe', icon:'🪚'},
-  {id:'briaunavimas', label:'Briaunavimas',     short:'BRN', color:'#8b5cf6', bg:'#f3f0ff', icon:'📏'},
-  {id:'grezimas',     label:'Gręžimas',         short:'GRŽ', color:'#06b6d4', bg:'#ecfeff', icon:'🔩'},
-  {id:'apdaila',      label:'Apdaila',          short:'APD', color:'#f59e0b', bg:'#fef3c7', icon:'🖌'},
-  {id:'surinkimas',   label:'Surinkimas',       short:'SRK', color:'#10b981', bg:'#d1fae5', icon:'🔧'},
-  {id:'isstatymas',   label:'Išstatymas / KK',  short:'IŠS', color:'#3b82f6', bg:'#dbeafe', icon:'✅'},
-  {id:'pakavimas',    label:'Pakavimas',        short:'PKV', color:'#84cc16', bg:'#f0fdf4', icon:'📦'},
-  {id:'montavimas',   label:'Montavimas',       short:'MNT', color:'#f97316', bg:'#fff7ed', icon:'🏗'},
+const DEFAULT_STEPS = [
+  {id:'pjovimas',     label:'Pjovimas',        short:'PJV', color:'#0ea5e9', bg:'#e0f2fe', icon:'🪚', ico:'cut'},
+  {id:'briaunavimas', label:'Briaunavimas',     short:'BRN', color:'#8b5cf6', bg:'#f3f0ff', icon:'📏', ico:'ruler'},
+  {id:'grezimas',     label:'Gręžimas',         short:'GRŽ', color:'#06b6d4', bg:'#ecfeff', icon:'🔩', ico:'bore'},
+  {id:'apdaila',      label:'Apdaila',          short:'APD', color:'#f59e0b', bg:'#fef3c7', icon:'🖌', ico:'brush'},
+  {id:'surinkimas',   label:'Surinkimas',       short:'SRK', color:'#10b981', bg:'#d1fae5', icon:'🔧', ico:'wrench'},
+  {id:'isstatymas',   label:'Išstatymas / KK',  short:'IŠS', color:'#3b82f6', bg:'#dbeafe', icon:'✅', ico:'check'},
+  {id:'pakavimas',    label:'Pakavimas',        short:'PKV', color:'#84cc16', bg:'#f0fdf4', icon:'📦', ico:'box'},
+  {id:'montavimas',   label:'Montavimas',       short:'MNT', color:'#f97316', bg:'#fff7ed', icon:'🏗', ico:'hammer'},
 ];
+let STEPS = DEFAULT_STEPS.map(s=>({...s}));
 // Design phase steps (Projektavimas) — comes BEFORE production
 const DESIGN_STEPS = [
-  {id:'koncepcija',   label:'Idėja + Projekto info', short:'IDJ', color:'#a855f7', bg:'#faf5ff', icon:'💡', desc:'Idėja, projekto informacija, matmenys, medžiagos, terminas', defaultRole:'manager'},
-  {id:'breziniai',    label:'Eskizas',          short:'ESK', color:'#0891b2', bg:'#ecfeff', icon:'✏️', desc:'Pradinis eskizas, klientui peržiūrai'},
-  {id:'modelis3d',    label:'Gamybinis modelis ir brėžiniai', short:'GMB', color:'#6366f1', bg:'#eef2ff', icon:'📐', desc:'Detalus parametrinis modelis ir 2D brėžiniai'},
-  {id:'cam',          label:'CAM / Nesting',    short:'CAM', color:'#0284c7', bg:'#e0f2fe', icon:'⚙️', desc:'CNC kodai, nesting, pjovimo planas'},
-  {id:'perdavimas',   label:'Perdavimas į gamybą', short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', desc:'Failai perduoti į gamybą'},
+  {id:'koncepcija',   label:'Idėja + Projekto info', short:'IDJ', color:'#a855f7', bg:'#faf5ff', icon:'💡', ico:'bulb', desc:'Idėja, projekto informacija, matmenys, medžiagos, terminas', defaultRole:'manager'},
+  {id:'breziniai',    label:'Eskizas',          short:'ESK', color:'#0891b2', bg:'#ecfeff', icon:'✏️', ico:'pencil', desc:'Pradinis eskizas, klientui peržiūrai'},
+  {id:'modelis3d',    label:'Gamybinis modelis ir brėžiniai', short:'GMB', color:'#6366f1', bg:'#eef2ff', icon:'📐', ico:'cube', desc:'Detalus parametrinis modelis ir 2D brėžiniai'},
+  {id:'cam',          label:'CAM / Nesting',    short:'CAM', color:'#0284c7', bg:'#e0f2fe', icon:'⚙️', ico:'cpu', desc:'CNC kodai, nesting, pjovimo planas'},
+  {id:'perdavimas',   label:'Perdavimas į gamybą', short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', ico:'rocket', desc:'Failai perduoti į gamybą'},
 ];
-const ALL_STEPS_BY_ID={};STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);DESIGN_STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s);
+let ALL_STEPS_BY_ID={};
+function rebuildStepsIndex(){ ALL_STEPS_BY_ID={}; STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s); DESIGN_STEPS.forEach(s=>ALL_STEPS_BY_ID[s.id]=s); }
+function setSteps(arr){ STEPS=arr; DB.steps=arr; rebuildStepsIndex(); }
+
+// ── Unified modern line-icon system (Lucide-style, single consistent stroke) ──
+const ICON_PATHS={
+  cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
+  ruler:'<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/>',
+  bore:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+  brush:'<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>',
+  wrench:'<path d="M14.5 6.5a3.5 3.5 0 0 0-4.6 4.6L3 18l3 3 6.9-6.9a3.5 3.5 0 0 0 4.6-4.6l-2.3 2.3-2-.6-.6-2z"/>',
+  check:'<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5.5"/>',
+  box:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
+  hammer:'<path d="M15 4l5 5-3 3-5-5z"/><path d="M13.5 7.5 4 17a2 2 0 1 0 3 3l9.5-9.5"/>',
+  bulb:'<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.8 10.6c.5.4.8 1 .8 1.6V16h6v-.8c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/>',
+  pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  cube:'<path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5"/><path d="M12 12v10"/>',
+  cpu:'<rect x="6" y="6" width="12" height="12" rx="1"/><rect x="10" y="10" width="4" height="4"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+  rocket:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+  layers:'<path d="M12 2 2 7l10 5 10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
+  clipboard:'<rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2"/><path d="M9 13l2 2 4-4"/>',
+  truck:'<rect x="1" y="6" width="13" height="10" rx="1"/><path d="M14 9h4l3 3v4h-7z"/><circle cx="5.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+};
+const ICON_CHOICES=['cut','ruler','bore','brush','wrench','check','box','hammer','bulb','pencil','cube','cpu','rocket','layers','clipboard','truck','settings'];
+const ICO_BY_ID={pjovimas:'cut',briaunavimas:'ruler',grezimas:'bore',apdaila:'brush',surinkimas:'wrench',isstatymas:'check',pakavimas:'box',montavimas:'hammer',koncepcija:'bulb',breziniai:'pencil',modelis3d:'cube',cam:'cpu',perdavimas:'rocket'};
+const EMOJI_ICO={'🪚':'cut','📏':'ruler','🔩':'bore','🖌':'brush','🔧':'wrench','✅':'check','📦':'box','🏗':'hammer','💡':'bulb','✏️':'pencil','📐':'cube','⚙️':'cpu','🚀':'rocket'};
+function ICO(key,size,sw){
+  size=size||18; sw=sw||2;
+  const p=ICON_PATHS[key]||ICON_PATHS.settings;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0">${p}</svg>`;
+}
+function stepIcoKey(step){
+  if(!step)return 'settings';
+  if(step.ico)return step.ico;
+  const id=step.id||step.stepId;
+  if(id&&ICO_BY_ID[id])return ICO_BY_ID[id];
+  if(step.icon&&EMOJI_ICO[step.icon])return EMOJI_ICO[step.icon];
+  if(id&&ALL_STEPS_BY_ID[id]&&ALL_STEPS_BY_ID[id].ico)return ALL_STEPS_BY_ID[id].ico;
+  return 'settings';
+}
+function stepIco(step,size){ return ICO(stepIcoKey(step),size); }
+rebuildStepsIndex();
 
 const PROJ_COLORS = ['#6366f1','#0ea5e9','#f59e0b','#10b981','#f97316','#8b5cf6','#ef4444','#06b6d4'];
 const USER_COLORS  = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
@@ -1195,7 +1307,7 @@ async function saveToCloud(){
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
     sbSet(wsKey('folders'),  JSON.stringify(DB.folders||[])),
-    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules})),
+    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules,steps:DB.steps||STEPS})),
   ]);
   _lastSavedAt=Date.now();
 }
@@ -1293,7 +1405,7 @@ async function loadFromCloud(force){
     if(users!==undefined && users){ const u=JSON.parse(users); if(u.length){USERS=u; applied=true;} }
     if(settings!==undefined && settings){
       const sp=JSON.parse(settings);
-      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];
+      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];if(Array.isArray(sp.steps)&&sp.steps.length){STEPS=sp.steps;DB.steps=sp.steps;}rebuildStepsIndex();
       applied=true;
     }
     if(folders!==undefined){
@@ -1408,7 +1520,7 @@ function load(){
     DB.projects=d.projects||[];DB.tasks=d.tasks||[];DB.comments=d.comments||[];
     DB.notifications=d.notifications||[];DB.currentUserId=d.currentUserId||'';
     DB.orders=d.orders||[];DB.stepDefaults=d.stepDefaults||{};
-    DB.matStatus=d.matStatus||{};DB.stepDays=d.stepDays||{};
+    DB.matStatus=d.matStatus||{};DB.stepDays=d.stepDays||{};if(Array.isArray(d.steps)&&d.steps.length){STEPS=d.steps;DB.steps=d.steps;}rebuildStepsIndex();
     DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];DB.fittingPairingRules=d.fittingPairingRules||[];
     DB.folders=d.folders||[];
     if(d.users&&d.users.length)USERS=d.users;
@@ -1661,6 +1773,8 @@ async function enterApp(){
   if(!_offline) setTimeout(checkDailyBackup,3000);
   startAutoRefresh();
   updateSyncModeBtn();
+  updateLangBtn();
+  if(LANG==='en') setTimeout(i18nApply,50);
   if(_syncMode==='manual'&&!_offline) setSyncStatus('offline');
   toast(_offline?'Lokalus režimas (be debesies)':'Sveiki, '+(CURRENT_USER_NAME||me?.name||'')+'!','success');
 }
@@ -1685,6 +1799,109 @@ function setSyncStatus(status){
 
 let _autoRefreshTimer=null;
 let _offline=false; // local-only mode: no Supabase calls at all
+
+// ── Lightweight bilingual layer (LT default ⇄ EN). Translates UI text at runtime;
+// user data (project names, clients, comments…) is left untouched. ──
+let LANG=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_lang'))||'lt';
+const I18N_EN={
+  // Sidebar / nav
+  'Rodiniai':'Views','Cecho rodinys':'Workshop','Visi projektai':'All projects','Gamybos Projektai':'Production','Paslauga':'Service','Projektavimas':'Design','Užsakymai':'Orders','Medžiagų poreikis':'Material needs','Sandėlis':'Warehouse','Grafikas / Lean':'Schedule / Lean','Komanda':'Team','Disciplina (4DX)':'Discipline (4DX)','Ataskaita':'Reports','Pranešimai':'Notifications','Importuoti Excel':'Import Excel','Atsarginė kopija':'Backup','Pjovimo optimizacija ↗':'Cutting optimization ↗','Pjovimo optimizacija':'Cutting optimization',
+  // Topbar / subtitles
+  'Visi aktyvūs projektai':'All active projects','Paslaugos gamybos projektai · pozicijos ir pakavimo lapai':'Service production jobs · items and packing lists',
+  // Tabs
+  'Žingsniai':'Steps','Planas':'Plan','Pipeline':'Pipeline','Darbuotojai':'Workers','Medžiagos':'Materials','Stalčiai':'Drawers','Furnitūra':'Hardware','Surinkimui':'Assembly','Failai':'Files',
+  // View switcher
+  'Kortelės':'Cards','Sąrašas':'List','Lenta':'Board','Laiko juosta':'Timeline',
+  // Summary cards
+  'Iš viso':'Total','Aktyvūs':'Active','Šiandien terminas':'Due today','Vėluoja':'Overdue',
+  // Statuses
+  'Nepradėta':'Not started','Vykdoma':'In progress','Blokuota':'Blocked','Baigta':'Done','aktyvus':'active','laukia':'waiting','Blokas':'Blocked','sustabdyta':'paused','dabartinis žingsnis':'current step','— dabartinis žingsnis':'— current step','— sustabdyta':'— paused',
+  // Folders
+  'Be aplanko':'No folder','📁 Be aplanko':'📁 No folder','+ Naujas aplankas':'+ New folder','Naujas aplankas…':'New folder…','📁 + Naujas aplankas':'📁 + New folder','Pervadinti':'Rename','Ištrinti aplanką':'Delete folder','Priskirti aplankui':'Assign to folder','📁 Sugrupuota pagal aplankus — priskirkite projektus klientui ar darbui':'📁 Grouped by folders — assign projects to a client or job','Tuščias aplankas — priskirkite projektų arba ištrinkite 🗑':'Empty folder — assign projects or delete 🗑',
+  // Project list/board/timeline
+  'Projektas':'Project','Atsakingas':'Responsible','Būsena':'Status','Progresas':'Progress','Terminas':'Deadline','Aplankas':'Folder','Nėra projektų':'No projects','Šiandien':'Today','Rytoj':'Tomorrow',
+  // Packing
+  'Pakavimo pozicijos':'Packing items','Pakavimo lapas':'Packing list','Spausdinti pažymėtus':'Print selected','Žymėti visus':'Select all','Nužymėti':'Deselect','Spausdinimo istorija':'Print history','🖨 Spausdinimo istorija':'🖨 Print history','skirtingos pristatymo datos':'different delivery dates','Artikulas / Pavadinimas':'Article / Name','Artikulas':'Article','Pavadinimas':'Name','Užs.':'Ord.','Supak.':'Pack.','Detalės':'Details','Pozicijos':'Items','Pažymėkite bent vieną poziciją':'Select at least one item','Nėra pažymėtų pozicijų':'No items selected',
+  // Delivery
+  'Pristatymas':'Delivery','Pristatymas:':'Delivery:','Pristatymų istorija':'Delivery history','🚚 Pristatymų istorija':'🚚 Delivery history','Pristatėme klientui':'We delivered','Klientas atsiėmė':'Customer picked up','Žymėti pristatytą':'Mark delivered','Atnaujinti':'Update','Atšaukti':'Cancel','Būdas':'Method','Data':'Date','Pristatyti dabar':'Deliver now','Pristatyta/Užs.':'Delivered/Ord.','✅ Viskas pristatyta':'✅ All delivered','Pristatyta':'Delivered','Pažymėkite bent vieną poziciją su kiekiu':'Select at least one item with a quantity',
+  // Sync
+  'Auto':'Auto','Rankinis':'Manual','Supabase ✓':'Supabase ✓','Saugoma…':'Saving…','Lokalus':'Local','Klaida':'Error',
+  // Buttons / misc
+  '+ Naujas projektas':'+ New project','Naujas projektas':'New project','Spausdinti':'Print','Peržiūrėti':'View','Pridėti medžiagą':'Add material','+ Pridėti medžiagą':'+ Add material','+ Pridėti':'+ Add','Atsijungti':'Sign out','Atsijungti?':'Sign out?','Atšaukti':'Cancel','Išsaugoti':'Save','Atidaryti Nesting ↗':'Open Nesting ↗','Eksportuokite detales → įkelkite į Nesting':'Export parts → load into Nesting','Visi projektai vienoje vietoje':'All projects in one place','Rankiniu būdu pridėtos medžiagos':'Manually added materials',
+  // Comments
+  'Komentarai':'Comments','Siųsti':'Send','Rašykite komentarą… (Ctrl+Enter siųsti, @ paminėti)':'Write a comment… (Ctrl+Enter to send, @ to mention)','Komentarų nėra. Pradėkite diskusiją!':'No comments yet. Start the discussion!','Naudokite @ pažymėti komandos narius':'Use @ to mention team members',
+  // Materials tab
+  'Plokštės':'Boards','Plokščių kaina':'Boards cost','Briaunos':'Edges','Briaunų kaina':'Edges cost','Reikia užsakyti':'To order','Užsakyta':'Ordered','Sandėlyje':'In stock','Plokštės — iš SUMMARY lapo':'Boards — from SUMMARY sheet','Briaunos — iš SUMMARY lapo':'Edges — from SUMMARY sheet','Papildomos medžiagos, kurių nėra SUMMARY lape':'Extra materials not in the SUMMARY sheet','Dar nepridėta jokių medžiagų rankiniu būdu.':'No materials added manually yet.','Reikia':'Needed','Bendroji suma':'Grand total',
+  // Login screen
+  'Prisijungti':'Sign in','El. paštas':'Email','Slaptažodis':'Password','Pirmas prisijungimas?':'First time?','Sukurti darbo vietą':'Create workspace','Dirbti lokaliai (be interneto) →':'Work locally (offline) →','Debesis nepasiekiamas?':'Cloud unavailable?','Darbuotojo prisijungimas':'Worker sign in','Vadovas':'Manager','Darbuotojas':'Worker',
+  // Empty states
+  'Nėra gamybos projektų':'No production projects','Nėra paslaugos projektų':'No service projects','Tuščias aplankas':'Empty folder',
+};
+const I18N_ATTRS=['placeholder','title'];
+let _i18nObserver=null,_i18nBusy=false;
+function i18nTranslate(raw){
+  if(LANG!=='en'||raw==null) return null;
+  const lead=(raw.match(/^\s*/)||[''])[0], trail=(raw.match(/\s*$/)||[''])[0], core=raw.trim();
+  if(!core) return null;
+  if(I18N_EN[core]!==undefined) return lead+I18N_EN[core]+trail;
+  const m=core.match(/^([^\p{L}\d]+\s*)([\p{L}].*)$/u);
+  if(m&&I18N_EN[m[2]]!==undefined) return lead+m[1]+I18N_EN[m[2]]+trail;
+  return null;
+}
+function i18nWalk(root,mode){
+  if(!root||typeof document==='undefined'||!document.createTreeWalker) return;
+  const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  const texts=[]; let n; while(n=tw.nextNode())texts.push(n);
+  texts.forEach(node=>{
+    if(mode==='lt'){ if(node.__i18n!==undefined){node.nodeValue=node.__i18n;delete node.__i18n;} return; }
+    const base=node.__i18n!==undefined?node.__i18n:node.nodeValue;
+    const tr=i18nTranslate(base);
+    if(tr!==null&&tr!==node.nodeValue){ if(node.__i18n===undefined)node.__i18n=node.nodeValue; node.nodeValue=tr; }
+  });
+  const els=[]; if(root.nodeType===1)els.push(root);
+  const ew=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT,null);
+  while(n=ew.nextNode())els.push(n);
+  els.forEach(el=>{ I18N_ATTRS.forEach(a=>{
+    if(!el.hasAttribute||!el.hasAttribute(a))return;
+    const key='__i18n_'+a;
+    if(mode==='lt'){ if(el[key]!==undefined){el.setAttribute(a,el[key]);delete el[key];} return; }
+    const base=el[key]!==undefined?el[key]:el.getAttribute(a);
+    const tr=i18nTranslate(base);
+    if(tr!==null&&tr!==el.getAttribute(a)){ if(el[key]===undefined)el[key]=el.getAttribute(a); el.setAttribute(a,tr); }
+  });});
+}
+function i18nApply(){
+  if(LANG!=='en'||typeof document==='undefined')return;
+  _i18nBusy=true; try{ i18nWalk(document.body,'en'); }catch(e){} _i18nBusy=false;
+  if(!_i18nObserver&&typeof MutationObserver!=='undefined'){
+    _i18nObserver=new MutationObserver(muts=>{
+      if(LANG!=='en'||_i18nBusy)return;
+      _i18nBusy=true;
+      try{ muts.forEach(m=>{ if(m.type==='childList'){ m.addedNodes.forEach(nd=>{
+        if(nd.nodeType===1) i18nWalk(nd,'en');
+        else if(nd.nodeType===3){ const tr=i18nTranslate(nd.nodeValue); if(tr!==null){ if(nd.__i18n===undefined)nd.__i18n=nd.nodeValue; nd.nodeValue=tr; } }
+      }); } }); }catch(e){}
+      _i18nBusy=false;
+    });
+    try{ _i18nObserver.observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  }
+}
+function setLang(lang){
+  LANG=lang; try{localStorage.setItem('fab_lang',lang);}catch(e){}
+  if(lang==='en') i18nApply(); else { try{ i18nWalk(document.body,'lt'); }catch(e){} }
+  updateLangBtn();
+}
+function toggleLang(){ setLang(LANG==='en'?'lt':'en'); }
+function updateLangBtn(){
+  ['lt','en'].forEach(l=>{
+    const b=document.querySelector?document.querySelector('#lang-toggle button[data-lang="'+l+'"]'):null;
+    if(!b)return;
+    const active=(LANG===l);
+    b.style.background=active?'var(--blue-t)':'var(--surface)';
+    b.style.color=active?'#fff':'var(--muted)';
+    b.style.fontWeight=active?'700':'500';
+  });
+}
 let _syncMode=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_syncMode'))||'auto';
 function setSyncMode(m){
   _syncMode=m;
@@ -1744,6 +1961,8 @@ function stopAutoRefresh(){clearInterval(_autoRefreshTimer);}
 // ── Window init ──
 window.addEventListener('load',()=>{
   setSyncStatus('offline');
+  updateLangBtn();
+  if(LANG==='en') i18nApply();
   // Try auto-login from stored session
   setTimeout(async()=>{
     // Try admin token
@@ -1924,7 +2143,7 @@ function showView(name,extra){
   else if(name==='team'){
     document.getElementById('topbar-title').textContent='Komanda';
     document.getElementById('topbar-sub').textContent='Nariai · Atsakomybės · Žingsnių nustatymai';
-    if(act)act.innerHTML=isManager()?`<button class="btn btn-sm btn-primary" onclick="openAddMemberModal()">+ Narys</button>`:'';
+    if(act)act.innerHTML=isManager()?`<button class="btn btn-sm" onclick="openStepsManager()">⚙ Gamybos žingsniai</button> <button class="btn btn-sm btn-primary" onclick="openAddMemberModal()">+ Narys</button>`:'';
     renderTeam();
   }
   else if(name==='materials'){
@@ -2242,7 +2461,7 @@ function renderFloor(){
       const pendCount=stepTasks.filter(t=>t.status==='pending').length;
       return`<div class="step-col">
         <div class="step-col-head" style="border-bottom-color:${s.color};background:${s.bg}20">
-          <span style="font-size:14px">${s.icon}</span>
+          <span style="display:inline-flex;align-items:center">${stepIco(s,16)}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:10px;font-weight:700;color:${s.color}">${s.short}</div>
             <div style="font-size:9px;color:var(--hint)">${inpCount?`<span style="color:var(--blue-t)">●${inpCount}</span> `:''}${pendCount?`<span>○${pendCount}</span>`:''}</div>
@@ -2424,7 +2643,7 @@ function renderProjectComments(pid){
   const commentList=comments.length?comments.map(c=>{
     const u=getUser(c.userId);
     const task=c.taskId?DB.tasks.find(x=>x.id===c.taskId):null;
-    const taskBadge=task?`<span style="background:var(--surface2);color:var(--muted);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:500;margin-left:6px">${getStep(task.stepId).icon} ${escHtml(task.name||'')}</span>`:'';
+    const taskBadge=task?`<span style="background:var(--surface2);color:var(--muted);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:500;margin-left:6px">${stepIco(getStep(task.stepId),12)} ${escHtml(task.name||'')}</span>`:'';
     return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
       <div style="flex-shrink:0">${ava(u?.id||c.userId,32)}</div>
       <div style="flex:1;min-width:0">
@@ -2571,7 +2790,7 @@ function renderKanban(pid){
       ondragleave="document.getElementById('sgcol-${s.id}').classList.remove('drag-over')"
       ondrop="dropTaskToStep(event,'${s.id}','${pid}')">
       <div class="sg-head" style="background:${s.bg}20;border-bottom:2px solid ${s.color}22">
-        <div class="sg-icon" style="background:${s.bg};color:${s.color}">${s.icon}</div>
+        <div class="sg-icon" style="background:${s.bg};color:${s.color}">${stepIco(s,18)}</div>
         <div>
           <div class="sg-title" style="color:${s.color}">${s.label}</div>
           <div style="font-size:9px;color:var(--hint)">${done}/${stepTasks.length} atlikta</div>
@@ -2621,7 +2840,7 @@ function dropTaskToStep(ev,stepId,pid){
   patchKanbanColumn(pid,stepId);
   updateFloorCard(pid);
   renderSidebar();
-  toast(`${getStep(stepId).icon} Perkelta į ${getStep(stepId).label}`);
+  toast(`Perkelta į ${getStep(stepId).label}`);
 }
 function renderPipeline(pid){
   const tasks=projTasks(pid);
@@ -2633,7 +2852,7 @@ function renderPipeline(pid){
     <thead><tr>
       <th style="min-width:160px">Užduotis</th>
       <th style="width:30px">Ats.</th>
-      ${stepsForProj.map(s=>`<th title="${s.label}" style="text-align:center;width:34px"><div style="width:22px;height:22px;border-radius:5px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:11px;margin:0 auto" title="${s.label}">${s.icon}</div></th>`).join('')}
+      ${stepsForProj.map(s=>`<th title="${s.label}" style="text-align:center;width:34px"><div style="width:22px;height:22px;border-radius:5px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:11px;margin:0 auto" title="${s.label}">${stepIco(s,13)}</div></th>`).join('')}
       <th style="text-align:right;width:42px">%</th>
     </tr></thead>
     <tbody>${tasks.map(t=>{
@@ -2714,7 +2933,7 @@ function planProjectSteps(p){
       const days=stepDuration(s.id);
       // step ends on endCursor, starts (days-1) working days earlier (inclusive)
       const start=addWorkDays(endCursor,-(days-1));
-      out.unshift({stepId:s.id,label:s.label,start,end:endCursor,days,color:s.color,bg:s.bg,icon:s.icon,short:s.short});
+      out.unshift({stepId:s.id,label:s.label,start,end:endCursor,days,color:s.color,bg:s.bg,icon:s.icon,ico:s.ico,short:s.short});
       // Next earlier step ends 1 working day before this start
       endCursor=addWorkDays(start,-1);
     }
@@ -2728,7 +2947,7 @@ function planProjectSteps(p){
     for(const s of steps){
       const days=stepDuration(s.id);
       const end=addWorkDays(startCursor,days-1);
-      out.push({stepId:s.id,label:s.label,start:startCursor,end,days,color:s.color,bg:s.bg,icon:s.icon,short:s.short});
+      out.push({stepId:s.id,label:s.label,start:startCursor,end,days,color:s.color,bg:s.bg,icon:s.icon,ico:s.ico,short:s.short});
       startCursor=addWorkDays(end,1);
     }
   }
@@ -2969,7 +3188,7 @@ function renderSchedule(){
       <div class="lean-sub">Lygiagretumo lygis</div>
     </div>
     <div class="lean-card">
-      ${bnStep?`<div class="lean-val" style="color:var(--red-t)">${bnStep.icon}</div>
+      ${bnStep?`<div class="lean-val" style="color:var(--red-t)">${stepIco(bnStep,20)}</div>
       <div class="lean-label">Butelio kaklelis</div>
       <div class="lean-sub bottleneck-badge">⚠ ${bnStep.label} (${bottleneck[1]} aktyvūs)</div>`
       :`<div class="lean-val" style="color:var(--green-t)">✓</div><div class="lean-label">Butelio kaklelio nėra</div><div class="lean-sub">Srautas tolygus</div>`}
@@ -3019,7 +3238,7 @@ function renderSchedule(){
         return`<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:8px 12px;background:var(--surface2);border-right:1px solid var(--border)">
             <div style="display:flex;align-items:center;gap:6px">
-              <div style="width:22px;height:22px;border-radius:6px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${s.icon}</div>
+              <div style="width:22px;height:22px;border-radius:6px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${stepIco(s,14)}</div>
               <div>
                 <div style="font-size:11px;font-weight:600;color:${s.color}">${s.label}</div>
                 ${wipWarn?`<div style="font-size:9px;color:var(--red-t)">⚠ WIP: ${stepInProg} projektai</div>`:''}
@@ -5413,7 +5632,7 @@ function renderProjectSchedule(pid){
     const st=task?.status||'pending';
     const skip=sc?.skip||false;
     if(skip)return`<div class="sched-step-row" style="opacity:.4">
-      <div>${s.icon}</div>
+      <div style="display:flex;justify-content:center">${stepIco(s,16)}</div>
       <div style="color:${s.color};font-weight:600">${s.label}</div>
       <div style="color:var(--hint);font-style:italic">Praleista</div>
       <div>—</div><div>—</div>
@@ -5437,7 +5656,7 @@ function renderProjectSchedule(pid){
     const barW=Math.max(2,Math.round(plannedDur/projSpan*100));
 
     return`<div class="sched-step-row">
-      <div style="text-align:center">${s.icon}</div>
+      <div style="text-align:center">${stepIco(s,16)}</div>
       <div style="font-weight:600;color:${s.color}">${s.label}</div>
       <div style="font-size:10px;color:var(--hint);font-family:var(--mono)">${startD?fmtDate(startD):'—'}</div>
       <div style="font-size:10px;color:var(--hint);font-family:var(--mono)">${endD?fmtDate(endD):'—'}</div>
@@ -5479,7 +5698,7 @@ function renderProjectSchedule(pid){
       const planned=(DB.stepDays||{})[t.stepId]||STEP_DAYS[t.stepId]||1;
       const diff=durD!==null?Math.round((durD-planned)*10)/10:null;
       return`<tr>
-        <td><span style="background:${step.bg};color:${step.color};padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600">${step.icon} ${step.label}</span></td>
+        <td><span style="background:${step.bg};color:${step.color};padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600">${stepIco(step,12)} ${step.label}</span></td>
         <td>${ava(t.assigneeId,18)}<span style="font-size:10px;margin-left:5px">${escHtml(getUser(t.assigneeId).name)}</span></td>
         <td style="font-family:var(--mono);font-size:10px">${t.startedAt?new Date(t.startedAt).toLocaleString('lt-LT'):'—'}</td>
         <td style="font-family:var(--mono);font-size:10px">${t.completedAt?new Date(t.completedAt).toLocaleString('lt-LT'):'—'}</td>
@@ -6027,13 +6246,13 @@ function renderReport(){
   const stepStatsRows=STEPS.map(s=>{
     const st=stepStats[s.id];
     const ds=st.durations;
-    if(!ds.length)return`<tr><td><span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">${s.icon} ${s.label}</span></td><td colspan="5" style="color:var(--hint);font-size:11px;padding:8px 12px">Dar nėra duomenų</td></tr>`;
+    if(!ds.length)return`<tr><td><span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">${stepIco(s,12)} ${s.label}</span></td><td colspan="5" style="color:var(--hint);font-size:11px;padding:8px 12px">Dar nėra duomenų</td></tr>`;
     const avg=Math.round(ds.reduce((a,b)=>a+b,0)/ds.length*10)/10;
     const minD=Math.min(...ds).toFixed(1);const maxD=Math.max(...ds).toFixed(1);
     const overPct=Math.round(st.overCount/st.count*100);
     const barW=Math.round(avg/maxAvg*120);
     return`<tr>
-      <td><span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">${s.icon} ${s.label}</span></td>
+      <td><span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">${stepIco(s,12)} ${s.label}</span></td>
       <td style="font-family:var(--mono);font-weight:600">${avg} d.</td>
       <td style="font-family:var(--mono);color:var(--hint)">${st.planned} d.</td>
       <td style="font-family:var(--mono);font-size:10px;color:var(--hint)">${minD}–${maxD}</td>
@@ -6074,7 +6293,7 @@ function renderReport(){
       <td style="font-family:var(--mono);font-weight:600;color:var(--green-t)">${ws.done}</td>
       <td style="font-family:var(--mono)">${ws.totalHours.toFixed(0)} val.</td>
       <td><span class="badge ${active?'badge-blue':'badge-gray'}">${active} aktyvios</span></td>
-      <td>${topStepEl?`<span style="background:${topStepEl.bg};color:${topStepEl.color};padding:2px 6px;border-radius:4px;font-size:10px">${topStepEl.icon} ${topStepEl.label} ×${topStep[1]}</span>`:'—'}</td>
+      <td>${topStepEl?`<span style="background:${topStepEl.bg};color:${topStepEl.color};padding:2px 6px;border-radius:4px;font-size:10px">${stepIco(topStepEl,12)} ${topStepEl.label} ×${topStep[1]}</span>`:'—'}</td>
       <td style="font-family:var(--mono);color:${ws.over>0?'var(--amber-t)':'var(--green-t)'}">${ws.done>0?Math.round(ws.over/ws.done*100):0}% vėlavo</td>
     </tr>`;
   }).join('');
@@ -6117,7 +6336,7 @@ function renderReport(){
     const st=stepStats[s.id];
     const avg=st.durations.length?Math.round(st.durations.reduce((a,b)=>a+b,0)/st.durations.length*10)/10:null;
     return`<div class="step-def-row">
-      <div class="step-def-icon" style="background:${s.bg};color:${s.color}">${s.icon}</div>
+      <div class="step-def-icon" style="background:${s.bg};color:${s.color}">${stepIco(s,18)}</div>
       <div style="flex:1;font-size:12px;font-weight:500;color:${s.color}">${s.label}</div>
       ${avg!==null?`<div style="font-size:10px;color:var(--muted);margin-right:8px;font-family:var(--mono)">Vidurkis: ${avg}d.</div>`:''}
       <input type="number" min="0" max="30" step="0.5" value="${cur}" style="width:70px;font-size:11px;padding:4px 8px;text-align:right" onchange="setStepDay('${s.id}',parseFloat(this.value)||${cur})">
@@ -6190,7 +6409,7 @@ function advanceTask(tid){
     const curIdx=allowedSteps.findIndex(s=>s.id===stepId);
     let nextStep=allowedSteps[curIdx+1]||null;
     if(!proj?.serviceSteps&&nextStep?.id==='apdaila'&&!needsApdaila(proj))nextStep=allowedSteps[curIdx+2]||null;
-    if(nextStep) addNotif('step-move',`${nextStep.icon} ${nextStep.label} laukia`,proj?.name||'',pid);
+    if(nextStep) addNotif('step-move',`${nextStep.label} laukia`,proj?.name||'',pid);
 
     // Check if all steps done
     const allDone=projTasks(pid).every(t2=>t2.status==='done');
@@ -6513,6 +6732,78 @@ function markAllRead(){DB.notifications.forEach(n=>n.read=true);renderNotifs();r
 // ══════════════════════════════════════════════
 // MODALS
 // ══════════════════════════════════════════════
+// ── Production steps manager: rename / add / remove / reorder pipeline stages ──
+let _stepsEdit=null, _stepsRemoved=null;
+const STEP_PALETTE=['#0ea5e9','#8b5cf6','#06b6d4','#f59e0b','#10b981','#3b82f6','#84cc16','#f97316','#ec4899','#ef4444','#14b8a6','#64748b'];
+function openStepsManager(){
+  _stepsEdit=STEPS.map(s=>({...s}));
+  _stepsRemoved=new Set();
+  stepsMgrRender();
+}
+function stepsMgrRender(){
+  const rows=_stepsEdit.map((s,i)=>{
+    const taskCount=DB.tasks.filter(t=>t.stepId===s.id).length;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--surface2)">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <button class="btn btn-xs" style="padding:1px 6px" ${i===0?'disabled':''} onclick="stepsMgrMove(${i},-1)" title="Aukštyn">▲</button>
+        <button class="btn btn-xs" style="padding:1px 6px" ${i===_stepsEdit.length-1?'disabled':''} onclick="stepsMgrMove(${i},1)" title="Žemyn">▼</button>
+      </div>
+      ${stepIconPicker(i, stepIcoKey(s))}
+      <input value="${escHtml(s.label||'')}" oninput="stepsMgrField(${i},'label',this.value)" placeholder="Žingsnio pavadinimas" style="flex:1;min-width:120px;font-weight:600">
+      <input value="${escHtml(s.short||'')}" oninput="stepsMgrField(${i},'short',this.value.toUpperCase())" maxlength="4" placeholder="TRMP" style="width:64px;text-transform:uppercase;font-family:var(--mono);text-align:center" title="Trumpinys">
+      <input type="color" value="${s.color||'#64748b'}" oninput="stepsMgrField(${i},'color',this.value)" style="width:40px;height:38px;padding:2px;cursor:pointer" title="Spalva">
+      <button class="btn btn-sm btn-danger" onclick="stepsMgrRemove(${i})" title="${taskCount?taskCount+' užduočių šiame žingsnyje':'Pašalinti'}">🗑${taskCount?` <span style="font-size:9px">${taskCount}</span>`:''}</button>
+    </div>`;
+  }).join('');
+  openModal(`
+    <button class="modal-close" onclick="closeModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button>
+    <h2 style="margin:0 0 4px;font-size:18px">⚙ Gamybos žingsniai</h2>
+    <p style="margin:0 0 16px;font-size:12px;color:var(--muted)">Pervadinkite, pridėkite, pašalinkite ar pertvarkykite gamybos etapus. Pakeitimai galioja visiems projektams (kanban stulpeliams, pipeline ir planui).</p>
+    <div style="max-height:52vh;overflow-y:auto;margin-bottom:14px">${rows||'<div style="color:var(--hint);font-size:12px;padding:12px">Nėra žingsnių. Pridėkite bent vieną.</div>'}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="stepsMgrAdd()">+ Pridėti žingsnį</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" onclick="closeModal()">Atšaukti</button>
+        <button class="btn btn-sm btn-primary" onclick="saveStepsMgr()">💾 Išsaugoti</button>
+      </div>
+    </div>`);
+}
+function stepsMgrField(i,field,val){ if(_stepsEdit[i]) _stepsEdit[i][field]=val; }
+function stepsMgrIco(i,key){ if(_stepsEdit[i]){ _stepsEdit[i].ico=key; stepsMgrRender(); } }
+function stepIconPicker(i,curKey){
+  return `<div style="display:flex;gap:3px;overflow-x:auto;max-width:160px;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--surface)">${ICON_CHOICES.map(k=>`<button onclick="stepsMgrIco(${i},'${k}')" title="${k}" style="flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:1px solid ${k===curKey?'var(--blue)':'transparent'};background:${k===curKey?'var(--blue-bg)':'transparent'};color:${k===curKey?'var(--blue-t)':'var(--muted)'};cursor:pointer">${ICO(k,17)}</button>`).join('')}</div>`;
+}
+function stepsMgrMove(i,dir){
+  const j=i+dir; if(j<0||j>=_stepsEdit.length)return;
+  const t=_stepsEdit[i]; _stepsEdit[i]=_stepsEdit[j]; _stepsEdit[j]=t; stepsMgrRender();
+}
+function stepsMgrAdd(){
+  _stepsEdit.push({id:'step_'+uid(), label:'Naujas žingsnis', short:'NAUJ', color:STEP_PALETTE[_stepsEdit.length%STEP_PALETTE.length], bg:'#f1f5f9', icon:'⚙️'});
+  stepsMgrRender();
+}
+function stepsMgrRemove(i){
+  const s=_stepsEdit[i]; if(!s)return;
+  const n=DB.tasks.filter(t=>t.stepId===s.id).length;
+  if(n && !confirm(`Žingsnyje „${s.label}" yra ${n} užduot${n===1?'is':'ys'}. Pašalinus žingsnį, jos bus ištrintos. Tęsti?`))return;
+  if(n) _stepsRemoved.add(s.id);
+  _stepsEdit.splice(i,1);
+  stepsMgrRender();
+}
+function saveStepsMgr(){
+  // validate
+  for(const s of _stepsEdit){ if(!s.label||!s.label.trim()){ toast('Visi žingsniai turi turėti pavadinimą','error'); return; } if(!s.short||!s.short.trim()) s.short=s.label.trim().slice(0,3).toUpperCase(); }
+  if(!_stepsEdit.length){ toast('Turi būti bent vienas žingsnis','error'); return; }
+  // delete tasks belonging to removed steps
+  if(_stepsRemoved.size) DB.tasks=DB.tasks.filter(t=>!_stepsRemoved.has(t.stepId));
+  setSteps(_stepsEdit.map(s=>({...s})));
+  save();
+  closeModal();
+  toast('✅ Gamybos žingsniai atnaujinti','success');
+  try{ renderSidebar(); }catch(e){}
+  if(typeof rerenderCurrentView==='function') rerenderCurrentView();
+  else if(DB.currentView==='project'&&DB.currentProjectId) renderProjectView(DB.currentProjectId,_projTab);
+}
+
 function openModal(html){
   document.getElementById('modal-body').innerHTML=html;
   document.getElementById('modal-overlay').classList.add('open');
@@ -6541,7 +6832,7 @@ function openNewProjectModal(fromOrder, presetType){
   const stepChecks=STEPS.map((s,i)=>`
     <label style="display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px;font-weight:500">
       <input type="checkbox" id="ns-step-${s.id}" style="width:14px;height:14px" onchange="toggleServiceStep()" ${i===0?'checked':''}>
-      <span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px">${s.icon} ${s.label}</span>
+      <span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px">${stepIco(s,12)} ${s.label}</span>
     </label>`).join('');
   // Show order lines if converting from order
   const lines=fo.lines||[];
@@ -6849,7 +7140,7 @@ function openAddTaskModal(pid,preStep){
   const defStep=preStep && stepsForProj.some(s=>s.id===preStep) ? preStep : firstStepId;
   const defAss=DB.stepDefaults[defStep]||DB.currentUserId;
   _selAssignee=defAss;
-  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===defStep?'selected':''}>${s.icon} ${s.label}</option>`).join('');
+  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===defStep?'selected':''}>${s.label}</option>`).join('');
   openModal(`<div class="modal-title">Nauja užduotis <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-field"><label class="form-label">Pavadinimas *</label><input id="nt-name" autofocus></div>
     <div class="form-grid-2">
@@ -6893,7 +7184,7 @@ function openTaskModal(tid){
   const step=getStep(t.stepId);const comments=taskComments(tid);
   // Use design steps for design projects, production steps otherwise
   const stepsForProj=projSteps(proj);
-  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===t.stepId?'selected':''}>${s.icon} ${s.label}</option>`).join('');
+  const so=stepsForProj.map(s=>`<option value="${s.id}" ${s.id===t.stepId?'selected':''}>${s.label}</option>`).join('');
   const sto=['pending','in-progress','done'].map((v,i)=>`<option value="${v}" ${v===t.status?'selected':''}>${['⏳ Laukia','🔄 Vykdoma','✅ Atlikta'][i]}</option>`).join('');
   const assigneeGrid=USERS.map(u=>{
     const sel=t.assigneeIds.includes(u.id);
@@ -7186,7 +7477,7 @@ function previewPlan(pid){
     if(previewEl)previewEl.textContent='⚠ Įveskite '+(tmp.planMode==='forward'?'pradžios datą':'terminą');
     return;
   }
-  const html=plan.map(pl=>`<div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px"><span style="font-weight:600;color:${pl.color}">${pl.icon} ${pl.label}</span><span style="font-family:var(--mono);color:var(--muted)">${pl.start} → ${pl.end} (${pl.days} d.)</span></div>`).join('');
+  const html=plan.map(pl=>`<div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px"><span style="font-weight:600;color:${pl.color}">${stepIco(pl,12)} ${pl.label}</span><span style="font-family:var(--mono);color:var(--muted)">${pl.start} → ${pl.end} (${pl.days} d.)</span></div>`).join('');
   openModal(`<div class="modal-title">📋 Plano peržiūra <button class="modal-close" onclick="closeModal();openEditProjectModal('${pid}')">✕</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Režimas: <strong>${tmp.planMode==='backward'?'⬅ Backward (nuo termino)':'➡ Forward (nuo pradžios)'}</strong></div>
     <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)">${html}</div>
@@ -7519,7 +7810,7 @@ function renderDesignProjects(){
         </div>
         <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--muted)">${done}/${tasks.length}</span>
       </div>
-      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
+      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${stepIco(curStep,12)} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:flex-end">${folderSelectHtml(p,'design')}</div>
     </div>`;
@@ -7531,8 +7822,8 @@ function renderDesignProjects(){
     <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:16px">
       🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.
     </div>
-    ${foldersToolbar('design')}
-    ${renderFolderedGrid(sorted, card, 'design')}
+    ${viewSwitcher('design')}
+    ${renderAreaProjects(sorted, card, 'design')}
   `;
 }
 
@@ -7602,7 +7893,7 @@ function renderFolderedGrid(projects, cardFn, area){
   area=area||(projects[0]?projectArea(projects[0]):'production');
   const folders=foldersForArea(area);
   const sections=[];
-  folders.forEach(f=>{ const items=projects.filter(p=>p.folderId===f.id); if(items.length)sections.push({folder:f,items}); });
+  folders.forEach(f=>{ const items=projects.filter(p=>p.folderId===f.id); sections.push({folder:f,items}); });
   const unfiled=projects.filter(p=>!p.folderId||!getFolder(p.folderId));
   if(unfiled.length)sections.push({folder:null,items:unfiled});
   if(!sections.length)return '';
@@ -7621,11 +7912,146 @@ function renderFolderedGrid(projects, cardFn, area){
         <span style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f?escHtml(f.name):'📁 Be aplanko'}</span>
         <span style="font-size:11px;color:var(--hint);font-family:var(--mono)">${sec.items.length}</span>
       </div>
-      ${f?`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="renameFolderPrompt('${f.id}')">✏</button><button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="deleteFolder('${f.id}')">🗑</button>`:''}
+      ${f?`<button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="renameFolderPrompt('${f.id}')" title="Pervadinti">✏</button><button class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="deleteFolder('${f.id}')" title="Ištrinti aplanką">🗑</button>`:''}
     </div>`;
-    const grid=collapsed?'':`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${sec.items.map(cardFn).join('')}</div>`;
-    return head+grid;
+    let body;
+    if(collapsed) body='';
+    else if(sec.items.length) body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${sec.items.map(cardFn).join('')}</div>`;
+    else body='<div style="font-size:11px;color:var(--hint);padding:4px 10px 8px">Tuščias aplankas — priskirkite projektų arba ištrinkite 🗑</div>';
+    return head+body;
   }).join('');
+}
+
+// ── Project view modes (Cards / List / Board / Timeline), per area, persisted ──
+let _areaView={};
+function getAreaView(area){
+  if(!_areaView[area]){ try{_areaView[area]=localStorage.getItem('fab_areaView_'+area)||'cards';}catch(e){_areaView[area]='cards';} }
+  return _areaView[area];
+}
+function setAreaView(area,mode){
+  _areaView[area]=mode; try{localStorage.setItem('fab_areaView_'+area,mode);}catch(e){}
+  rerenderProjectsViews();
+}
+const PROJ_STATUS={todo:{l:'Nepradėta',c:'var(--muted)'},active:{l:'Vykdoma',c:'var(--blue-t)'},blocked:{l:'Blokuota',c:'var(--red-t)'},done:{l:'Baigta',c:'var(--green-t)'}};
+function projStat(p){
+  const allT=projTasks(p.id);
+  const total=allT.length;
+  const done=allT.filter(t=>t.status==='done').length;
+  const pct=total?Math.round(done/total*100):0;
+  const blocked=allT.some(t=>t.blocker);
+  const inProg=allT.some(t=>t.status==='in-progress');
+  const stepsForP=p.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
+  const stepOrder=stepsForP.map(s=>s.id);
+  const prodTasks=allT.filter(t=>stepOrder.includes(t.stepId));
+  const ordered=prodTasks.slice().sort((a,b)=>stepOrder.indexOf(a.stepId)-stepOrder.indexOf(b.stepId));
+  const cur=ordered.find(t=>t.status==='in-progress')||ordered.find(t=>t.status!=='done');
+  const curStep=cur?(STEPS.find(s=>s.id===cur.stepId)||null):null;
+  const dl=p.deadline?daysUntilDeadline(p.deadline):null;
+  let status; if(blocked)status='blocked'; else if(total>0&&done>=total)status='done'; else if(inProg||done>0)status='active'; else status='todo';
+  return {total,done,pct,blocked,inProg,curStep,dl,status,owner:getUser(p.owner)};
+}
+function dlBadge(dl){
+  if(dl===null||dl===undefined)return '<span style="color:var(--hint)">—</span>';
+  const t=dl<0?'⚠ Vėluoja '+(-dl)+' d.':dl===0?'🔴 Šiandien':dl===1?'🟠 Rytoj':dl+' d.';
+  const c=dl<0?'var(--red-t)':dl<3?'var(--amber-t)':'var(--text)';
+  return '<span style="color:'+c+';font-weight:600">'+t+'</span>';
+}
+function viewSwitcher(area){
+  const cur=getAreaView(area);
+  const opt=(key,label,icon)=>`<button onclick="setAreaView('${area}','${key}')" style="font-size:11px;padding:5px 11px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:${cur===key?'var(--blue-t)':'var(--surface)'};color:${cur===key?'#fff':'var(--muted)'};font-weight:${cur===key?'700':'500'}">${icon} ${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    ${opt('cards','Kortelės','▦')}${opt('list','Sąrašas','☰')}${opt('board','Lenta','▥')}${opt('timeline','Laiko juosta','📆')}
+  </div>`;
+}
+function renderAreaProjects(sorted, card, area){
+  const mode=getAreaView(area);
+  if(mode==='list')return renderProjectList(sorted, area);
+  if(mode==='board')return renderProjectBoard(sorted, area);
+  if(mode==='timeline')return renderProjectTimeline(sorted, area);
+  return foldersToolbar(area)+renderFolderedGrid(sorted, card, area);
+}
+function renderProjectList(projects, area){
+  if(!projects.length)return '<div style="padding:24px;text-align:center;color:var(--hint);font-size:12px">Nėra projektų</div>';
+  const rows=projects.map(p=>{
+    const s=projStat(p);
+    const st=PROJ_STATUS[s.status];
+    const fol=getFolder(p.folderId);
+    return `<tr onclick="showView('project','${p.id}')" style="cursor:pointer;border-top:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <td style="padding:9px 10px"><div style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:2px;background:${p.color||'var(--muted)'};flex-shrink:0"></span><div style="min-width:0"><div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div><div style="font-size:10px;color:var(--muted)">${escHtml(p.client||'')}</div></div></div></td>
+      <td style="padding:9px 10px;font-size:11px;color:var(--muted);white-space:nowrap">${s.owner?escHtml(s.owner.name):'—'}</td>
+      <td style="padding:9px 10px;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:${st.c};background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:10px">${st.l}</span></td>
+      <td style="padding:9px 10px"><div style="display:flex;align-items:center;gap:6px;min-width:120px"><div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${s.pct}%;height:100%;background:${p.color||'var(--blue-t)'}"></div></div><span style="font-size:10px;font-family:var(--mono);color:var(--muted)">${s.done}/${s.total}</span></div></td>
+      <td style="padding:9px 10px;font-size:11px;white-space:nowrap">${dlBadge(s.dl)}</td>
+      <td style="padding:9px 10px;font-size:11px;color:var(--muted);white-space:nowrap">${fol?escHtml(fol.name):'—'}</td>
+    </tr>`;
+  }).join('');
+  return `${foldersToolbar(area)}
+    <div style="overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2)">
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Projektas</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Atsakingas</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Būsena</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Progresas</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Terminas</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Aplankas</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+function renderProjectBoard(projects, area){
+  const cols=[['todo','Nepradėta'],['active','Vykdoma'],['blocked','Blokuota'],['done','Baigta']];
+  const mini=(p)=>{
+    const s=projStat(p);
+    return `<div onclick="showView('project','${p.id}')" style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${p.color||'var(--muted)'};border-radius:8px;padding:9px 10px;cursor:pointer;box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+      <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">${escHtml(p.client||'')}</div>
+      <div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${s.pct}%;height:100%;background:${p.color||'var(--blue-t)'}"></div></div><span style="font-size:9px;font-family:var(--mono);color:var(--muted)">${s.pct}%</span></div>
+      ${p.deadline?`<div style="margin-top:6px;font-size:10px">${dlBadge(s.dl)}</div>`:''}
+    </div>`;
+  };
+  return `<div style="display:grid;grid-template-columns:repeat(${cols.length},minmax(190px,1fr));gap:12px;align-items:start;overflow-x:auto">
+    ${cols.map(([key,label])=>{
+      const items=projects.filter(p=>projStat(p).status===key);
+      const c=PROJ_STATUS[key].c;
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px"><span style="width:9px;height:9px;border-radius:50%;background:${c}"></span><span style="font-weight:700;font-size:12px">${label}</span><span style="font-size:10px;color:var(--hint);font-family:var(--mono)">${items.length}</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px">${items.map(mini).join('')||'<div style="font-size:10px;color:var(--hint);padding:4px">—</div>'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function renderProjectTimeline(projects, area){
+  const withDl=projects.filter(p=>p.deadline);
+  const noDl=projects.filter(p=>!p.deadline);
+  if(!withDl.length)return `<div style="padding:24px;text-align:center;color:var(--hint);font-size:12px">Nėra projektų su terminais${noDl.length?` (${noDl.length} be termino)`:''}.</div>`;
+  const parse=(d)=>new Date(String(d).slice(0,10)+'T00:00:00').getTime();
+  const today=Date.now();
+  let minT=today,maxT=today;
+  withDl.forEach(p=>{ const s=parse(p.created||p.deadline), e=parse(p.deadline); minT=Math.min(minT,s,e); maxT=Math.max(maxT,e); });
+  const span=Math.max(1,maxT-minT);
+  const todayPct=((today-minT)/span*100).toFixed(2);
+  const sorted=withDl.slice().sort((a,b)=>parse(a.deadline)-parse(b.deadline));
+  const rows=sorted.map(p=>{
+    const s=projStat(p);
+    const stt=parse(p.created||p.deadline), en=parse(p.deadline);
+    const lo=Math.min(stt,en), hi=Math.max(stt,en);
+    const left=Math.max(0,(lo-minT)/span*100);
+    const width=Math.max(1.5,(hi-lo)/span*100);
+    const col=s.status==='blocked'?'var(--red-t)':s.status==='done'?'var(--green-t)':(p.color||'var(--blue-t)');
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+      <div onclick="showView('project','${p.id}')" style="width:150px;flex-shrink:0;font-size:12px;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.name)}">${escHtml(p.name)}</div>
+      <div style="position:relative;flex:1;height:22px;background:var(--surface2);border-radius:5px;border:1px solid var(--border)">
+        <div style="position:absolute;left:${todayPct}%;top:0;bottom:0;width:2px;background:var(--amber-t);opacity:.55"></div>
+        <div onclick="showView('project','${p.id}')" title="${escHtml(p.name)} · ${p.deadline}" style="position:absolute;left:${left}%;width:${width}%;top:3px;height:16px;background:${col};border-radius:4px;cursor:pointer;min-width:6px"></div>
+      </div>
+      <div style="width:88px;flex-shrink:0;font-size:10px;color:var(--muted);font-family:var(--mono);text-align:right">${p.deadline}</div>
+    </div>`;
+  }).join('');
+  const fmt=(t)=>new Date(t).toISOString().slice(0,10);
+  return `<div style="font-size:11px;color:var(--hint);margin-bottom:10px">Laiko juosta pagal terminą · ${fmt(minT)} → ${fmt(maxT)} · <span style="color:var(--amber-t)">│</span> šiandien${noDl.length?` · ${noDl.length} be termino`:''}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px;box-shadow:var(--sh)">${rows}</div>`;
 }
 
 function renderPaslaugaProjects(){
@@ -7690,7 +8116,7 @@ function renderPaslaugaProjects(){
         </div>
         <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--muted)">${done}/${tasks.length}</span>
       </div>
-      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
+      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${stepIco(curStep,12)} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
       ${deliveryStatusShort(p)?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--green-bg);color:var(--green-t);padding:2px 7px;border-radius:4px;font-weight:600">${deliveryStatusShort(p)}</span></div>`:''}
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
@@ -7712,8 +8138,8 @@ function renderPaslaugaProjects(){
     <div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--amber-t);margin-bottom:16px">
       ⚡ Paslaugos projektai — gamybos darbai su pozicijomis. Spauskite <strong>🖨 Pakavimo lapas</strong>, kad atspausdintumėte artikulų ir supakuotų kiekių sąrašą.
     </div>
-    ${foldersToolbar('paslauga')}
-    ${renderFolderedGrid(sorted, card, 'paslauga')}
+    ${viewSwitcher('paslauga')}
+    ${renderAreaProjects(sorted, card, 'paslauga')}
   `;
 }
 
@@ -7770,7 +8196,7 @@ function renderProductionProjects(){
         </div>
         <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--muted)">${done}/${tasks.length}</span>
       </div>
-      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${curStep.icon} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
+      ${curStep?`<div style="margin-top:8px;font-size:11px"><span style="background:${curStep.bg};color:${curStep.color};padding:2px 7px;border-radius:4px;font-weight:600">${stepIco(curStep,12)} ${curStep.label}</span> <span style="color:var(--hint);margin-left:6px">— dabartinis žingsnis</span></div>`:''}
       ${blockedCount?`<div style="margin-top:8px;font-size:11px"><span style="background:var(--red-t);color:#fff;padding:2px 7px;border-radius:4px;font-weight:600">🚫 ${blockedCount>1?blockedCount+' blokai':'Blokas'}</span> <span style="color:var(--red-t);margin-left:6px">— sustabdyta</span></div>`:''}
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:flex-end">${folderSelectHtml(p,'production')}</div>
     </div>`;
@@ -7782,8 +8208,8 @@ function renderProductionProjects(){
     <div style="background:var(--green-bg);border:1px solid var(--green-t);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--green-t);margin-bottom:16px">
       ⚙️ Gamybos etapo projektai — aktyvūs gamyboje. Spauskite kortelę, kad atidarytumėte žingsnius.
     </div>
-    ${foldersToolbar('production')}
-    ${renderFolderedGrid(sorted, card, 'production')}
+    ${viewSwitcher('production')}
+    ${renderAreaProjects(sorted, card, 'production')}
   `;
 }
 
@@ -8808,7 +9234,7 @@ function buildBackupWorkbook(){
     const pct=t.qtyOrdered?Math.round((t.qtyDone||0)/t.qtyOrdered*100):(t.status==='done'?100:0);
     const statLabel=t.status==='done'?'✅ Atlikta':t.status==='in-progress'?'🔄 Vykdoma':'⏳ Laukia';
     taskData.push([
-      proj?.name||'',(step?.icon||'')+' '+(step?.label||t.stepId),t.name||'',
+      proj?.name||'',(step?.label||t.stepId),t.name||'',
       statLabel,ass,
       t.qtyOrdered||0,t.qtyDone||0,left,pct,
       t.deadline||'',t.blocker||'',
@@ -8829,7 +9255,7 @@ function buildBackupWorkbook(){
       const left=(l.qty||0)-(l.done||0);
       const pct=l.qty?Math.round((l.done||0)/l.qty*100):0;
       lineData.push([
-        proj?.name||'',(step?.icon||'')+' '+(step?.label||''),i+1,
+        proj?.name||'',(step?.label||''),i+1,
         l.art||'',l.desc||'',l.qty||0,l.done||0,left,pct,l.date||'',
       ]);
     });
@@ -9507,7 +9933,7 @@ function renderTeam(){
           }).join('');
           const assigned=defIds.map(id=>getUser(id).name).filter(Boolean).join(', ')||'—';
           return`<div class="step-def-row">
-            <div class="step-def-icon" style="background:${s.bg};color:${s.color}">${s.icon}</div>
+            <div class="step-def-icon" style="background:${s.bg};color:${s.color}">${stepIco(s,18)}</div>
             <div style="flex:1;font-size:12px;font-weight:500;color:${s.color}">${s.label}</div>
             ${isManager()
               ? `<div style="display:flex;flex-wrap:wrap;gap:4px;max-width:400px">${userBtns}</div>`
@@ -12688,7 +13114,7 @@ function renderWhKits(){
         const tsStr = ts ? new Date(ts).toLocaleString('lt-LT',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
         return `${i>0?`<div style="flex:0.5;height:2px;background:${done||cur?col:'var(--border)'}"></div>`:''}
         <div style="flex:1;text-align:center;background:${bg};color:${col};padding:8px 4px;border-radius:7px">
-          <div style="font-size:18px">${s.icon}</div>
+          <div style="display:flex">${stepIco(s,18)}</div>
           <div style="font-size:10px;font-weight:600">${s.label}</div>
           ${tsStr?`<div style="font-size:9px;color:var(--hint);margin-top:2px">${tsStr}</div>`:''}
         </div>`;
