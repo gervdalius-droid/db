@@ -1260,6 +1260,42 @@ async function sbDel(k){
   try{await fetch(SB_URL+'/rest/v1/fabflow?key=eq.'+encodeURIComponent(k),{method:'DELETE',headers:sbH()});}catch(e){}
 }
 
+// ── Shared warehouse publisher (GVS → fabflow_stock / fabflow_offcuts) ──
+// Mirrors DB.warehouse into real tables the nesting app reads. Fire-and-forget:
+// any failure is logged and swallowed so it can never block the normal save.
+async function sbUpsertRows(table, rows, onConflict){
+  if(!rows || !rows.length) return;
+  const r=await fetch(SB_URL+'/rest/v1/'+table+'?on_conflict='+onConflict,{
+    method:'POST',
+    headers:{...sbH(),'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(rows)
+  });
+  if(!r.ok){ const t=await r.text().catch(()=> ''); throw new Error(table+' upsert '+r.status+' '+t.slice(0,140)); }
+}
+async function publishWarehouseShared(){
+  if(!WORKSPACE_CODE) return;
+  try{
+    const now=new Date().toISOString();
+    const items=(DB.warehouse||[]).filter(w=>w.kind!=='fitting');
+    const stock=[], offcuts=[];
+    items.forEach(w=>{
+      const qty=+w.qty||0, reserved=+w.reservedQty||0;
+      if(w.kind==='offcut'){
+        offcuts.push({id:WORKSPACE_CODE+':'+w.id, workspace_code:WORKSPACE_CODE, sku:w.sku||null,
+          material:w.material||null, thickness:(w.thickness??null), w:(w.w??null), h:(w.h??null),
+          shape:w.shape||null, status:w.status||'available', source_job_id:w.sourceJobId||null,
+          archived:!!w.archived, updated_at:now});
+      }else{
+        stock.push({workspace_code:WORKSPACE_CODE, sku:w.sku, material:w.material||null,
+          thickness:(w.thickness??null), unit:w.unit||'m²', qty, reserved, available:qty-reserved,
+          kind:w.kind||'sheet', archived:!!w.archived, updated_at:now});
+      }
+    });
+    await sbUpsertRows('fabflow_stock', stock, 'workspace_code,sku');
+    await sbUpsertRows('fabflow_offcuts', offcuts, 'id');
+  }catch(e){ console.warn('publishWarehouseShared (non-fatal):', e && e.message); }
+}
+
 // Auth
 async function sbSignIn(email,pw){
   const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});
@@ -1310,6 +1346,7 @@ async function saveToCloud(){
     sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules,steps:DB.steps||STEPS})),
   ]);
   _lastSavedAt=Date.now();
+  publishWarehouseShared(); // mirror warehouse to shared stock (fire-and-forget)
 }
 
 // Snapshot key for per-record change-detection (see _stampMutated below)
@@ -1425,6 +1462,7 @@ async function loadFromCloud(force){
     migrateDesignTaskNames();
     try{localStorage.setItem('fabflow_v4',JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE}));}catch(e){}
     try{localStorage.setItem(_SNAPSHOT_KEY,JSON.stringify({tasks:DB.tasks, projects:DB.projects}));}catch(e){}
+    publishWarehouseShared(); // seed shared stock on load (fire-and-forget)
     return true;
   }catch(e){console.warn('loadFromCloud:',e);return false;}
 }
