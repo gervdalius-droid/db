@@ -1288,6 +1288,7 @@ async function publishWarehouseShared(){
       }else{
         stock.push({workspace_code:WORKSPACE_CODE, sku:w.sku, material:w.material||null,
           thickness:(w.thickness??null), unit:w.unit||'m²', qty, reserved, available:qty-reserved,
+          sheet_w:(w.sheetW??null), sheet_h:(w.sheetH??null),
           kind:w.kind||'sheet', archived:!!w.archived, updated_at:now});
       }
     });
@@ -12007,6 +12008,8 @@ function whCreateItem(data){
   if(kind === 'sheet'){
     item.thickness = parseInt(data.thickness)||18;
     item.category  = data.category || categorizeFromName(data.material);
+    if(data.sheetW) item.sheetW = parseInt(data.sheetW)||0;
+    if(data.sheetH) item.sheetH = parseInt(data.sheetH)||0;
   } else { // fitting
     item.mpn          = String(data.mpn||'').toUpperCase();
     item.distCode     = String(data.distCode||'').toUpperCase(); // your distributor's code (Blulita)
@@ -12987,6 +12990,9 @@ function renderWhStock(){
   const rows = filtered.map(w=>{
     const isFit = w.kind==='fitting';
     const avail = whAvailable(w);
+    const bArea = whBoardArea(w);
+    // For sheets with known dimensions, show whole boards; otherwise fall back to m²/units.
+    const fmtSheet = (v)=> (!isFit && bArea>0) ? whFmt(v/bArea,0) : whFmt(v,isFit?0:2);
     let stockClass = 'wh-stock-ok';
     if(w.qty<=0) stockClass='wh-stock-none';
     else if(w.reorderPoint>0 && w.qty<=w.reorderPoint) stockClass='wh-stock-low';
@@ -13017,9 +13023,14 @@ function renderWhStock(){
       : `<div style="font-size:10px">${escHtml(w.supplier||'—')}</div>`;
 
     // Fittings: show pack info under qty if applicable
-    const qtyDisplay = isFit && w.unitsPerPack>1
-      ? `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,0)}</span><div style="font-size:9px;color:var(--hint)">${w.unit} · ${Math.floor(w.qty/w.unitsPerPack)} pak.</div>`
-      : `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,isFit?0:2)}</span><div style="font-size:9px;color:var(--hint)">${w.unit}</div>`;
+    let qtyDisplay;
+    if(isFit && w.unitsPerPack>1){
+      qtyDisplay = `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,0)}</span><div style="font-size:9px;color:var(--hint)">${w.unit} · ${Math.floor(w.qty/w.unitsPerPack)} pak.</div>`;
+    } else if(!isFit && bArea>0){
+      qtyDisplay = `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty/bArea,0)}</span><div style="font-size:9px;color:var(--hint)">lakšt. · ${whFmt(w.qty,1)} m²</div>`;
+    } else {
+      qtyDisplay = `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,isFit?0:2)}</span><div style="font-size:9px;color:var(--hint)">${w.unit}</div>`;
+    }
 
     const actions = editable?`
       <button class="btn btn-xs" title="Redaguoti" onclick="openWhEditModal('${w.id}')">✎</button>
@@ -13034,8 +13045,8 @@ function renderWhStock(){
       </div>
       <div style="text-align:center"><span style="background:${abcCol};color:#fff;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">${w.abcClass||'C'}</span></div>
       <div style="text-align:right">${qtyDisplay}</div>
-      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:${(w.reservedQty||0)>0?'var(--purple-t)':'var(--hint)'}">${(w.reservedQty||0)>0?whFmt(w.reservedQty,isFit?0:2):'—'}</div>
-      <div style="text-align:right;font-family:var(--mono);font-weight:600;font-size:11px">${whFmt(avail,isFit?0:2)}</div>
+      <div style="text-align:right;font-family:var(--mono);font-size:10px;color:${(w.reservedQty||0)>0?'var(--purple-t)':'var(--hint)'}">${(w.reservedQty||0)>0?fmtSheet(w.reservedQty):'—'}</div>
+      <div style="text-align:right;font-family:var(--mono);font-weight:600;font-size:11px">${fmtSheet(avail)}</div>
       <div style="text-align:right;font-size:10px;color:var(--muted)">${w.reorderPoint?whFmt(w.reorderPoint,0):'—'}<div style="font-size:9px;color:var(--hint)">/${w.minQty?whFmt(w.minQty,0):'—'}</div></div>
       <div style="font-size:10px"><div style="font-weight:500">${escHtml(locToStr(w.location)||'—')}</div><div style="font-size:9px;color:var(--hint)">skaič.: ${lastCount}</div></div>
       <div style="overflow:hidden">${supplierCell}</div>
@@ -13805,6 +13816,31 @@ function renderWhLog(){
 // ══════════════════════════════════════════════
 function whCloseModal(){document.getElementById('wh-modal-bg')?.remove();}
 
+// m² of one full board for a warehouse item (0 if dimensions unknown)
+function whBoardArea(w){ return (w && w.sheetW && w.sheetH) ? (w.sheetW*w.sheetH/1e6) : 0; }
+
+// Live two-way price + total hint in the add-sheet modal.
+// src='board' → fill €/m² from €/board; src='m2' → fill €/board; otherwise (dimension/qty change) recompute.
+function whPriceSync(src){
+  const gv=id=>{const e=document.getElementById(id);return e?(parseFloat(e.value)||0):0;};
+  const sw=gv('wh-sw'), sh=gv('wh-sh'), area=(sw&&sh)?(sw*sh/1e6):0;
+  const eb=document.getElementById('wh-eur-board'), em=document.getElementById('wh-eur-m2'), hint=document.getElementById('wh-sheet-hint');
+  if(area>0){
+    if(src==='board'&&em){ em.value=(gv('wh-eur-board')/area).toFixed(2); }
+    else if(src==='m2'&&eb){ eb.value=(gv('wh-eur-m2')*area).toFixed(2); }
+    else { // dimensions or quantity changed — keep the two prices consistent
+      if(gv('wh-eur-m2')>0&&eb){ eb.value=(gv('wh-eur-m2')*area).toFixed(2); }
+      else if(gv('wh-eur-board')>0&&em){ em.value=(gv('wh-eur-board')/area).toFixed(2); }
+    }
+  }
+  if(hint){
+    const boards=gv('wh-qty');
+    hint.textContent = area>0
+      ? ('1 lakštas = '+area.toFixed(2)+' m²'+(boards>0?(' · viso: '+(boards*area).toFixed(1)+' m² ('+boards+' lakšt.)'):''))
+      : 'Įveskite lakšto matmenis';
+  }
+}
+
 function openWhAddModal(presetKind){
   if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
   const kind = presetKind || 'sheet';
@@ -13850,9 +13886,15 @@ function openWhAddModal(presetKind){
   ` : `
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
       <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Storis (mm)</label><input id="wh-th" type="number" value="18" style="margin-top:4px"></div>
-      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vienetas</label><select id="wh-unit" style="margin-top:4px"><option value="m²">m²</option><option value="lakštas">lakštas</option><option value="m">m</option></select></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Lakšto plotis (mm)</label><input id="wh-sw" type="number" value="2800" oninput="whPriceSync()" style="margin-top:4px"></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Lakšto aukštis (mm)</label><input id="wh-sh" type="number" value="2070" oninput="whPriceSync()" style="margin-top:4px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/lakštas</label><input id="wh-eur-board" type="number" step="0.01" value="0" oninput="whPriceSync('board')" style="margin-top:4px" title="Įveskite vieną — kitą apskaičiuosime"></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/m²</label><input id="wh-eur-m2" type="number" step="0.01" value="0" oninput="whPriceSync('m2')" style="margin-top:4px" title="Įveskite vieną — kitą apskaičiuosime"></div>
       <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kategorija</label><input id="wh-cat" placeholder="LMDP" style="margin-top:4px"></div>
     </div>
+    <div id="wh-sheet-hint" style="font-size:10px;color:var(--green-t);background:var(--green-bg);padding:6px 10px;border-radius:6px">1 lakštas = 5.80 m²</div>
   `;
 
   const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
@@ -13870,14 +13912,14 @@ function openWhAddModal(presetKind){
         <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
         ${fittingFields}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pradinis kiekis</label><input id="wh-qty" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${isFit?'Pradinis kiekis':'Kiekis (lakštai)'}</label><input id="wh-qty" type="number" step="1" value="0" oninput="whPriceSync()" style="margin-top:4px"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="wh-min" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">ROP (užsak. taškas)</label><input id="wh-rop" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px" title="Reorder Point — žemiau šio kiekio bus įspėjimas"></div>
         </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+        ${isFit ? `<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Tiekėjas</label><input id="wh-sup" placeholder="—" style="margin-top:4px"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/vnt</label><input id="wh-cost" type="number" step="0.01" value="0" style="margin-top:4px"></div>
-        </div>
+        </div>` : `<div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Tiekėjas</label><input id="wh-sup" placeholder="—" style="margin-top:4px"></div>`}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — zona</label><input id="wh-zone" placeholder="${isFit?'B':'A'}" style="margin-top:4px;text-transform:uppercase"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Vieta — lentyna</label><input id="wh-bin" placeholder="${isFit?'3.2':'12'}" style="margin-top:4px"></div>
@@ -13892,7 +13934,7 @@ function openWhAddModal(presetKind){
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(()=>document.getElementById(isFit?'wh-mpn':'wh-mat')?.focus(),50);
+  setTimeout(()=>{document.getElementById(isFit?'wh-mpn':'wh-mat')?.focus(); if(!isFit) whPriceSync();},50);
 }
 
 // Auto-fill the form fields from a Blum catalog entry
@@ -13922,16 +13964,16 @@ function submitWhAdd(){
   const data = {
     kind,
     material: mat,
-    unit: document.getElementById('wh-unit').value,
     minQty: document.getElementById('wh-min').value,
     reorderPoint: document.getElementById('wh-rop').value,
     supplier: document.getElementById('wh-sup').value.trim(),
-    cost: document.getElementById('wh-cost').value,
     location: {zone:document.getElementById('wh-zone').value.trim().toUpperCase(), bin:document.getElementById('wh-bin').value.trim()},
     barcode: document.getElementById('wh-bc').value.trim(),
   };
 
   if(kind==='fitting'){
+    data.unit = document.getElementById('wh-unit').value;
+    data.cost = document.getElementById('wh-cost').value;
     const distCode = document.getElementById('wh-distcode').value.trim().toUpperCase();
     const mpn = document.getElementById('wh-mpn').value.trim().toUpperCase();
     if(!distCode && !mpn){ toast('Reikalingas vidinis kodas (Blulita) arba MPN','error'); return; }
@@ -13949,12 +13991,21 @@ function submitWhAdd(){
     data.sku = distCode || mpn;
     if(!data.supplier || data.supplier==='—') data.supplier = data.brand;
   } else {
+    data.unit = 'm²';
     data.thickness = document.getElementById('wh-th').value;
     data.category  = document.getElementById('wh-cat').value.trim();
+    data.sheetW = document.getElementById('wh-sw').value;
+    data.sheetH = document.getElementById('wh-sh').value;
+    data.cost = document.getElementById('wh-eur-m2').value; // stored per m²
   }
 
   const item = whCreateItem(data);
-  const initQty = parseFloat(document.getElementById('wh-qty').value)||0;
+  let initQty = parseFloat(document.getElementById('wh-qty').value)||0;
+  if(kind!=='fitting'){
+    // sheets are entered as a board count → store the equivalent m²
+    const area = (item.sheetW && item.sheetH) ? (item.sheetW*item.sheetH/1e6) : 0;
+    if(area>0) initQty = initQty * area;
+  }
   if(initQty>0){
     item.qty = initQty;
     item.firstReceived = whNow();
