@@ -12664,6 +12664,83 @@ function whAdjust(itemId, deltaQty, reason, note){
   save();
 }
 
+// ══════════════════════════════════════════════
+// CUT JOBS — reservations sent from the Nesting app (reserve → confirm → recalc)
+// ══════════════════════════════════════════════
+async function sbFetchRows(table, qs){
+  const r=await fetch(SB_URL+'/rest/v1/'+table+(qs?('?'+qs):''),{headers:sbH()});
+  if(!r.ok) throw new Error(table+' fetch '+r.status);
+  return await r.json();
+}
+async function sbPatchRow(table, idField, idVal, body){
+  const r=await fetch(SB_URL+'/rest/v1/'+table+'?'+idField+'=eq.'+encodeURIComponent(idVal),{
+    method:'PATCH', headers:{...sbH(),'Prefer':'return=minimal'}, body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(table+' patch '+r.status);
+}
+let _cutJobs=[];
+function _boardAreaM2(item){ return (item&&item.sheetW&&item.sheetH)?(item.sheetW*item.sheetH/1e6):(2800*2070/1e6); }
+async function loadCutJobs(){
+  const panel=document.getElementById('cutjobs-panel'); if(!panel)return;
+  try{
+    const ws=WORKSPACE_CODE?('workspace_code=eq.'+encodeURIComponent(WORKSPACE_CODE)+'&'):'';
+    _cutJobs=await sbFetchRows('fabflow_cut_jobs', ws+'status=eq.reserved&order=created_at.asc');
+  }catch(e){ console.warn('loadCutJobs',e&&e.message); return; }
+  renderCutJobs();
+}
+function renderCutJobs(){
+  const panel=document.getElementById('cutjobs-panel'); if(!panel)return;
+  if(!_cutJobs.length){ panel.innerHTML=''; return; }
+  const jobs=_cutJobs.map(j=>{
+    const lines=(j.lines||[]).map((l,i)=>{
+      const item=(l.sku?whFindBySku(l.sku):null)||whFindByMaterial(l.material,l.thickness);
+      const stock = item ? `<span style="color:var(--green-t)">${whFmt(item.qty/_boardAreaM2(item),0)} lakšt.</span>` : '<span style="color:var(--red-t)">nerasta</span>';
+      return `<tr>
+        <td style="padding:5px 8px;font-size:12px">${escHtml(l.material||'')}${l.thickness?` <span class="badge badge-gray">${l.thickness}mm</span>`:''}</td>
+        <td style="padding:5px 8px;font-size:11px">${stock}</td>
+        <td style="padding:5px 8px;text-align:right;white-space:nowrap"><input type="number" id="cj-${j.id}-${i}" value="${l.qty_reserved||0}" style="width:62px;text-align:right;font-size:12px;padding:3px 6px"> lakšt.</td>
+      </tr>`;
+    }).join('');
+    return `<div style="background:var(--surface);border:1px solid var(--amber-t);border-radius:10px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--sh)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:26px;height:26px;border-radius:7px;background:var(--amber-bg);color:var(--amber-t);display:flex;align-items:center;justify-content:center">${ICO('cut',15)}</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">Pjovimo rezervacija — ${escHtml(j.project_name||'Nesting')}</div>
+          <div style="font-size:10px;color:var(--hint)">${j.created_at?new Date(j.created_at).toLocaleString('lt-LT'):''}</div></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+        <thead><tr style="background:var(--surface2)"><th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--muted)">Medžiaga</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--muted)">Sandėlyje</th><th style="padding:5px 8px;text-align:right;font-size:10px;color:var(--muted)">Sunaudota</th></tr></thead>
+        <tbody>${lines}</tbody>
+      </table>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="cancelCutJob('${j.id}')">Atšaukti</button>
+        <button class="btn btn-sm btn-primary" onclick="confirmCutJob('${j.id}')">Patvirtinti ir nurašyti</button>
+      </div>
+    </div>`;
+  }).join('');
+  panel.innerHTML=`<div style="margin-bottom:8px;font-size:11px;font-weight:700;color:var(--amber-t);text-transform:uppercase;letter-spacing:.06em">⚠ Pjovimo užduotys — laukia patvirtinimo (${_cutJobs.length})</div>`+jobs;
+}
+async function confirmCutJob(jobId){
+  const job=_cutJobs.find(j=>j.id===jobId); if(!job)return;
+  if(!confirm('Patvirtinti pjovimą ir nurašyti sunaudotas medžiagas iš sandėlio?'))return;
+  (job.lines||[]).forEach((l,i)=>{
+    const inp=document.getElementById('cj-'+jobId+'-'+i);
+    const sheets=parseFloat(inp?inp.value:l.qty_reserved)||0;
+    if(sheets<=0)return;
+    const item=(l.sku?whFindBySku(l.sku):null)||whFindByMaterial(l.material,l.thickness);
+    if(!item)return;
+    whAdjust(item.id, -(sheets*_boardAreaM2(item)), 'Pjovimas', 'Nesting: '+(job.project_name||'')+' · '+sheets+' lakšt.');
+  });
+  try{ await sbPatchRow('fabflow_cut_jobs','id',jobId,{status:'confirmed',confirmed_at:new Date().toISOString(),confirmed_by:(DB.currentUserId||'')}); }
+  catch(e){ console.warn('confirm patch',e&&e.message); }
+  publishWarehouseShared();
+  toast('Pjovimas patvirtintas — sandėlis atnaujintas');
+  renderWarehouse();
+}
+async function cancelCutJob(jobId){
+  if(!confirm('Atšaukti šią pjovimo rezervaciją?'))return;
+  try{ await sbPatchRow('fabflow_cut_jobs','id',jobId,{status:'cancelled'}); }catch(e){}
+  loadCutJobs();
+}
+
 function whArchive(itemId){
   const item = DB.warehouse.find(w=>w.id===itemId); if(!item) return;
   if(item.qty>0 && !confirm(`Archyvuoti "${item.material}"? Likutis: ${whFmt(item.qty)} ${item.unit}`)) return;
@@ -12808,7 +12885,8 @@ function renderWarehouse(){
   else if(_whTab==='counts') body = renderWhCounts();
   else if(_whTab==='rules') body = renderWhRules();
   else body = renderWhLog();
-  el.innerHTML = tabs + body;
+  el.innerHTML = '<div id="cutjobs-panel"></div>' + tabs + body;
+  loadCutJobs();
 
   // ── Restore focus + cursor ──
   if(focusSnapshot){
