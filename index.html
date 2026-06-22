@@ -2258,7 +2258,7 @@ function showView(name,extra){
     document.getElementById('topbar-title').textContent=p.name;
     document.getElementById('topbar-sub').textContent=p.client+(p.paused?' · ⏸ PRISTABDYTA':'');
     const fileBtn='<label class="btn btn-sm" style="cursor:pointer" title="Pridėti PDF/nuotrauką">📎 Failas<input type="file" accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf,.xlsm,.xlsx" multiple style="display:none" onchange="attachFiles(\''+extra+'\',this)"></label>';
-    const managerBtns=isManager()?'<button class="btn btn-sm" onclick="openEditProjectModal(\''+extra+'\')">✏ Redaguoti</button>'+(p.status!=='archived'?((projectArea(p)==='production'?'<button class="btn btn-sm" onclick="sendToDesign(\''+extra+'\')" title="Grąžinti į projektavimą papildomiems pakeitimams">↩ Į projektavimą</button>':'')+'<button class="btn btn-sm" onclick="togglePauseProject(\''+extra+'\')">'+(p.paused?'▶ Tęsti':'⏸ Pristabdyti')+'</button>'+'<button class="btn btn-sm complete-btn" onclick="openCompleteModal(\''+extra+'\')">✅ Baigti</button>'):'<button class="btn btn-sm" onclick="unarchiveProject(\''+extra+'\')">↩ Atstatyti</button>')+'<button class="btn btn-sm btn-danger" onclick="confirmDeleteProject(\''+extra+'\')">🗑</button>':'';
+    const managerBtns=isManager()?'<button class="btn btn-sm" onclick="openEditProjectModal(\''+extra+'\')">✏ Redaguoti</button>'+(p.status!=='archived'?((projectArea(p)!=='design'?'<button class="btn btn-sm" onclick="openNesting(\''+extra+'\')" title="Atidaryti susietą pjovimo (nesting) failą">'+ICO('cut',14)+' Pjovimas</button>':'')+(projectArea(p)==='production'?'<button class="btn btn-sm" onclick="sendToDesign(\''+extra+'\')" title="Grąžinti į projektavimą papildomiems pakeitimams">↩ Į projektavimą</button>':'')+'<button class="btn btn-sm" onclick="togglePauseProject(\''+extra+'\')">'+(p.paused?'▶ Tęsti':'⏸ Pristabdyti')+'</button>'+'<button class="btn btn-sm complete-btn" onclick="openCompleteModal(\''+extra+'\')">✅ Baigti</button>'):'<button class="btn btn-sm" onclick="unarchiveProject(\''+extra+'\')">↩ Atstatyti</button>')+'<button class="btn btn-sm btn-danger" onclick="confirmDeleteProject(\''+extra+'\')">🗑</button>':'';
     if(act)act.innerHTML='<button class="btn btn-sm btn-primary" onclick="openAddTaskModal(\''+extra+'\')">+ Užduotis</button><button class="btn btn-sm" onclick="openProjectImportModal(\''+extra+'\')">📥 Importuoti</button>'+fileBtn+managerBtns;
     renderProjectView(extra,'kanban');
   }
@@ -5639,6 +5639,13 @@ function togglePauseProject(pid){
   save(); renderSidebar();
   if(typeof toast==='function')toast(p.paused?'⏸ Projektas pristabdytas':'▶ Projektas tęsiamas');
   showView('project',pid);
+}
+
+// ── Open the project's linked Nesting (cutting) file ──
+function openNesting(pid){
+  const p=getProject(pid); if(!p)return;
+  const url='https://gervdalius-droid.github.io/nesting/?project='+encodeURIComponent(p.name||'')+'&gvs='+encodeURIComponent(p.id);
+  window.open(url,'_blank');
 }
 
 // ── Send a production project back to Projektavimas for more changes ──
