@@ -1435,7 +1435,7 @@ function clearTokens(){SB_TOKEN=null;SB_REFRESH=null;try{localStorage.removeItem
 const AUTH_DOMAIN='dedesbaldai.lt';   // synthetic email domain (no real mail is sent)
 const WORKSHOP_CODE='gvs';            // baked-in; only used to build the hidden email — NOT the workspace data code
 const AUTH_PIN_SALT='_dedes';         // appended to the PIN to form the real password (meets the 6-char minimum)
-function authSlug(s){return String(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
+function authSlug(s){var m={'ą':'a','č':'c','ę':'e','ė':'e','į':'i','š':'s','ų':'u','ū':'u','ž':'z'};return String(s||'').trim().toLowerCase().replace(/[ąčęėįšųūž]/g,function(c){return m[c]||c;}).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
 function authEmail(name){return authSlug(name)+'.'+authSlug(WORKSHOP_CODE)+'@'+AUTH_DOMAIN;}
 function authPinToPassword(pin){return String(pin)+AUTH_PIN_SALT;}
 
@@ -1839,18 +1839,14 @@ async function workerLogin(){
     currentUserRole='worker';
     CURRENT_USER_NAME=name;
     // (worker now uses their personal token saved above — no anon key)
-    // Check if this name already exists in users
+    // Only an admin may add people. If this name isn't already in the team, refuse —
+    // workers can no longer self-register by typing a new name.
     let existingUsers=users?JSON.parse(users):[];
     let me=existingUsers.find(u=>u.name.toLowerCase()===name.toLowerCase());
     if(!me){
-      // New worker — add to users list
-      const initials2=name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const colors=['#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899'];
-      const bgs=['#e0f2fe','#d1fae5','#fef3c7','#f3f0ff','#fef2f2','#ecfeff','#fff7ed','#fdf2f8'];
-      const idx=name.charCodeAt(0)%8;
-      me={id:'w_'+Date.now(),name,email:'',role:'worker',color:colors[idx],bg:bgs[idx],initials:initials2};
-      existingUsers.push(me);
-      await sbSet('fab_'+code+'_users',JSON.stringify(existingUsers));
+      setAuthError('worker-error','Jūsų vardas nerastas komandoje. Kreipkitės į vadovą, kad pridėtų jus.');
+      clearTokens();
+      return;
     }
     USERS=existingUsers;
     DB.currentUserId=me.id;
@@ -1881,11 +1877,8 @@ async function engineerLogin(){
     let existingUsers=users?JSON.parse(users):[];
     let me=existingUsers.find(u=>u.name.toLowerCase()===name.toLowerCase()&&u.role==='engineer');
     if(!me){
-      const initials2=name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const idx=name.charCodeAt(0)%USER_COLORS.length;
-      me={id:'e_'+Date.now(),name,email:'',role:'engineer',color:USER_COLORS[idx],bg:USER_BGS[idx],initials:initials2};
-      existingUsers.push(me);
-      await sbSet('fab_'+code+'_users',JSON.stringify(existingUsers));
+      setAuthError('eng-error','Jūsų vardas nerastas komandoje (projektuotojas). Kreipkitės į vadovą.');
+      return;
     }
     USERS=existingUsers;
     DB.currentUserId=me.id;
