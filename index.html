@@ -10260,12 +10260,45 @@ function openEditMemberModal(uid2){
   openModal('<div class="modal-title">'+(isMe?'Mano profilis':'Redaguoti narį')+' <button class="modal-close" onclick="closeModal()">✕</button></div>'
     +'<div class="form-field"><label class="form-label">Vardas Pavardė *</label><input id="mem-name" value="'+escHtml(u.name)+'" autofocus placeholder="Vardas Pavardė"></div>'
     +'<div style="font-size:11px;color:var(--muted);background:var(--surface2);padding:7px 10px;border-radius:7px;margin-bottom:12px">✉ '+escHtml(u.email||'—')+'</div>'
+    +((isManager()&&u.role!=='manager')?'<div class="form-field"><label class="form-label">Prisijungimo PIN</label>'
+      +'<div style="display:flex;gap:6px">'
+      +'<input id="mem-pin" type="text" inputmode="numeric" maxlength="6" placeholder="4 skaitm." style="flex:1;letter-spacing:.25em;text-align:center">'
+      +'<button class="btn btn-primary" type="button" onclick="setMemberPin(\''+uid2+'\',this)">Nustatyti</button>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:5px">Sukuria arba atnaujina darbuotojo prisijungimą (vardas + PIN). Tas pats PIN veikia ir „Nesting" programoje.</div>'
+      +'</div>':'')
     +(canEditRole?'<div class="form-field"><label class="form-label">Rolė</label>'
       +'<select id="mem-role"><option value="worker" '+workerSel+'>Darbuotojas</option><option value="manager" '+mgrSel+'>Vadovas</option></select></div>':'')
     +'<div class="form-field"><label class="form-label">Spalva</label>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap;padding:4px 0">'+circles+'</div></div>'
     +'<div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button>'
     +'<button class="btn btn-primary" onclick="saveMember(\''+uid2+'\')">Išsaugoti</button></div>');
+}
+
+// Admin sets/resets a worker's login PIN. The actual password change happens in a
+// secure Supabase Edge Function (set-worker-pin) that holds the admin key server-side
+// — never in this page. We just pass the worker's name + PIN with the admin's token.
+async function setMemberPin(uid2,btn){
+  if(!isManager()){toast('Tik vadovas gali nustatyti PIN','error');return;}
+  const u=USERS.find(x=>x.id===uid2);
+  const name=((document.getElementById('mem-name')?.value||'')||(u&&u.name)||'').trim();
+  const pin=(document.getElementById('mem-pin')?.value||'').trim();
+  if(!name){toast('Įveskite vardą','error');return;}
+  if(!/^\d{4,6}$/.test(pin)){toast('PIN turi būti 4–6 skaitmenys','error');return;}
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/set-worker-pin',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(SB_TOKEN||SB_KEY),'Content-Type':'application/json'},
+      body:JSON.stringify({name,pin})
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status));
+    toast('✅ PIN nustatytas: '+name+(d.action==='created'?' (naujas prisijungimas)':' (atnaujinta)'),'success');
+    const pf=document.getElementById('mem-pin');if(pf)pf.value='';
+  }catch(e){
+    toast('❌ Nepavyko: '+((e&&e.message)||'klaida'),'error');
+  }finally{ if(btn){btn.disabled=false;btn.textContent='Nustatyti';} }
 }
 
 let _memColorIdx=0;
