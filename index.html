@@ -751,11 +751,15 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
     <!-- ── WORKER: name + workspace code ── -->
     <div id="auth-worker-form" style="display:none">
       <div style="background:var(--blue-bg);border:1px solid rgba(37,99,235,.2);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--blue-t);margin-bottom:14px">
-        El. paštas nereikalingas. Įveskite vardą ir darbo vietos kodą iš vadybos.
+        El. paštas nereikalingas. Įveskite vardą, PIN ir darbo vietos kodą iš vadybos.
       </div>
       <div class="auth-field">
         <label class="auth-label">Jūsų vardas</label>
         <input class="auth-input" id="worker-name" placeholder="Vardas Pavardė" autocomplete="name">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">PIN</label>
+        <input class="auth-input" id="worker-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••" style="letter-spacing:.4em;font-size:18px;text-align:center">
       </div>
       <div class="auth-field">
         <label class="auth-label">Darbo vietos kodas (iš vadovo)</label>
@@ -1424,6 +1428,17 @@ function saveTokens(a,r,e){SB_TOKEN=a;SB_REFRESH=r;try{localStorage.setItem(SB_T
 function loadStoredTokens(){try{const v=localStorage.getItem(SB_TK_KEY);return v?JSON.parse(v):null;}catch(e){return null;}}
 function clearTokens(){SB_TOKEN=null;SB_REFRESH=null;try{localStorage.removeItem(SB_TK_KEY);}catch(e){}}
 
+// ── Shared workshop login (IDENTICAL scheme in the nesting app) ──
+// Name + PIN map to a real Supabase account, so each worker gets their OWN
+// token instead of the shared anon key — which is what lets RLS protect the
+// warehouse. The SAME name+PIN works to log in to the nesting app too.
+const AUTH_DOMAIN='dedesbaldai.lt';   // synthetic email domain (no real mail is sent)
+const WORKSHOP_CODE='gvs';            // baked-in; only used to build the hidden email — NOT the workspace data code
+const AUTH_PIN_SALT='_dedes';         // appended to the PIN to form the real password (meets the 6-char minimum)
+function authSlug(s){var m={'ą':'a','č':'c','ę':'e','ė':'e','į':'i','š':'s','ų':'u','ū':'u','ž':'z'};return String(s||'').trim().toLowerCase().replace(/[ąčęėįšųūž]/g,function(c){return m[c]||c;}).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
+function authEmail(name){return authSlug(name)+'.'+authSlug(WORKSHOP_CODE)+'@'+AUTH_DOMAIN;}
+function authPinToPassword(pin){return String(pin)+AUTH_PIN_SALT;}
+
 // ══════════════════════════════════════════════
 // DATA — load/save everything as JSON blobs
 // Workspace code is the namespace for all data
@@ -1801,33 +1816,37 @@ async function adminSetup(){
 // WORKER LOGIN — name + workspace code (no email needed)
 async function workerLogin(){
   const name=(document.getElementById('worker-name')?.value||'').trim();
+  const pin=(document.getElementById('worker-pin')?.value||'').trim();
   const code=(document.getElementById('worker-code')?.value||'').trim().toUpperCase();
   if(!name){setAuthError('worker-error','Įveskite savo vardą');return;}
+  if(!pin||pin.length<4){setAuthError('worker-error','Įveskite bent 4 skaitmenų PIN');return;}
   if(!code||code.length<4){setAuthError('worker-error','Įveskite darbo vietos kodą');return;}
   const btn=document.querySelector('#auth-worker-form .btn-primary');
   if(btn){btn.textContent='Jungiamasi…';btn.disabled=true;}
   setAuthError('worker-error','');
   try{
-    // Check workspace exists
+    // Real login: name+PIN → personal Supabase account (same scheme as the nesting app).
+    // The worker gets their OWN token (not the anon key) so RLS can protect the warehouse.
+    const res=await sbSignIn(authEmail(name),authPinToPassword(pin));
+    if(!res.access_token){setAuthError('worker-error','Neteisingas vardas arba PIN');return;}
+    saveTokens(res.access_token,res.refresh_token,Date.now()+(res.expires_in||3600)*1000);
+    currentUserId_sb=res.user&&res.user.id;
+    // Check workspace exists (now read with the worker's own token)
     const proj=await sbGet('fab_'+code+'_projects');
     const users=await sbGet('fab_'+code+'_users');
     if(proj===null&&users===null){setAuthError('worker-error','Darbo vietos kodas nerastas');return;}
     WORKSPACE_CODE=code;
     currentUserRole='worker';
     CURRENT_USER_NAME=name;
-    SB_TOKEN=SB_KEY; // use anon key for workers
-    // Check if this name already exists in users
+    // (worker now uses their personal token saved above — no anon key)
+    // Only an admin may add people. If this name isn't already in the team, refuse —
+    // workers can no longer self-register by typing a new name.
     let existingUsers=users?JSON.parse(users):[];
     let me=existingUsers.find(u=>u.name.toLowerCase()===name.toLowerCase());
     if(!me){
-      // New worker — add to users list
-      const initials2=name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const colors=['#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899'];
-      const bgs=['#e0f2fe','#d1fae5','#fef3c7','#f3f0ff','#fef2f2','#ecfeff','#fff7ed','#fdf2f8'];
-      const idx=name.charCodeAt(0)%8;
-      me={id:'w_'+Date.now(),name,email:'',role:'worker',color:colors[idx],bg:bgs[idx],initials:initials2};
-      existingUsers.push(me);
-      await sbSet('fab_'+code+'_users',JSON.stringify(existingUsers));
+      setAuthError('worker-error','Jūsų vardas nerastas komandoje. Kreipkitės į vadovą, kad pridėtų jus.');
+      clearTokens();
+      return;
     }
     USERS=existingUsers;
     DB.currentUserId=me.id;
@@ -1858,11 +1877,8 @@ async function engineerLogin(){
     let existingUsers=users?JSON.parse(users):[];
     let me=existingUsers.find(u=>u.name.toLowerCase()===name.toLowerCase()&&u.role==='engineer');
     if(!me){
-      const initials2=name.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const idx=name.charCodeAt(0)%USER_COLORS.length;
-      me={id:'e_'+Date.now(),name,email:'',role:'engineer',color:USER_COLORS[idx],bg:USER_BGS[idx],initials:initials2};
-      existingUsers.push(me);
-      await sbSet('fab_'+code+'_users',JSON.stringify(existingUsers));
+      setAuthError('eng-error','Jūsų vardas nerastas komandoje (projektuotojas). Kreipkitės į vadovą.');
+      return;
     }
     USERS=existingUsers;
     DB.currentUserId=me.id;
@@ -2146,7 +2162,8 @@ window.addEventListener('load',()=>{
   },100);
   document.getElementById('auth-email')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-password')?.focus();});
   document.getElementById('auth-password')?.addEventListener('keydown',e=>{if(e.key==='Enter')adminLogin();});
-  document.getElementById('worker-name')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('worker-code')?.focus();});
+  document.getElementById('worker-name')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('worker-pin')?.focus();});
+  document.getElementById('worker-pin')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('worker-code')?.focus();});
   document.getElementById('worker-code')?.addEventListener('keydown',e=>{if(e.key==='Enter')workerLogin();});
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
@@ -10243,12 +10260,45 @@ function openEditMemberModal(uid2){
   openModal('<div class="modal-title">'+(isMe?'Mano profilis':'Redaguoti narį')+' <button class="modal-close" onclick="closeModal()">✕</button></div>'
     +'<div class="form-field"><label class="form-label">Vardas Pavardė *</label><input id="mem-name" value="'+escHtml(u.name)+'" autofocus placeholder="Vardas Pavardė"></div>'
     +'<div style="font-size:11px;color:var(--muted);background:var(--surface2);padding:7px 10px;border-radius:7px;margin-bottom:12px">✉ '+escHtml(u.email||'—')+'</div>'
+    +((isManager()&&u.role!=='manager')?'<div class="form-field"><label class="form-label">Prisijungimo PIN</label>'
+      +'<div style="display:flex;gap:6px">'
+      +'<input id="mem-pin" type="text" inputmode="numeric" maxlength="6" placeholder="4 skaitm." style="flex:1;letter-spacing:.25em;text-align:center">'
+      +'<button class="btn btn-primary" type="button" onclick="setMemberPin(\''+uid2+'\',this)">Nustatyti</button>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:5px">Sukuria arba atnaujina darbuotojo prisijungimą (vardas + PIN). Tas pats PIN veikia ir „Nesting" programoje.</div>'
+      +'</div>':'')
     +(canEditRole?'<div class="form-field"><label class="form-label">Rolė</label>'
       +'<select id="mem-role"><option value="worker" '+workerSel+'>Darbuotojas</option><option value="manager" '+mgrSel+'>Vadovas</option></select></div>':'')
     +'<div class="form-field"><label class="form-label">Spalva</label>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap;padding:4px 0">'+circles+'</div></div>'
     +'<div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button>'
     +'<button class="btn btn-primary" onclick="saveMember(\''+uid2+'\')">Išsaugoti</button></div>');
+}
+
+// Admin sets/resets a worker's login PIN. The actual password change happens in a
+// secure Supabase Edge Function (set-worker-pin) that holds the admin key server-side
+// — never in this page. We just pass the worker's name + PIN with the admin's token.
+async function setMemberPin(uid2,btn){
+  if(!isManager()){toast('Tik vadovas gali nustatyti PIN','error');return;}
+  const u=USERS.find(x=>x.id===uid2);
+  const name=((document.getElementById('mem-name')?.value||'')||(u&&u.name)||'').trim();
+  const pin=(document.getElementById('mem-pin')?.value||'').trim();
+  if(!name){toast('Įveskite vardą','error');return;}
+  if(!/^\d{4,6}$/.test(pin)){toast('PIN turi būti 4–6 skaitmenys','error');return;}
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/set-worker-pin',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(SB_TOKEN||SB_KEY),'Content-Type':'application/json'},
+      body:JSON.stringify({name,pin})
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status));
+    toast('✅ PIN nustatytas: '+name+(d.action==='created'?' (naujas prisijungimas)':' (atnaujinta)'),'success');
+    const pf=document.getElementById('mem-pin');if(pf)pf.value='';
+  }catch(e){
+    toast('❌ Nepavyko: '+((e&&e.message)||'klaida'),'error');
+  }finally{ if(btn){btn.disabled=false;btn.textContent='Nustatyti';} }
 }
 
 let _memColorIdx=0;
