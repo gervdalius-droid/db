@@ -10260,18 +10260,20 @@ function openEditMemberModal(uid2){
   openModal('<div class="modal-title">'+(isMe?'Mano profilis':'Redaguoti narį')+' <button class="modal-close" onclick="closeModal()">✕</button></div>'
     +'<div class="form-field"><label class="form-label">Vardas Pavardė *</label><input id="mem-name" value="'+escHtml(u.name)+'" autofocus placeholder="Vardas Pavardė"></div>'
     +'<div style="font-size:11px;color:var(--muted);background:var(--surface2);padding:7px 10px;border-radius:7px;margin-bottom:12px">✉ '+escHtml(u.email||'—')+'</div>'
-    +((isManager()&&u.role!=='manager')?'<div class="form-field"><label class="form-label">Prisijungimo PIN</label>'
+    +(isManager()?'<div class="form-field"><label class="form-label">Prisijungimo PIN</label>'
       +'<div style="display:flex;gap:6px">'
       +'<input id="mem-pin" type="text" inputmode="numeric" maxlength="6" placeholder="4 skaitm." style="flex:1;letter-spacing:.25em;text-align:center">'
       +'<button class="btn btn-primary" type="button" onclick="setMemberPin(\''+uid2+'\',this)">Nustatyti</button>'
       +'</div>'
-      +'<div style="font-size:10px;color:var(--muted);margin-top:5px">Sukuria arba atnaujina darbuotojo prisijungimą (vardas + PIN). Tas pats PIN veikia ir „Nesting" programoje.</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:5px">Prisijungimas su vardu + PIN „Nesting" programoje (ir darbuotojams – gamybos programoje). Vadovas gamybos programoje toliau jungiasi el. paštu + slaptažodžiu.</div>'
       +'</div>':'')
     +(canEditRole?'<div class="form-field"><label class="form-label">Rolė</label>'
       +'<select id="mem-role"><option value="worker" '+workerSel+'>Darbuotojas</option><option value="manager" '+mgrSel+'>Vadovas</option></select></div>':'')
     +'<div class="form-field"><label class="form-label">Spalva</label>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap;padding:4px 0">'+circles+'</div></div>'
-    +'<div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button>'
+    +'<div class="form-actions">'
+    +((isManager()&&!isMe)?'<button class="btn" style="margin-right:auto;color:var(--red-t,#c0392b);border-color:var(--red-t,#c0392b)" onclick="deleteMemberPrompt(\''+uid2+'\')">🗑 Ištrinti</button>':'')
+    +'<button class="btn" onclick="closeModal()">Atšaukti</button>'
     +'<button class="btn btn-primary" onclick="saveMember(\''+uid2+'\')">Išsaugoti</button></div>');
 }
 
@@ -10299,6 +10301,67 @@ async function setMemberPin(uid2,btn){
   }catch(e){
     toast('❌ Nepavyko: '+((e&&e.message)||'klaida'),'error');
   }finally{ if(btn){btn.disabled=false;btn.textContent='Nustatyti';} }
+}
+
+// Step 1 of delete: ask the manager who should inherit this member's tasks.
+function deleteMemberPrompt(uid2){
+  if(!isManager()){toast('Tik vadovas gali ištrinti narius','error');return;}
+  const u=USERS.find(x=>x.id===uid2); if(!u)return;
+  if(uid2===DB.currentUserId){toast('Negalite ištrinti savęs','error');return;}
+  const others=USERS.filter(x=>x.id!==uid2);
+  if(!others.length){toast('Negalima ištrinti paskutinio nario','error');return;}
+  const taskCount=DB.tasks.filter(t=>t.assigneeId===uid2||(t.assigneeIds||[]).includes(uid2)).length;
+  const opts=others.map(x=>'<option value="'+x.id+'">'+escHtml(x.name)+'</option>').join('');
+  openModal('<div class="modal-title">Ištrinti narį: '+escHtml(u.name)+' <button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div style="font-size:13px;margin-bottom:12px">Narys turi <strong>'+taskCount+'</strong> priskirtų užduočių. Pasirinkite, kam jas perduoti:</div>'
+    +'<div class="form-field"><label class="form-label">Perduoti užduotis kam</label><select id="del-reassign">'+opts+'</select></div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Narys bus pašalintas iš komandos, jo užduotys perduotos, o prisijungimas (PIN) panaikintas. Veiksmas negrįžtamas.</div>'
+    +'<div class="form-actions"><button class="btn" onclick="openEditMemberModal(\''+uid2+'\')">Atšaukti</button>'
+    +'<button class="btn" style="color:var(--red-t,#c0392b);border-color:var(--red-t,#c0392b)" onclick="confirmDeleteMember(\''+uid2+'\',this)">🗑 Ištrinti ir perduoti</button></div>');
+}
+
+// Step 2: reassign tasks + step-defaults to the chosen person, remove the member,
+// then revoke their login (best-effort, via the Edge Function).
+async function confirmDeleteMember(uid2,btn){
+  if(!isManager())return;
+  const u=USERS.find(x=>x.id===uid2); if(!u)return;
+  const targetId=document.getElementById('del-reassign')?.value;
+  if(!targetId||targetId===uid2){toast('Pasirinkite kam perduoti užduotis','error');return;}
+  const name=u.name;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  // 1) Reassign every task (single + multi assignee)
+  let moved=0;
+  DB.tasks.forEach(t=>{
+    let changed=false;
+    if(t.assigneeId===uid2){t.assigneeId=targetId;changed=true;}
+    if(Array.isArray(t.assigneeIds)&&t.assigneeIds.includes(uid2)){
+      t.assigneeIds=t.assigneeIds.map(id=>id===uid2?targetId:id).filter((id,i,a)=>a.indexOf(id)===i);
+      changed=true;
+    }
+    if(changed)moved++;
+  });
+  // 2) Default responsible persons per step
+  Object.keys(DB.stepDefaults||{}).forEach(sid=>{
+    let v=DB.stepDefaults[sid]; if(!Array.isArray(v))v=v?[v]:[];
+    if(v.includes(uid2)) DB.stepDefaults[sid]=v.map(id=>id===uid2?targetId:id).filter((id,i,a)=>a.indexOf(id)===i);
+  });
+  // 3) Remove from the team
+  USERS=USERS.filter(x=>x.id!==uid2);
+  // 4) Persist app data
+  save();
+  try{await saveToCloud();}catch(e){toast('❌ Klaida išsaugant: '+e.message,'error');if(btn){btn.disabled=false;btn.textContent='🗑 Ištrinti ir perduoti';}return;}
+  // 5) Revoke their Supabase login so they can't access either app (best-effort)
+  let authMsg='';
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/set-worker-pin',{method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(SB_TOKEN||SB_KEY),'Content-Type':'application/json'},
+      body:JSON.stringify({action:'delete',name})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.error) authMsg=' ⚠ prisijungimą ištrinkite rankiniu būdu';
+  }catch(e){ authMsg=' ⚠ prisijungimą ištrinkite rankiniu būdu'; }
+  closeModal();
+  renderTeam();
+  toast('✅ '+name+' ištrintas · užduotys perduotos: '+moved+authMsg, authMsg?'':'success');
 }
 
 let _memColorIdx=0;

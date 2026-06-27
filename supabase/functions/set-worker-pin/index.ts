@@ -67,17 +67,28 @@ Deno.serve(async (req) => {
   if (!prof || !prof.length) return json({ error: "Tik vadovas gali nustatyti PIN" }, 403);
 
   // 3) Validate input.
-  let body: { name?: string; pin?: string };
+  let body: { name?: string; pin?: string; action?: string };
   try { body = await req.json(); } catch { return json({ error: "Blogi duomenys" }, 400); }
+  const action = (body.action || "set").toLowerCase();
   const name = (body.name || "").trim();
-  const pin = (body.pin || "").trim();
   if (!name) return json({ error: "Reikia vardo" }, 400);
-  if (!/^\d{4,6}$/.test(pin)) return json({ error: "PIN turi būti 4–6 skaitmenys" }, 400);
-
   const email = slug(name) + "." + slug(WORKSHOP_CODE) + "@" + AUTH_DOMAIN;
+
+  // DELETE: remove the worker's login entirely (revokes both apps).
+  if (action === "delete") {
+    const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const existing = list?.users?.find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
+    if (!existing) return json({ ok: true, action: "none", email }); // already gone — idempotent
+    const { error: delErr } = await admin.auth.admin.deleteUser(existing.id);
+    if (delErr) return json({ error: "Nepavyko ištrinti: " + delErr.message }, 400);
+    return json({ ok: true, action: "deleted", email });
+  }
+
+  // SET (default): create or reset the worker's PIN.
+  const pin = (body.pin || "").trim();
+  if (!/^\d{4,6}$/.test(pin)) return json({ error: "PIN turi būti 4–6 skaitmenys" }, 400);
   const password = pin + PIN_SALT;
 
-  // 4) Create the account (auto-confirmed) — or, if it already exists, reset the password.
   const { error: createErr } = await admin.auth.admin.createUser({
     email, password, email_confirm: true, user_metadata: { name },
   });
