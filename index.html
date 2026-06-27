@@ -12824,7 +12824,7 @@ function renderCutJobs(){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div style="width:26px;height:26px;border-radius:7px;background:var(--amber-bg);color:var(--amber-t);display:flex;align-items:center;justify-content:center">${ICO('cut',15)}</div>
         <div style="flex:1"><div style="font-weight:600;font-size:13px">Pjovimo rezervacija — ${escHtml(j.project_name||'Nesting')}</div>
-          <div style="font-size:10px;color:var(--hint)">${j.created_at?new Date(j.created_at).toLocaleString('lt-LT'):''}</div></div>
+          <div style="font-size:10px;color:var(--hint)">${j.created_at?new Date(j.created_at).toLocaleString('lt-LT'):''}${j.created_by?` · 👤 ${escHtml(j.created_by)}`:''}</div></div>
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
         <thead><tr style="background:var(--surface2)"><th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--muted)">Medžiaga</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--muted)">Sandėlyje</th><th style="padding:5px 8px;text-align:right;font-size:10px;color:var(--muted)">Sunaudota</th></tr></thead>
