@@ -16218,7 +16218,7 @@ function openWhAddModal(presetKind){
     <input type="hidden" id="wh-unit" value="m">
     <div style="font-size:10px;color:var(--green-t);background:var(--green-bg);padding:6px 10px;border-radius:6px">Sandėlio vienetas: metrai (m)</div>`;
 
-  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="font-size:15px;font-weight:600">+ Naujas SKU</div>
@@ -16448,7 +16448,7 @@ function openWhEditModal(itemId){
     ` : ''}
   ` : '';
 
-  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
+  const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
       <div style="font-size:15px;font-weight:600;margin-bottom:4px">Redaguoti SKU</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:var(--mono)">${escHtml(w.sku)} · ${escHtml(w.material)}</div>
