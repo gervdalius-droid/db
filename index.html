@@ -999,6 +999,35 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
 .pl-proj-bar>div{height:100%;border-radius:3px}
 .pl-proj-meta{font-size:11px;color:var(--muted)}
 .pl-hold .pl-proj{opacity:.72;border-style:dashed}
+/* planner: priority, stage, table, view toggle */
+.pl-headrow{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.pl-toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-left:auto;flex:none}
+.pl-toggle button{border:none;background:var(--surface);padding:5px 11px;font-size:12px;cursor:pointer;color:var(--muted)}
+.pl-toggle button.on{background:var(--blue);color:#fff}
+.pl-newprio{width:130px}
+.pl-prio-dot{cursor:pointer;font-size:13px;line-height:1;flex:none;user-select:none;margin-top:2px}
+.pl-prio{border:none;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.pl-prio[disabled]{cursor:default}
+.pl-pd-high{color:var(--red-t);background:var(--red-bg)}
+.pl-pd-med{color:var(--amber-t);background:var(--amber-bg)}
+.pl-pd-low{color:var(--muted);background:var(--surface3)}
+.pl-stage{flex:none;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.pl-stage[disabled]{cursor:default;opacity:.7}
+.pl-stage-todo{color:var(--muted);background:var(--surface3)}
+.pl-stage-doing{color:var(--blue-t);background:var(--blue-bg)}
+.pl-stage-done{color:var(--green-t);background:var(--green-bg)}
+.pl-table{width:100%;border-collapse:collapse;font-size:13px}
+.pl-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--border2)}
+.pl-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.pl-table tbody tr:hover{background:var(--surface2)}
+.pl-tr-done{opacity:.6}
+.pl-tt{font-weight:600;word-break:break-word}
+.pl-tt.done{text-decoration:line-through;color:var(--hint)}
+.pl-din{font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px}
+.pl-din.overdue{color:var(--red-t);border-color:var(--red)}
+.pl-stsel{font-size:12px;padding:4px 6px;font-weight:600;border-radius:6px}
+.pl-st-todo{color:var(--muted)} .pl-st-doing{color:var(--blue-t)} .pl-st-done{color:var(--green-t)}
+.pl-tactions{white-space:nowrap}
 /* ── Dienos ataskaita — daily report ── */
 .dr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .dr-nav{display:flex;align-items:center;gap:6px}
@@ -2071,6 +2100,7 @@ let _offline=false; // local-only mode: no Supabase calls at all
 // user data (project names, clients, comments…) is left untouched. ──
 let LANG=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_lang'))||'lt';
 const I18N_EN={
+  "Lentelė":"Table","Prioritetas":"Priority","Reikia padaryti":"To do","Etapas":"Stage","Prior.":"Prio.","Etapas (spustelėkite keisti)":"Stage (click to change)","Prioritetas (spustelėkite keisti)":"Priority (click to change)","Išvalyti atliktas":"Clear completed",
   "Gamybos valdymo sistema":"Production management system",
   "Jūsų vardas":"Your name",
   "Darbo vietos kodas":"Workspace code",
@@ -11335,6 +11365,21 @@ let _plannerViewId=''; // manager-only: whose plan is being viewed ('' = own)
 const _todoOwner = () => (isManager() && _plannerViewId) ? _plannerViewId : DB.currentUserId;
 const todosFor = oid => DB.todos.filter(t=>t.ownerId===oid);
 
+// Priority + stage ("which step") model for the planner.
+const PL_PRIO={high:{label:'Aukštas',dot:'🔴'},med:{label:'Vidutinis',dot:'🟡'},low:{label:'Žemas',dot:'⚪'}};
+const PL_STAGE={todo:{label:'Reikia padaryti'},doing:{label:'Vykdoma'},done:{label:'Atlikta'}};
+const PL_PRIO_ORDER=['high','med','low'], PL_STAGE_ORDER=['todo','doing','done'];
+const _plStage=t=>t.stage||(t.done?'done':'todo');
+const _plPrio=t=>t.priority||'med';
+const _plPrioOrd=p=>{const i=PL_PRIO_ORDER.indexOf(p||'med');return i<0?1:i;};
+let _plannerView=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_pl_view'))||'list';
+function setPlannerView(v){ _plannerView=v; try{localStorage.setItem('fab_pl_view',v);}catch(e){} renderPlanner(); }
+function setTodoStage(id,stage){ const t=DB.todos.find(x=>x.id===id); if(!t)return; t.stage=stage; t.done=(stage==='done'); t.completedAt=t.done?(t.completedAt||new Date().toISOString()):null; t.lastModified=new Date().toISOString(); save(); renderPlanner(); updatePlannerBadge(); }
+function cycleTodoStage(id){ const t=DB.todos.find(x=>x.id===id); if(!t)return; const i=PL_STAGE_ORDER.indexOf(_plStage(t)); setTodoStage(id,PL_STAGE_ORDER[(i+1)%3]); }
+function setTodoPriority(id,p){ const t=DB.todos.find(x=>x.id===id); if(!t)return; t.priority=p; t.lastModified=new Date().toISOString(); save(); renderPlanner(); }
+function cycleTodoPriority(id){ const t=DB.todos.find(x=>x.id===id); if(!t)return; const i=PL_PRIO_ORDER.indexOf(_plPrio(t)); setTodoPriority(id,PL_PRIO_ORDER[(i+1)%3]); }
+function setTodoDue(id,v){ const t=DB.todos.find(x=>x.id===id); if(!t)return; t.due=v||''; t.lastModified=new Date().toISOString(); save(); renderPlanner(); }
+
 function updatePlannerBadge(){
   const b=document.getElementById('planner-badge'); if(!b)return;
   const n=todosFor(DB.currentUserId).filter(t=>!t.done).length;
@@ -11350,14 +11395,15 @@ function renderPlanner(){
   const owner=getUser(ownerId);
   const viewingOther = mgr && ownerId!==DB.currentUserId;
   const today=fmtDate(new Date().toISOString());
-  const list=todosFor(ownerId).slice().sort((a,b)=>{
-    if(a.done!==b.done) return a.done?1:-1;          // active before done
-    const ad=a.due||'9999-99', bd=b.due||'9999-99';  // earlier due first
-    if(ad!==bd) return ad<bd?-1:1;
-    return (a.created||'')<(b.created||'')?-1:1;       // then oldest first
-  });
-  const active=list.filter(t=>!t.done);
-  const done=list.filter(t=>t.done);
+  const all=todosFor(ownerId).slice();
+  const byActive=(a,b)=>{ const pa=_plPrioOrd(a.priority),pb=_plPrioOrd(b.priority); if(pa!==pb)return pa-pb;
+    const ad=a.due||'9999-99',bd=b.due||'9999-99'; if(ad!==bd)return ad<bd?-1:1;
+    return (a.created||'')<(b.created||'')?-1:1; };
+  const active=all.filter(t=>_plStage(t)!=='done').sort(byActive);
+  const done=all.filter(t=>_plStage(t)==='done').sort((a,b)=>String(b.completedAt||'').localeCompare(String(a.completedAt||'')));
+  // Table view: grouped by stage (todo → doing → done), then priority, then due.
+  const tableSorted=all.slice().sort((a,b)=>{ const sa=PL_STAGE_ORDER.indexOf(_plStage(a)),sb=PL_STAGE_ORDER.indexOf(_plStage(b)); if(sa!==sb)return sa-sb; return byActive(a,b); });
+  const canEd=t=>mgr||t.createdBy===DB.currentUserId;
 
   let picker='';
   if(mgr){
@@ -11367,27 +11413,44 @@ function renderPlanner(){
       <select onchange="plannerSetOwner(this.value)" style="max-width:260px">${opts}</select></div>`;
   }
 
+  // ── Card row (list view) ──
   const row=t=>{
-    const overdue=!t.done && t.due && t.due<today;
+    const st=_plStage(t), pr=_plPrio(t);
+    const overdue=st!=='done' && t.due && t.due<today;
     const fromMgr=t.createdBy && t.createdBy!==t.ownerId;
-    const mine=t.createdBy===DB.currentUserId;
-    const canDel=mgr||mine;            // workers can't delete a manager-assigned task
-    const canEditTodo=mgr||mine;
-    return `<div class="pl-item ${t.done?'done':''}">
-      <button class="pl-check ${t.done?'on':''}" title="${t.done?'Atžymėti':'Pažymėti atlikta'}" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</button>
-      <div class="pl-body" ${canEditTodo?`onclick="editTodoModal('${t.id}')" style="cursor:pointer"`:''}>
-        <div class="pl-title ${t.done?'done':''}">${escHtml(t.title)}</div>
+    const ce=canEd(t);
+    return `<div class="pl-item ${st==='done'?'done':''}">
+      <button class="pl-check ${st==='done'?'on':''}" title="${st==='done'?'Atžymėti':'Pažymėti atlikta'}" onclick="toggleTodo('${t.id}')">${st==='done'?'✓':''}</button>
+      <span class="pl-prio-dot" title="Prioritetas: ${PL_PRIO[pr].label}" ${ce?`onclick="cycleTodoPriority('${t.id}')"`:''}>${PL_PRIO[pr].dot}</span>
+      <div class="pl-body" ${ce?`onclick="editTodoModal('${t.id}')" style="cursor:pointer"`:''}>
+        <div class="pl-title ${st==='done'?'done':''}">${escHtml(t.title)}</div>
         ${(t.note||t.due||fromMgr)?`<div class="pl-meta">
           ${t.due?`<span class="pl-due ${overdue?'overdue':''}">📅 ${escHtml(t.due)}${overdue?' · vėluoja':''}</span>`:''}
           ${fromMgr?`<span class="badge badge-purple">Nuo vadovo${viewingOther?'':' · '+escHtml(getUser(t.createdBy).name)}</span>`:''}
           ${t.note?`<span class="pl-note">${escHtml(t.note)}</span>`:''}
         </div>`:''}
       </div>
+      <button class="pl-stage pl-stage-${st}" title="Etapas (spustelėkite keisti)" ${ce?`onclick="event.stopPropagation();cycleTodoStage('${t.id}')"`:'disabled'}>${PL_STAGE[st].label}</button>
       <div class="pl-actions">
-        ${canEditTodo?`<button class="btn btn-xs" onclick="event.stopPropagation();editTodoModal('${t.id}')" title="Redaguoti">✏</button>`:''}
-        ${canDel?`<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();delTodo('${t.id}')" title="Ištrinti">🗑</button>`:''}
+        ${ce?`<button class="btn btn-xs" onclick="event.stopPropagation();editTodoModal('${t.id}')" title="Redaguoti">✏</button>`:''}
+        ${ce?`<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();delTodo('${t.id}')" title="Ištrinti">🗑</button>`:''}
       </div>
     </div>`;
+  };
+
+  // ── Table row (inline editable) ──
+  const trow=t=>{
+    const st=_plStage(t), pr=_plPrio(t);
+    const overdue=st!=='done' && t.due && t.due<today;
+    const fromMgr=t.createdBy && t.createdBy!==t.ownerId;
+    const ce=canEd(t);
+    return `<tr class="${st==='done'?'pl-tr-done':''}">
+      <td><button class="pl-prio pl-pd-${pr}" title="Prioritetas (spustelėkite keisti)" ${ce?`onclick="cycleTodoPriority('${t.id}')"`:'disabled'}>${PL_PRIO[pr].dot} ${PL_PRIO[pr].label}</button></td>
+      <td><div class="pl-tt ${st==='done'?'done':''}" ${ce?`onclick="editTodoModal('${t.id}')" style="cursor:pointer"`:''}>${escHtml(t.title)}</div>${t.note?`<div class="pl-note">${escHtml(t.note)}</div>`:''}${fromMgr?`<span class="badge badge-purple">Nuo vadovo</span>`:''}</td>
+      <td>${ce?`<input type="date" class="pl-din ${overdue?'overdue':''}" value="${escHtml(t.due||'')}" onchange="setTodoDue('${t.id}',this.value)">`:(t.due?`<span class="${overdue?'pl-due overdue':''}">${escHtml(t.due)}</span>`:'—')}</td>
+      <td>${ce?`<select class="pl-stsel pl-st-${st}" onchange="setTodoStage('${t.id}',this.value)">${PL_STAGE_ORDER.map(s=>`<option value="${s}" ${s===st?'selected':''}>${PL_STAGE[s].label}</option>`).join('')}</select>`:`<span class="pl-st-${st}">${PL_STAGE[st].label}</span>`}</td>
+      <td class="pl-tactions">${ce?`<button class="btn btn-xs" onclick="editTodoModal('${t.id}')" title="Redaguoti">✏</button> <button class="btn btn-xs btn-danger" onclick="delTodo('${t.id}')" title="Ištrinti">🗑</button>`:''}</td>
+    </tr>`;
   };
 
   // Projects overview — ongoing + on-hold (paused), filtered by what the role may see
@@ -11415,47 +11478,68 @@ function renderPlanner(){
     ${onhold.length?`<div class="pl-section-title" style="margin-top:22px">⏸ Sustabdyti projektai <span class="pl-count">${onhold.length}</span></div>
       <div class="pl-proj-grid pl-hold">${onhold.map(planCard).join('')}</div>`:''}`;
 
+  // ── Body: list or table ──
+  let body;
+  if(_plannerView==='table'){
+    body=all.length
+      ? `<table class="pl-table"><thead><tr><th>Prior.</th><th>Užduotis</th><th>Terminas</th><th>Etapas</th><th></th></tr></thead><tbody>${tableSorted.map(trow).join('')}</tbody></table>
+         ${done.length?`<div style="text-align:right;margin-top:10px"><button class="btn btn-xs" onclick="clearDoneTodos()" title="Pašalinti atliktas užduotis">Išvalyti atliktas</button></div>`:''}`
+      : `<div class="pl-empty">🎉 Nėra užduočių. Pridėkite pirmąją viršuje.</div>`;
+  } else {
+    body=`<div class="pl-section-title">Aktyvios <span class="pl-count">${active.length}</span></div>
+      <div class="pl-list">${active.length?active.map(row).join(''):`<div class="pl-empty">🎉 Nėra aktyvių užduočių. Pridėkite pirmąją viršuje.</div>`}</div>
+      ${done.length?`<div class="pl-section-title done-h">Atliktos <span class="pl-count">${done.length}</span>
+        <button class="btn btn-xs" onclick="clearDoneTodos()" title="Pašalinti atliktas užduotis">Išvalyti</button></div>
+      <div class="pl-list pl-done-list">${done.map(row).join('')}</div>`:''}`;
+  }
+
   host.innerHTML=`<div class="pl-wrap">
     ${picker}
     ${viewingOther?`<div class="pl-banner">Tvarkote <strong>${escHtml(owner.name)}</strong> planą — pridėtos užduotys atsiras jo/jos sąraše su žyma „Nuo vadovo“.</div>`:''}
-    <div class="pl-section-title" style="margin-top:0">📋 ${viewingOther?escHtml(owner.name)+' užduotys':'Mano užduotys'}</div>
+    <div class="pl-headrow">
+      <div class="pl-section-title" style="margin:0">📋 ${viewingOther?escHtml(owner.name)+' užduotys':'Mano užduotys'}</div>
+      <div class="pl-toggle">
+        <button class="${_plannerView==='list'?'on':''}" onclick="setPlannerView('list')">☰ Sąrašas</button>
+        <button class="${_plannerView==='table'?'on':''}" onclick="setPlannerView('table')">▦ Lentelė</button>
+      </div>
+    </div>
     <div class="pl-quickadd">
       <input type="text" id="pl-new-title" placeholder="Nauja užduotis… (pvz. Paskambinti tiekėjui)" onkeydown="if(event.key==='Enter')addTodo()" style="flex:1">
+      <select id="pl-new-prio" class="pl-newprio" title="Prioritetas"><option value="high">🔴 Aukštas</option><option value="med" selected>🟡 Vidutinis</option><option value="low">⚪ Žemas</option></select>
       <input type="date" id="pl-new-due" title="Terminas (nebūtina)" style="width:150px">
       <button class="btn btn-primary" onclick="addTodo()">+ Pridėti</button>
     </div>
-    <div class="pl-section-title">Aktyvios <span class="pl-count">${active.length}</span></div>
-    <div class="pl-list">${active.length?active.map(row).join(''):`<div class="pl-empty">🎉 Nėra aktyvių užduočių. Pridėkite pirmąją viršuje.</div>`}</div>
-    ${done.length?`<div class="pl-section-title done-h">Atliktos <span class="pl-count">${done.length}</span>
-      <button class="btn btn-xs" onclick="clearDoneTodos()" title="Pašalinti atliktas užduotis">Išvalyti</button></div>
-    <div class="pl-list pl-done-list">${done.map(row).join('')}</div>`:''}
+    ${body}
     ${overview}
   </div>`;
 }
 
 function addTodo(){
-  const ti=document.getElementById('pl-new-title'), di=document.getElementById('pl-new-due');
+  const ti=document.getElementById('pl-new-title'), di=document.getElementById('pl-new-due'), pi=document.getElementById('pl-new-prio');
   const title=((ti&&ti.value)||'').trim(); if(!title){ti&&ti.focus();return;}
   const ownerId=_todoOwner(), now=new Date().toISOString();
-  DB.todos.push({id:uid(),ownerId,title,note:'',due:(di&&di.value)||'',done:false,createdBy:DB.currentUserId,created:now,completedAt:null,lastModified:now});
-  if(ti)ti.value=''; if(di)di.value='';
-  save(); renderPlanner(); updatePlannerBadge(); ti&&ti.focus();
+  DB.todos.push({id:uid(),ownerId,title,note:'',due:(di&&di.value)||'',priority:(pi&&pi.value)||'med',stage:'todo',done:false,createdBy:DB.currentUserId,created:now,completedAt:null,lastModified:now});
+  save(); renderPlanner(); updatePlannerBadge(); document.getElementById('pl-new-title')?.focus();
   toast(ownerId===DB.currentUserId?'✅ Pridėta':'✅ Pridėta nariui: '+getUser(ownerId).name,'success');
 }
 
 function toggleTodo(id){
   const t=DB.todos.find(x=>x.id===id); if(!t)return;
-  t.done=!t.done; t.completedAt=t.done?new Date().toISOString():null; t.lastModified=new Date().toISOString();
-  save(); renderPlanner(); updatePlannerBadge();
+  setTodoStage(id, _plStage(t)==='done'?'todo':'done');
 }
 
 function editTodoModal(id){
   const t=DB.todos.find(x=>x.id===id); if(!t)return;
   if(!(isManager()||t.createdBy===DB.currentUserId))return;
+  const st=_plStage(t), pr=_plPrio(t);
   openModal(`<div class="modal-title">Redaguoti užduotį <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-field"><label class="form-label">Pavadinimas</label><input type="text" id="pl-edit-title" value="${escHtml(t.title)}"></div>
-    <div class="form-field"><label class="form-label">Pastaba (nebūtina)</label><textarea id="pl-edit-note" rows="3">${escHtml(t.note||'')}</textarea></div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Prioritetas</label><select id="pl-edit-prio">${PL_PRIO_ORDER.map(p=>`<option value="${p}" ${pr===p?'selected':''}>${PL_PRIO[p].dot} ${PL_PRIO[p].label}</option>`).join('')}</select></div>
+      <div class="form-field"><label class="form-label">Etapas</label><select id="pl-edit-stage">${PL_STAGE_ORDER.map(s=>`<option value="${s}" ${st===s?'selected':''}>${PL_STAGE[s].label}</option>`).join('')}</select></div>
+    </div>
     <div class="form-field"><label class="form-label">Terminas (nebūtina)</label><input type="date" id="pl-edit-due" value="${escHtml(t.due||'')}"></div>
+    <div class="form-field"><label class="form-label">Pastaba (nebūtina)</label><textarea id="pl-edit-note" rows="3">${escHtml(t.note||'')}</textarea></div>
     <div class="form-actions"><button class="btn btn-primary" onclick="saveTodoEdit('${t.id}')">Išsaugoti</button><button class="btn" onclick="closeModal()">Atšaukti</button></div>`);
   setTimeout(()=>document.getElementById('pl-edit-title')?.focus(),50);
 }
@@ -11464,8 +11548,11 @@ function saveTodoEdit(id){
   const t=DB.todos.find(x=>x.id===id); if(!t)return;
   const title=(document.getElementById('pl-edit-title').value||'').trim(); if(!title){toast('Įveskite pavadinimą','error');return;}
   t.title=title;
-  t.note=(document.getElementById('pl-edit-note').value||'').trim();
+  t.priority=document.getElementById('pl-edit-prio').value||'med';
+  const stg=document.getElementById('pl-edit-stage').value||'todo';
+  t.stage=stg; t.done=(stg==='done'); t.completedAt=t.done?(t.completedAt||new Date().toISOString()):null;
   t.due=document.getElementById('pl-edit-due').value||'';
+  t.note=(document.getElementById('pl-edit-note').value||'').trim();
   t.lastModified=new Date().toISOString();
   closeModal(); save(); renderPlanner(); updatePlannerBadge(); toast('✅ Išsaugota','success');
 }
