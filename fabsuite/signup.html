@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sukurti paskyrą — Fabsuite</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fab.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="wrap"><a class="brand" href="index.html"><span class="logo">F</span> Fabsuite</a>
+  <div class="links"><a href="account.html" class="hide-sm">Turiu paskyrą</a></div></div></nav>
+
+<div class="shell">
+  <div class="panel">
+    <h2>Sukurti darbo vietą</h2>
+    <div class="sub" id="plan-sub">Pasirink planą pradžios puslapyje.</div>
+
+    <div id="plan-box" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:700" id="pb-name"></div><div style="font-size:13px;color:var(--muted)" id="pb-tag"></div></div>
+        <div style="text-align:right"><div style="font-size:24px;font-weight:700" id="pb-price"></div><div style="font-size:12px;color:var(--hint)" id="pb-per"></div></div>
+      </div>
+      <div style="font-size:12px;color:var(--green-t);margin-top:8px">✓ 14 dienų nemokamas bandymas — kortelė nuskaitoma tik po bandymo.</div>
+      <a href="index.html#pricing" style="font-size:12px;color:var(--blue);text-decoration:none;display:inline-block;margin-top:6px">← Keisti planą</a>
+    </div>
+
+    <form id="form" onsubmit="return false">
+      <label>Įmonės / dirbtuvės pavadinimas</label>
+      <input id="company" placeholder="UAB Dėdės baldai" autocomplete="organization">
+      <label>El. paštas (vadovo prisijungimas)</label>
+      <input id="email" type="email" placeholder="vadovas@imone.lt" autocomplete="email">
+      <label>Slaptažodis</label>
+      <input id="password" type="password" placeholder="bent 6 simboliai" autocomplete="new-password">
+      <div class="err" id="err"></div>
+      <button class="btn btn-primary btn-block btn-lg" id="go" style="margin-top:22px" onclick="submitForm()">Tęsti į apmokėjimą →</button>
+    </form>
+    <div class="muted-link">Sukurdami paskyrą sutinkate su paslaugų teikimo sąlygomis.</div>
+  </div>
+</div>
+
+<script>
+var PLAN = Fab.qs("plan") || "suite";
+var INTERVAL = Fab.qs("interval") || "month";
+if(!FABSUITE.PLANS[PLAN]) PLAN = "suite";
+
+(function renderPlan(){
+  var p = FABSUITE.PLANS[PLAN];
+  var price = INTERVAL==="year" ? p.year : p.month;
+  document.getElementById("plan-sub").textContent = "Planas: " + p.name + " — pradedi 14 d. nemokamu bandymu.";
+  document.getElementById("plan-box").style.display = "block";
+  document.getElementById("pb-name").textContent = "Fabsuite " + p.name;
+  document.getElementById("pb-tag").textContent = p.tagline;
+  document.getElementById("pb-price").textContent = FABSUITE.CURRENCY + price;
+  document.getElementById("pb-per").textContent = INTERVAL==="year" ? "per metus" : "per mėnesį";
+})();
+
+function showErr(m){ var e=document.getElementById("err"); e.textContent=m; e.classList.add("show"); }
+
+async function submitForm(){
+  var company = document.getElementById("company").value.trim();
+  var email = document.getElementById("email").value.trim();
+  var password = document.getElementById("password").value;
+  document.getElementById("err").classList.remove("show");
+  if(!company) return showErr("Įveskite įmonės pavadinimą.");
+  if(!email || email.indexOf("@")<0) return showErr("Įveskite teisingą el. paštą.");
+  if(!password || password.length<6) return showErr("Slaptažodis turi būti bent 6 simbolių.");
+
+  var btn = document.getElementById("go");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Kuriama…';
+  try{
+    var r = await Fab.signupAndCheckout({ email:email, password:password, company:company, plan:PLAN, interval:INTERVAL });
+    if(r.url){ location.href = r.url; return; }   // → Stripe Checkout
+    showErr("Nepavyko pradėti apmokėjimo. Bandykite dar kartą.");
+  }catch(e){
+    showErr(e.message || "Įvyko klaida.");
+  }finally{
+    btn.disabled = false; btn.textContent = "Tęsti į apmokėjimą →";
+  }
+}
+</script>
+</body>
+</html>

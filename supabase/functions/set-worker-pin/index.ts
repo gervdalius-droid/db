@@ -7,15 +7,19 @@
 // on Supabase's servers and only acts when the caller proves they are an admin.
 //
 // It maps name + PIN to the same account scheme both apps use:
-//   email    = slug(name).gvs@dedesbaldai.lt
+//   email    = slug(name).<namespace>@<domain>
+//              namespace = WORKSHOP_CODE (legacy) or the WORKSPACE CODE (product)
 //   password = PIN + "_dedes"
 //
 // Deploy steps: see SET_PIN_FUNCTION_SETUP.md
 // ──────────────────────────────────────────────────────────────────────────
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const AUTH_DOMAIN = "dedesbaldai.lt"; // keep in sync with both apps
-const WORKSHOP_CODE = "gvs";          // keep in sync with both apps
+// Per-deployment via env: set FABSUITE_AUTH_DOMAIN (and optionally
+// FABSUITE_WORKSHOP_CODE) on the commercial project so it matches its config.js.
+// Fallbacks preserve the original single-tenant behaviour for your own company.
+const AUTH_DOMAIN = Deno.env.get("FABSUITE_AUTH_DOMAIN") || "dedesbaldai.lt";
+const WORKSHOP_CODE = Deno.env.get("FABSUITE_WORKSHOP_CODE") || "gvs";
 const PIN_SALT = "_dedes";            // keep in sync with both apps
 
 const cors = {
@@ -63,16 +67,32 @@ Deno.serve(async (req) => {
 
   // 2) Confirm the caller is an admin/manager (their admin-profile key must exist).
   const { data: prof } = await admin
-    .from("fabflow").select("key").eq("key", "fab_admin_" + caller.user.id).limit(1);
+    .from("fabflow").select("key,value").eq("key", "fab_admin_" + caller.user.id).limit(1);
   if (!prof || !prof.length) return json({ error: "Tik vadovas gali nustatyti PIN" }, 403);
+  let callerWorkspace = "";
+  try { callerWorkspace = String(JSON.parse(prof[0].value || "{}").workspaceCode || "").toUpperCase(); } catch { /* ignore */ }
 
   // 3) Validate input.
-  let body: { name?: string; pin?: string; action?: string };
+  let body: { name?: string; pin?: string; action?: string; workspace_code?: string; email_scope?: string };
   try { body = await req.json(); } catch { return json({ error: "Blogi duomenys" }, 400); }
   const action = (body.action || "set").toLowerCase();
   const name = (body.name || "").trim();
   if (!name) return json({ error: "Reikia vardo" }, 400);
-  const email = slug(name) + "." + slug(WORKSHOP_CODE) + "@" + AUTH_DOMAIN;
+
+  // Worker-email namespace. 'workshop' = legacy single-tenant (name.<gvs>@domain);
+  // 'workspace' = multi-tenant product (name.<WORKSPACE_CODE>@domain), so the same
+  // worker name in two different companies never maps to one shared account.
+  const scope = (body.email_scope || "workshop").toLowerCase();
+  const ws = String(body.workspace_code || "").toUpperCase();
+  if (scope === "workspace") {
+    if (!ws) return json({ error: "Reikia darbo vietos kodo" }, 400);
+    // An admin may only manage workers in their OWN workspace.
+    if (callerWorkspace && callerWorkspace !== ws) {
+      return json({ error: "Negalite valdyti kitos darbo vietos darbuotojų" }, 403);
+    }
+  }
+  const ns = scope === "workspace" ? ws : WORKSHOP_CODE;
+  const email = slug(name) + "." + slug(ns) + "@" + AUTH_DOMAIN;
 
   // DELETE: remove the worker's login entirely (revokes both apps).
   if (action === "delete") {

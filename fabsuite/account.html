@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mano paskyra — Fabsuite</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fab.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="wrap"><a class="brand" href="index.html"><span class="logo">F</span> Fabsuite</a>
+  <div class="links"><a href="index.html#pricing" class="hide-sm">Kainos</a><a id="logout" href="#" style="display:none">Atsijungti</a></div></div></nav>
+
+<!-- SIGN IN -->
+<div class="shell" id="signin-shell">
+  <div class="panel">
+    <h2>Prisijungti</h2>
+    <div class="sub">Tvarkykite prenumeratą ir atsiskaitymus.</div>
+    <label>El. paštas</label>
+    <input id="li-email" type="email" autocomplete="email" placeholder="vadovas@imone.lt">
+    <label>Slaptažodis</label>
+    <input id="li-pw" type="password" autocomplete="current-password" placeholder="••••••••">
+    <div class="err" id="li-err"></div>
+    <button class="btn btn-primary btn-block btn-lg" id="li-go" style="margin-top:20px" onclick="doSignIn()">Prisijungti →</button>
+    <div class="muted-link">Neturite paskyros? <a href="index.html#pricing">Pasirinkti planą</a></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="wrap" id="dash" style="display:none;padding:48px 22px;max-width:760px">
+  <h1 style="font-size:30px;margin-bottom:6px">Sveiki 👋</h1>
+  <p style="color:var(--muted);margin-bottom:28px" id="dash-email"></p>
+  <div id="orgs"></div>
+  <div id="no-orgs" style="display:none" class="card center">
+    <p style="margin-bottom:16px">Dar neturite aktyvios darbo vietos.</p>
+    <a class="btn btn-primary" href="index.html#pricing">Pasirinkti planą →</a>
+  </div>
+</div>
+
+<script>
+var SESSION = Fab.loadSession();
+
+function pill(ent){
+  if(!ent.found) return '<span class="pill grey">Nėra prenumeratos</span>';
+  if(ent.comp) return '<span class="pill green">Aktyvi (nemokama)</span>';
+  var map = {
+    trialing:['green','Bandymas'], active:['green','Aktyvi'],
+    past_due:['amber','Vėluoja mokėjimas'], unpaid:['red','Neapmokėta'],
+    canceled:['red','Atšaukta'], none:['grey','Neaktyvi'],
+  };
+  var m = map[ent.status] || ['grey', ent.status||'—'];
+  return '<span class="pill '+m[0]+'">'+m[1]+'</span>';
+}
+
+function appChip(label, on, href){
+  if(on) return '<a class="btn" style="padding:8px 14px" href="'+href+'" target="_blank">'+label+' ↗</a>';
+  return '<span class="btn" style="padding:8px 14px;opacity:.5;cursor:default">'+label+' 🔒</span>';
+}
+
+function fmtDate(iso){ if(!iso) return ""; try{ return new Date(iso).toLocaleDateString("lt-LT"); }catch(e){ return ""; } }
+
+async function loadDash(){
+  document.getElementById("signin-shell").style.display = "none";
+  document.getElementById("dash").style.display = "block";
+  document.getElementById("logout").style.display = "inline";
+  document.getElementById("dash-email").textContent = SESSION.email || "";
+
+  var orgs = await Fab.rpc("my_orgs", {}, SESSION.access);
+  if(!orgs || !orgs.length){ document.getElementById("no-orgs").style.display = "block"; return; }
+
+  var html = await Promise.all(orgs.map(async function(o){
+    var ent = await Fab.rpc("org_entitlement", { p_code: o.workspace_code }, SESSION.access) || {};
+    var renew = ent.current_period_end ? ('Kitas mokėjimas: '+fmtDate(ent.current_period_end)) :
+                ent.trial_end ? ('Bandymas iki: '+fmtDate(ent.trial_end)) : '';
+    return ''
+      + '<div class="card" style="margin-bottom:16px">'
+      +  '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'
+      +    '<div><div style="font-size:19px;font-weight:700">'+(o.name||o.workspace_code)+'</div>'
+      +      '<div class="mono" style="font-size:12px;color:var(--hint)">Kodas: '+o.workspace_code+'</div></div>'
+      +    '<div style="text-align:right">'+pill(ent)+'<div style="font-size:12px;color:var(--hint);margin-top:6px">'+renew+'</div></div>'
+      +  '</div>'
+      +  '<div style="display:flex;gap:10px;margin:18px 0;flex-wrap:wrap">'
+      +    appChip("DB", ent.has_db, FABSUITE.APP_URLS.db)
+      +    appChip("Nesting", ent.has_nesting, FABSUITE.APP_URLS.nesting)
+      +  '</div>'
+      +  '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +    '<button class="btn btn-primary" onclick="manage(\''+o.workspace_code+'\')">Valdyti atsiskaitymus</button>'
+      +    (ent.active ? '' : '<a class="btn" href="index.html#pricing">Pasirinkti planą</a>')
+      +  '</div>'
+      + '</div>';
+  }));
+  document.getElementById("orgs").innerHTML = html.join("");
+}
+
+async function manage(code){
+  try{
+    var d = await Fab.callFn("create-portal-session", { workspace_code: code }, SESSION.access);
+    if(d.url){ location.href = d.url; return; }
+  }catch(e){ alert(e.message || "Nepavyko atidaryti portalo."); }
+}
+
+async function doSignIn(){
+  var email = document.getElementById("li-email").value.trim();
+  var pw = document.getElementById("li-pw").value;
+  var err = document.getElementById("li-err"); err.classList.remove("show");
+  var btn = document.getElementById("li-go"); btn.disabled = true; btn.innerHTML='<span class="spin"></span> Jungiamasi…';
+  try{
+    var res = await Fab.signIn(email, pw);
+    if(!res.access_token){ err.textContent = "Neteisingas el. paštas arba slaptažodis."; err.classList.add("show"); return; }
+    Fab.saveSession(res); SESSION = Fab.loadSession();
+    await loadDash();
+  }catch(e){ err.textContent = "Klaida: "+e.message; err.classList.add("show"); }
+  finally{ btn.disabled=false; btn.textContent="Prisijungti →"; }
+}
+
+document.getElementById("logout").onclick = function(e){ e.preventDefault(); Fab.clearSession(); location.reload(); };
+document.getElementById("li-pw").addEventListener("keydown", function(e){ if(e.key==="Enter") doSignIn(); });
+
+if(SESSION && SESSION.access){ loadDash().catch(function(){ document.getElementById("signin-shell").style.display="flex"; }); }
+</script>
+</body>
+</html>

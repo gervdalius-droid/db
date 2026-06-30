@@ -9,6 +9,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
+<script src="config.js"></script>
+<script>if(window.FAB_CONFIG&&FAB_CONFIG.APP_TITLE){document.title=FAB_CONFIG.APP_TITLE;}</script>
+<script src="shared/fabsuite-license.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -796,6 +799,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
       <div class="sidebar-section">
         <div class="sidebar-label">Rodiniai</div>
         <div class="nav-item active" id="nav-floor" onclick="showView('floor')"><span class="nav-icon">▦</span>Cecho rodinys</div>
+        <div class="nav-item" id="nav-planner" onclick="showView('planner')"><span class="nav-icon">✅</span>Mano planas<span class="nav-badge" id="planner-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-production" onclick="showView('production')"><span class="nav-icon">⚙️</span>Gamybos Projektai<span class="nav-badge" id="prod-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-paslauga" onclick="showView('paslauga')"><span class="nav-icon">⚡</span>Paslauga<span class="nav-badge" id="paslauga-badge" style="display:none">0</span></div>
@@ -807,10 +811,12 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
         <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span>Disciplina (4DX)</div>
         <div class="nav-item" id="nav-report" onclick="showView('report')"><span class="nav-icon">📊</span>Ataskaita</div>
+        <div class="nav-item" id="nav-daily" onclick="showView('daily')"><span class="nav-icon">📈</span>Dienos ataskaita</div>
         <div class="nav-item" id="nav-notifs" onclick="showView('notifs')"><span class="nav-icon">🔔</span>Pranešimai<span class="nav-badge info" id="notif-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-import" onclick="showView('import')"><span class="nav-icon">📥</span>Importuoti Excel</div>
         <div class="nav-item" id="nav-backup" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" id="nav-nesting" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
+        <div class="nav-item" id="nav-billing" style="display:none" onclick="openBilling()"><span class="nav-icon">💳</span>Prenumerata ir atsiskaitymai</div>
       </div>
       <div class="sidebar-section" style="border-top:3px solid var(--border2);margin-top:4px;padding-top:10px">
         <div class="sidebar-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none" onclick="toggleSidebarGroup('projektas')">
@@ -928,8 +934,10 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
       <div class="view" id="view-production"><div id="production-content"></div></div>
       <div class="view" id="view-paslauga"><div id="paslauga-content"></div></div>
       <div class="view" id="view-team"><div id="team-content"></div></div>
+      <div class="view" id="view-planner"><div id="planner-content"></div></div>
       <div class="view" id="view-discipline"><div id="discipline-content"></div></div>
       <div class="view" id="view-report"><div id="report-content"></div></div>
+      <div class="view" id="view-daily"><div id="daily-content"></div></div>
       <div class="view" id="view-materials"><div id="materials-content"></div></div>
       <div class="view" id="view-warehouse"><div id="warehouse-content"></div></div>
       <div class="view" id="view-notifs">
@@ -953,6 +961,69 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
   </div>
 </div>
 
+<style>
+/* ── Mano planas — personal to-do planner ── */
+.pl-wrap{max-width:720px;margin:0 auto}
+.pl-picker{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pl-banner{background:var(--purple-bg);color:var(--purple-t);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:12px;margin-bottom:12px}
+.pl-quickadd{display:flex;gap:8px;margin-bottom:14px}
+.pl-section-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 2px 8px}
+.pl-section-title.done-h{color:var(--hint)}
+.pl-count{background:var(--surface3);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.pl-list{display:flex;flex-direction:column;gap:6px}
+.pl-item{display:flex;align-items:flex-start;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;box-shadow:var(--sh);transition:border-color .12s}
+.pl-item:hover{border-color:var(--border2)}
+.pl-item.done{background:var(--surface2);box-shadow:none}
+.pl-check{flex:none;width:22px;height:22px;border-radius:7px;border:1.8px solid var(--border2);background:var(--surface);cursor:pointer;color:#fff;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;margin-top:1px;transition:all .12s}
+.pl-check:hover{border-color:var(--green)}
+.pl-check.on{background:var(--green);border-color:var(--green)}
+.pl-body{flex:1;min-width:0}
+.pl-title{font-size:14px;font-weight:600;color:var(--text);word-break:break-word}
+.pl-title.done{text-decoration:line-through;color:var(--hint);font-weight:500}
+.pl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px}
+.pl-due{font-size:11px;color:var(--muted);background:var(--surface3);border-radius:6px;padding:2px 7px}
+.pl-due.overdue{color:var(--red-t);background:var(--red-bg)}
+.pl-note{font-size:12px;color:var(--muted)}
+.pl-actions{flex:none;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+.pl-item:hover .pl-actions{opacity:1}
+.pl-empty{text-align:center;color:var(--hint);font-size:13px;padding:28px 10px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--rl)}
+.pl-proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.pl-proj{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;cursor:pointer;box-shadow:var(--sh);transition:border-color .12s,transform .05s}
+.pl-proj:hover{border-color:var(--border2)}
+.pl-proj:active{transform:scale(.995)}
+.pl-proj-top{display:flex;align-items:flex-start;gap:8px}
+.pl-proj-dot{flex:none;width:10px;height:10px;border-radius:3px;margin-top:3px}
+.pl-proj-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-proj-client{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-proj-bar{height:4px;background:var(--surface3);border-radius:3px;overflow:hidden;margin:8px 0 6px}
+.pl-proj-bar>div{height:100%;border-radius:3px}
+.pl-proj-meta{font-size:11px;color:var(--muted)}
+.pl-hold .pl-proj{opacity:.72;border-style:dashed}
+/* ── Dienos ataskaita — daily report ── */
+.dr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.dr-nav{display:flex;align-items:center;gap:6px}
+.dr-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.dr-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px 16px;min-width:120px;box-shadow:var(--sh)}
+.dr-stat-v{font-size:22px;font-weight:700;color:var(--text)}
+.dr-stat-l{font-size:11px;color:var(--muted);margin-top:2px}
+.dr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+.dr-step{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;background:var(--surface)}
+.dr-step-h{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin-bottom:6px}
+.dr-step-pieces{font-size:20px;font-weight:700}
+.dr-step-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.dr-chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl)}
+.dr-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;cursor:pointer}
+.dr-bar{width:100%;max-width:26px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#3b82f6,#2563eb);min-height:2px}
+.dr-bar-wrap.sel .dr-bar{background:linear-gradient(180deg,#f59e0b,#d97706)}
+.dr-bar-wrap:hover .dr-bar{filter:brightness(1.1)}
+.dr-bar-x{font-size:9px;color:var(--hint);white-space:nowrap}
+.dr-bar-v{font-size:9px;color:var(--muted);font-weight:600;min-height:11px}
+.dr-note{font-size:11px;color:var(--hint);margin:6px 2px 16px}
+.dr-table{width:100%;border-collapse:collapse;font-size:12px}
+.dr-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--border)}
+.dr-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+@media(max-width:600px){.pl-actions{opacity:1}.pl-quickadd{flex-wrap:wrap}.pl-quickadd input[type=date]{width:100%}}
+</style>
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal-body"></div></div>
 <div class="toast-container" id="toast-container"></div>
 
@@ -966,6 +1037,7 @@ let DB = {
   warehouse:[], warehouseLog:[], pickStatus:{}, kits:[], cycleCounts:[], fittingAliases:[], fittingPairingRules:[],
   matLog:[],
   folders:[],
+  todos:[],
 };
 
 // ══════════════════════════════════════════════
@@ -1311,8 +1383,26 @@ function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return'<span 
 // SUPABASE — key-value store (like SquadCal)
 // Single table: fabflow(key, value, updated_at)
 // ══════════════════════════════════════════════
-const SB_URL = 'https://byvtqycdgboqbmpoysyt.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dnRxeWNkZ2JvcWJtcG95c3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODA0MzAsImV4cCI6MjA5MTM1NjQzMH0.IoQRxA4m45--5fQ9U40ChNVCwsBPmxTM4p8sM1-3AUo';
+// Per-deployment settings come from config.js (window.FAB_CONFIG). Fallbacks
+// keep the app working if config.js is missing.
+const _CFG = (typeof window!=='undefined' && window.FAB_CONFIG) || {};
+const SB_URL = _CFG.SUPABASE_URL || 'https://byvtqycdgboqbmpoysyt.supabase.co';
+// Fabsuite/FabFlow storefront (landing + pricing + Stripe checkout).
+const FABSUITE_URL = _CFG.FABSUITE_URL || 'https://gervdalius-droid.github.io/db/fabsuite';
+const PAYWALL_ENABLED = !!_CFG.PAYWALL_ENABLED;
+const APP_CODE = _CFG.APP_CODE || 'db';
+// How worker name+PIN logins are namespaced into a hidden email:
+//   'workshop'  → legacy single-tenant (name.<WORKSHOP_CODE>@domain) — keep for your own company
+//   'workspace' → multi-tenant product (name.<WORKSPACE_CODE>@domain) — avoids cross-company collisions
+const WORKER_EMAIL_SCOPE = _CFG.WORKER_EMAIL_SCOPE || 'workshop';
+function global_FabsuiteReady(){ return typeof window!=='undefined' && window.FabsuiteLicense; }
+// Open the Stripe billing portal for this workspace (manager only).
+async function openBilling(){
+  if(!global_FabsuiteReady()){ window.open(FABSUITE_URL,'_blank'); return; }
+  FabsuiteLicense.config({supabaseUrl:SB_URL, anonKey:SB_KEY, fabsuiteUrl:FABSUITE_URL, app:APP_CODE});
+  await FabsuiteLicense.openPortal(WORKSPACE_CODE, SB_TOKEN);
+}
+const SB_KEY = _CFG.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dnRxeWNkZ2JvcWJtcG95c3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODA0MzAsImV4cCI6MjA5MTM1NjQzMH0.IoQRxA4m45--5fQ9U40ChNVCwsBPmxTM4p8sM1-3AUo';
 let SB_TOKEN = null;
 let SB_REFRESH = null;
 const SB_TK_KEY = 'fabflow_tokens';
@@ -1432,11 +1522,16 @@ function clearTokens(){SB_TOKEN=null;SB_REFRESH=null;try{localStorage.removeItem
 // Name + PIN map to a real Supabase account, so each worker gets their OWN
 // token instead of the shared anon key — which is what lets RLS protect the
 // warehouse. The SAME name+PIN works to log in to the nesting app too.
-const AUTH_DOMAIN='dedesbaldai.lt';   // synthetic email domain (no real mail is sent)
-const WORKSHOP_CODE='gvs';            // baked-in; only used to build the hidden email — NOT the workspace data code
+const AUTH_DOMAIN=_CFG.AUTH_DOMAIN||'dedesbaldai.lt';   // synthetic email domain (no real mail is sent)
+const WORKSHOP_CODE=_CFG.WORKSHOP_CODE||'gvs';          // baked-in; only used to build the hidden email — NOT the workspace data code
 const AUTH_PIN_SALT='_dedes';         // appended to the PIN to form the real password (meets the 6-char minimum)
 function authSlug(s){var m={'ą':'a','č':'c','ę':'e','ė':'e','į':'i','š':'s','ų':'u','ū':'u','ž':'z'};return String(s||'').trim().toLowerCase().replace(/[ąčęėįšųūž]/g,function(c){return m[c]||c;}).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
-function authEmail(name){return authSlug(name)+'.'+authSlug(WORKSHOP_CODE)+'@'+AUTH_DOMAIN;}
+function authEmail(name,codeOverride){
+  // In 'workspace' mode the company's code is part of the email so that the same
+  // worker name in two different companies maps to two different accounts.
+  const ns=(WORKER_EMAIL_SCOPE==='workspace')?(codeOverride||WORKSPACE_CODE||''):WORKSHOP_CODE;
+  return authSlug(name)+'.'+authSlug(ns)+'@'+AUTH_DOMAIN;
+}
 function authPinToPassword(pin){return String(pin)+AUTH_PIN_SALT;}
 
 // ══════════════════════════════════════════════
@@ -1460,7 +1555,7 @@ async function saveToCloud(){
     sbSet(wsKey('comments'), JSON.stringify(DB.comments)),
     sbSet(wsKey('users'),    JSON.stringify(USERS)),
     sbSet(wsKey('folders'),  JSON.stringify(DB.folders||[])),
-    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules,matLog:DB.matLog,steps:DB.steps||STEPS})),
+    sbSet(wsKey('settings'), JSON.stringify({stepDefaults:DB.stepDefaults,stepDays:DB.stepDays,orders:DB.orders,matStatus:DB.matStatus,navVisibility:DB.navVisibility,warehouse:DB.warehouse,warehouseLog:DB.warehouseLog,pickStatus:DB.pickStatus,kits:DB.kits,cycleCounts:DB.cycleCounts,fittingAliases:DB.fittingAliases,fittingPairingRules:DB.fittingPairingRules,matLog:DB.matLog,todos:DB.todos||[],steps:DB.steps||STEPS})),
   ]);
   _lastSavedAt=Date.now();
   publishWarehouseShared(); // mirror warehouse to shared stock (fire-and-forget)
@@ -1559,7 +1654,7 @@ async function loadFromCloud(force){
     if(users!==undefined && users){ const u=JSON.parse(users); if(u.length){USERS=u; applied=true;} }
     if(settings!==undefined && settings){
       const sp=JSON.parse(settings);
-      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];DB.matLog=sp.matLog||[];if(Array.isArray(sp.steps)&&sp.steps.length){STEPS=sp.steps;DB.steps=sp.steps;}rebuildStepsIndex();
+      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];DB.matLog=sp.matLog||[];DB.todos=sp.todos||[];if(Array.isArray(sp.steps)&&sp.steps.length){STEPS=sp.steps;DB.steps=sp.steps;}rebuildStepsIndex();
       applied=true;
     }
     if(folders!==undefined){
@@ -1678,6 +1773,7 @@ function load(){
     DB.matStatus=d.matStatus||{};DB.matLog=d.matLog||DB.matLog||[];DB.stepDays=d.stepDays||{};if(Array.isArray(d.steps)&&d.steps.length){STEPS=d.steps;DB.steps=d.steps;}rebuildStepsIndex();
     DB.warehouse=d.warehouse||[];DB.warehouseLog=d.warehouseLog||[];DB.pickStatus=d.pickStatus||{};DB.kits=d.kits||[];DB.cycleCounts=d.cycleCounts||[];DB.fittingAliases=d.fittingAliases||[];DB.fittingPairingRules=d.fittingPairingRules||[];
     DB.folders=d.folders||[];
+    DB.todos=d.todos||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
     normalizeTaskQuantities();
@@ -1827,7 +1923,7 @@ async function workerLogin(){
   try{
     // Real login: name+PIN → personal Supabase account (same scheme as the nesting app).
     // The worker gets their OWN token (not the anon key) so RLS can protect the warehouse.
-    const res=await sbSignIn(authEmail(name),authPinToPassword(pin));
+    const res=await sbSignIn(authEmail(name,code),authPinToPassword(pin));
     if(!res.access_token){setAuthError('worker-error','Neteisingas vardas arba PIN');return;}
     saveTokens(res.access_token,res.refresh_token,Date.now()+(res.expires_in||3600)*1000);
     currentUserId_sb=res.user&&res.user.id;
@@ -1913,6 +2009,21 @@ async function viewLogin(){
 }
 
 async function enterApp(){
+  // ── Fabsuite subscription gate ──────────────────────────────────────────
+  // Block entry if this workspace has no active 'db' subscription. Skipped in
+  // offline/local mode. Fails OPEN on network error (never lock out a paying
+  // customer because Supabase hiccuped).
+  if(PAYWALL_ENABLED && !_offline && WORKSPACE_CODE && WORKSPACE_CODE!=='LOCAL' && global_FabsuiteReady()){
+    try{
+      FabsuiteLicense.config({supabaseUrl:SB_URL, anonKey:SB_KEY, fabsuiteUrl:FABSUITE_URL, app:APP_CODE});
+      const ok=await FabsuiteLicense.gate({workspaceCode:WORKSPACE_CODE, token:SB_TOKEN, onSignOut:logout});
+      if(!ok){
+        document.getElementById('auth-screen').style.display='none';
+        document.getElementById('main-app').style.display='none';
+        return; // paywall overlay is showing
+      }
+    }catch(e){ console.warn('Fabsuite gate (non-fatal):', e&&e.message); }
+  }
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('main-app').style.display='flex';
   // Load data: from cloud normally, or from localStorage in offline mode
@@ -1921,8 +2032,8 @@ async function enterApp(){
   // Find current user
   const me=USERS.find(u=>u.id===DB.currentUserId)||USERS[0];
   if(me)DB.currentUserId=me.id;
-  DB.currentView='floor';DB.currentProjectId=null;
-  renderSidebar();renderFloor();
+  DB.currentProjectId=null;
+  showView('planner');
   setSyncStatus(_offline?'offline':'online');
   setTimeout(checkDeadlines,800);setInterval(checkDeadlines,10*60*1000);
   // Daily backup check — once per browser session per workspace per day
@@ -1960,38 +2071,1145 @@ let _offline=false; // local-only mode: no Supabase calls at all
 // user data (project names, clients, comments…) is left untouched. ──
 let LANG=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_lang'))||'lt';
 const I18N_EN={
-  // Sidebar / nav
-  'Rodiniai':'Views','Cecho rodinys':'Workshop','Visi projektai':'All projects','Gamybos Projektai':'Production','Paslauga':'Service','Projektavimas':'Design','Užsakymai':'Orders','Medžiagų poreikis':'Material needs','Sandėlis':'Warehouse','Grafikas / Lean':'Schedule / Lean','Komanda':'Team','Disciplina (4DX)':'Discipline (4DX)','Ataskaita':'Reports','Pranešimai':'Notifications','Importuoti Excel':'Import Excel','Atsarginė kopija':'Backup','Pjovimo optimizacija ↗':'Cutting optimization ↗','Pjovimo optimizacija':'Cutting optimization',
-  // Topbar / subtitles
-  'Visi aktyvūs projektai':'All active projects','Paslaugos gamybos projektai · pozicijos ir pakavimo lapai':'Service production jobs · items and packing lists',
-  // Tabs
-  'Žingsniai':'Steps','Planas':'Plan','Pipeline':'Pipeline','Darbuotojai':'Workers','Medžiagos':'Materials','Stalčiai':'Drawers','Furnitūra':'Hardware','Surinkimui':'Assembly','Failai':'Files',
-  // View switcher
-  'Kortelės':'Cards','Sąrašas':'List','Lenta':'Board','Laiko juosta':'Timeline',
-  // Summary cards
-  'Iš viso':'Total','Aktyvūs':'Active','Šiandien terminas':'Due today','Vėluoja':'Overdue',
-  // Statuses
-  'Nepradėta':'Not started','Vykdoma':'In progress','Blokuota':'Blocked','Baigta':'Done','aktyvus':'active','laukia':'waiting','Blokas':'Blocked','sustabdyta':'paused','dabartinis žingsnis':'current step','— dabartinis žingsnis':'— current step','— sustabdyta':'— paused',
-  // Folders
-  'Be aplanko':'No folder','📁 Be aplanko':'📁 No folder','+ Naujas aplankas':'+ New folder','Naujas aplankas…':'New folder…','📁 + Naujas aplankas':'📁 + New folder','Pervadinti':'Rename','Ištrinti aplanką':'Delete folder','Priskirti aplankui':'Assign to folder','📁 Sugrupuota pagal aplankus — priskirkite projektus klientui ar darbui':'📁 Grouped by folders — assign projects to a client or job','Tuščias aplankas — priskirkite projektų arba ištrinkite 🗑':'Empty folder — assign projects or delete 🗑',
-  // Project list/board/timeline
-  'Projektas':'Project','Atsakingas':'Responsible','Būsena':'Status','Progresas':'Progress','Terminas':'Deadline','Aplankas':'Folder','Nėra projektų':'No projects','Šiandien':'Today','Rytoj':'Tomorrow',
-  // Packing
-  'Pakavimo pozicijos':'Packing items','Pakavimo lapas':'Packing list','Spausdinti pažymėtus':'Print selected','Žymėti visus':'Select all','Nužymėti':'Deselect','Spausdinimo istorija':'Print history','🖨 Spausdinimo istorija':'🖨 Print history','skirtingos pristatymo datos':'different delivery dates','Artikulas / Pavadinimas':'Article / Name','Artikulas':'Article','Pavadinimas':'Name','Užs.':'Ord.','Supak.':'Pack.','Detalės':'Details','Pozicijos':'Items','Pažymėkite bent vieną poziciją':'Select at least one item','Nėra pažymėtų pozicijų':'No items selected',
-  // Delivery
-  'Pristatymas':'Delivery','Pristatymas:':'Delivery:','Pristatymų istorija':'Delivery history','🚚 Pristatymų istorija':'🚚 Delivery history','Pristatėme klientui':'We delivered','Klientas atsiėmė':'Customer picked up','Žymėti pristatytą':'Mark delivered','Atnaujinti':'Update','Atšaukti':'Cancel','Būdas':'Method','Data':'Date','Pristatyti dabar':'Deliver now','Pristatyta/Užs.':'Delivered/Ord.','✅ Viskas pristatyta':'✅ All delivered','Pristatyta':'Delivered','Pažymėkite bent vieną poziciją su kiekiu':'Select at least one item with a quantity',
-  // Sync
-  'Auto':'Auto','Rankinis':'Manual','Supabase ✓':'Supabase ✓','Saugoma…':'Saving…','Lokalus':'Local','Klaida':'Error',
-  // Buttons / misc
-  '+ Naujas projektas':'+ New project','Naujas projektas':'New project','Spausdinti':'Print','Peržiūrėti':'View','Pridėti medžiagą':'Add material','+ Pridėti medžiagą':'+ Add material','+ Pridėti':'+ Add','Atsijungti':'Sign out','Atsijungti?':'Sign out?','Atšaukti':'Cancel','Išsaugoti':'Save','Atidaryti Nesting ↗':'Open Nesting ↗','Eksportuokite detales → įkelkite į Nesting':'Export parts → load into Nesting','Visi projektai vienoje vietoje':'All projects in one place','Rankiniu būdu pridėtos medžiagos':'Manually added materials',
-  // Comments
-  'Komentarai':'Comments','Siųsti':'Send','Rašykite komentarą… (Ctrl+Enter siųsti, @ paminėti)':'Write a comment… (Ctrl+Enter to send, @ to mention)','Komentarų nėra. Pradėkite diskusiją!':'No comments yet. Start the discussion!','Naudokite @ pažymėti komandos narius':'Use @ to mention team members',
-  // Materials tab
-  'Plokštės':'Boards','Plokščių kaina':'Boards cost','Briaunos':'Edges','Briaunų kaina':'Edges cost','Reikia užsakyti':'To order','Užsakyta':'Ordered','Sandėlyje':'In stock','Plokštės — iš SUMMARY lapo':'Boards — from SUMMARY sheet','Briaunos — iš SUMMARY lapo':'Edges — from SUMMARY sheet','Papildomos medžiagos, kurių nėra SUMMARY lape':'Extra materials not in the SUMMARY sheet','Dar nepridėta jokių medžiagų rankiniu būdu.':'No materials added manually yet.','Reikia':'Needed','Bendroji suma':'Grand total',
-  // Login screen
-  'Prisijungti':'Sign in','El. paštas':'Email','Slaptažodis':'Password','Pirmas prisijungimas?':'First time?','Sukurti darbo vietą':'Create workspace','Dirbti lokaliai (be interneto) →':'Work locally (offline) →','Debesis nepasiekiamas?':'Cloud unavailable?','Darbuotojo prisijungimas':'Worker sign in','Vadovas':'Manager','Darbuotojas':'Worker',
-  // Empty states
-  'Nėra gamybos projektų':'No production projects','Nėra paslaugos projektų':'No service projects','Tuščias aplankas':'Empty folder',
+  "Gamybos valdymo sistema":"Production management system",
+  "Jūsų vardas":"Your name",
+  "Darbo vietos kodas":"Workspace code",
+  "Darbo vietos kodas (iš vadovo)":"Workspace code (from manager)",
+  "Slaptažodis (min. 6 simboliai)":"Password (min. 6 characters)",
+  "Peržiūrėti →":"View →",
+  "Sukurti →":"Create →",
+  "Prisijungti →":"Sign in →",
+  "👁 Peržiūros režimas — galite matyti, bet negalite redaguoti.":"👁 View-only mode — you can view but not edit.",
+  "El. paštas nereikalingas. Įveskite vardą, PIN ir darbo vietos kodą iš vadybos.":"No email needed. Enter your name, PIN and the workspace code from management.",
+  "📐 Projektavimo inžinieriui. Matysite tik savo projektus ir užduotis.":"📐 For the design engineer. You will see only your own projects and tasks.",
+  "pvz. FAB123":"e.g. FAB123",
+  "Sistema nuskaito":"The system reads",
+  "Palaikomi formatai:":"Supported formats:",
+  "Vilkite failą arba spustelėkite":"Drag a file or click",
+  "Aktyvūs žingsniai":"Active steps",
+  "+ Projektas":"+ Project",
+  "Cechas":"Workshop",
+  "Daugiau":"More",
+  "Meniu":"Menu",
+  "Mano planas":"My plan",
+  "Dienos ataskaita":"Daily report",
+  "Prenumerata ir atsiskaitymai":"Subscription and billing",
+  "← Atgal":"← Back",
+  "⏻ Atsijungti":"⏻ Sign out",
+  "✓ Žymėti visus":"✓ Mark all",
+  "⚡ Paslauga":"⚡ Service",
+  "👁 Peržiūra":"👁 View",
+  "💼 Vadyba":"💼 Management",
+  "📁 Gamybos Projektai":"📁 Production",
+  "📅 Grafikas":"📅 Schedule",
+  "📊 Ataskaita":"📊 Reports",
+  "📐 Projektavimas":"📐 Design",
+  "📥 Importas":"📥 Import",
+  "📦 Archyvas":"📦 Archive",
+  "🔧 Gamyba":"🔧 Production",
+  "Vadyba":"Management",
+  "Gamyba":"Production",
+  "Inžinierius":"Engineer",
+  "Peržiūra":"View only",
+  "Pjovimas":"Cutting",
+  "Briaunavimas":"Edge banding",
+  "Gręžimas":"Drilling",
+  "Apdaila":"Finishing",
+  "Surinkimas":"Assembly",
+  "Išstatymas / KK":"Layout / QC",
+  "Pakavimas":"Packing",
+  "Montavimas":"Installation",
+  "Idėja + Projekto info":"Idea + Project info",
+  "Eskizas":"Sketch",
+  "Gamybinis modelis ir brėžiniai":"Production model and drawings",
+  "Perdavimas į gamybą":"Handover to production",
+  "Aukštas":"High",
+  "Vidutinis":"Medium",
+  "Žemas":"Low",
+  "▦ Žingsniai":"▦ Steps",
+  "📅 Planas":"📅 Plan",
+  "👥 Darbuotojai":"👥 Workers",
+  "🪵 Medžiagos":"🪵 Materials",
+  "🗄 Stalčiai":"🗄 Drawers",
+  "🔧 Furnitūra":"🔧 Hardware",
+  "📋 Surinkimui":"📋 Assembly",
+  "📎 Failai":"📎 Files",
+  "Suskirstyta pagal tipą: Projektai · Paslauga · Projektavimas":"Grouped by type: Projects · Service · Design",
+  "Projektavimo etapo projektai (matomi tik Vadybai ir Inžinieriams)":"Design-stage projects (visible only to Management and Engineers)",
+  "Komandos atnaujinimai":"Team updates",
+  "Grafikas / Lean planas":"Schedule / Lean plan",
+  "Gamybos eilė · WIP limitai · Butelio kakleliai":"Production queue · WIP limits · Bottlenecks",
+  "Pardavimo užsakymai · Excel importas":"Sales orders · Excel import",
+  "Nariai · Atsakomybės · Žingsnių nustatymai":"Members · Responsibilities · Step settings",
+  "WMS · Priėmimas · Komplektai · Inventorizacija":"WMS · Receiving · Kits · Inventory count",
+  "Laikų analizė · Žingsnių efektyvumas · Optimizacija":"Time analysis · Step efficiency · Optimization",
+  "Mano užduotys ir projektų apžvalga":"My tasks and projects overview",
+  "✏ Redaguoti":"✏ Edit",
+  "↩ Į projektavimą":"↩ To design",
+  "▶ Tęsti":"▶ Resume",
+  "⏸ Pristabdyti":"⏸ Pause",
+  "✅ Baigti":"✅ Finished",
+  "↩ Atstatyti":"↩ Restore",
+  "+ Užduotis":"+ Task",
+  "📥 Importuoti":"📥 Import",
+  "⚙ Gamybos žingsniai":"⚙ Production steps",
+  "+ Narys":"+ Member",
+  "+ Mano įsipareigojimas":"+ My commitment",
+  "📥 Failas":"📥 File",
+  "+ Naujas":"+ New",
+  "Ištrinti":"Delete",
+  "Lietuvių":"Lithuanian",
+  "Pasikartojantis pavadinimas":"Duplicate name",
+  "Perkelti":"Move",
+  "Redaguoti profilį":"Edit profile",
+  "Redaguoti":"Edit",
+  "Iš viso užduočių":"Total tasks",
+  "Projektai":"Projects",
+  "Vėluojantys darbai":"Overdue work",
+  "Artėjantys terminai":"Upcoming deadlines",
+  "⏰ Šiandien":"⏰ Today",
+  "⚡ Rytoj":"⚡ Tomorrow",
+  "d. vėluoja":"days overdue",
+  "ką tik":"just now",
+  "🔄 Automatinis sinchronizavimas įjungtas":"🔄 Automatic sync enabled",
+  "Lokalus režimas — debesies sinchronizacija išjungta":"Local mode — cloud sync disabled",
+  "Nėra darbo erdvės":"No workspace",
+  "✅ Sinchronizuota":"✅ Synced",
+  "✓ Atnaujinta":"✓ Updated",
+  "Kodas nukopijuotas!":"Code copied!",
+  "💬 Komentaras pridėtas":"💬 Comment added",
+  "Komentaras ištrintas":"Comment deleted",
+  "Ištrinti komentarą?":"Delete comment?",
+  "Įveskite el. paštą ir slaptažodį":"Enter your email and password",
+  "Neteisingas el. paštas arba slaptažodis":"Incorrect email or password",
+  "Užpildykite visus laukus":"Fill in all fields",
+  "Slaptažodis turi būti bent 6 simboliai":"Password must be at least 6 characters",
+  "Įveskite savo vardą":"Enter your name",
+  "Įveskite bent 4 skaitmenų PIN":"Enter at least a 4-digit PIN",
+  "Įveskite darbo vietos kodą":"Enter the workspace code",
+  "📋 Kopijuoti kodą":"📋 Copy code",
+  "Dalinkitės šiuo kodu su komanda":"Share this code with your team",
+  "atlikta":"done",
+  "● aktyvus":"● active",
+  "Nėra užduočių":"No tasks",
+  "Užduotis":"Task",
+  "Ats.":"Resp.",
+  "Perkelta į":"Moved to",
+  "Pir":"Mon",
+  "Ant":"Tue",
+  "Tre":"Wed",
+  "Ket":"Thu",
+  "Pen":"Fri",
+  "Šeš":"Sat",
+  "Sek":"Sun",
+  "dar":"more",
+  "· šiandien":"· today",
+  "📌 Spauskite žingsnį → atidaryti projektą · 🚀 = Montavimo data":"📌 Click a step → open the project · 🚀 = Installation date",
+  "Nėra suplanuotų projektų. Atidarykite projektą ir nustatykite planavimo režimą.":"No scheduled projects. Open a project and set its planning mode.",
+  "PROJEKTAS":"PROJECT",
+  "📅 Kalendorius":"📅 Calendar",
+  "📋 Planavimas":"📋 Planning",
+  "Planuokite užduotis pagal montavimo datas. Darbo dienos (be savaitgalių).":"Plan tasks by installation dates. Working days (excluding weekends).",
+  "WIP — Darbai vykdomi":"WIP — Jobs in progress",
+  "aktyvių žingsnių":"active steps",
+  "Užbaigtos užduotys":"Completed tasks",
+  "Aktyvūs projektai":"Active projects",
+  "Lygiagretumo lygis":"Parallelism level",
+  "Butelio kaklelis":"Bottleneck",
+  "Butelio kaklelio nėra":"No bottleneck",
+  "Srautas tolygus":"Flow is steady",
+  "Lean patarimai:":"Lean tips:",
+  "Lean taisyklė: baikite esamą prieš pradėdami naują. Rekomenduojama ≤ 4 lygiagretuose projektuose.":"Lean rule: finish the current one before starting a new one. Recommended ≤ 4 parallel projects.",
+  "Perkelkite papildomą darbuotoją į šį etapą arba suplanuokite papildomą pamainą.":"Move an extra worker to this stage or schedule an additional shift.",
+  "projektai dar nepradėti.":"projects not started yet.",
+  "FIFO eilė: pirmiausia pradėkite":"FIFO queue: start first",
+  "Gamybos eilė — FIFO srautas":"Production queue — FIFO flow",
+  "Žingsniai → Projektai (eilės tvarka)":"Steps → Projects (in order)",
+  "Žingsnis":"Step",
+  "projektai":"projects",
+  "📋 FIFO eilė — artimiausi projektai":"📋 FIFO queue — upcoming projects",
+  "Pradėti →":"Start →",
+  "Laukiančių projektų nėra":"No waiting projects",
+  "✅ Užbaigti projektai":"✅ Completed projects",
+  "✓ Atliktas":"✓ Done",
+  "Dar nėra užbaigtų projektų":"No completed projects yet",
+  "Projektas pradėtas":"Project started",
+  "🚀 Projektas pradėtas!":"🚀 Project started!",
+  "Šis projektas neturi importuoto Excel SUMMARY lapo.":"This project has no imported Excel SUMMARY sheet.",
+  "📥 Importuoti Excel":"📥 Import Excel",
+  "Reikia užsakyti:":"To order:",
+  "Užsakyta:":"Ordered:",
+  "Sandėlyje:":"In stock:",
+  "✅ Baigta:":"✅ Done:",
+  "📋 Žurnalas":"📋 Log",
+  "Medžiaga":"Material",
+  "Storis":"Thickness",
+  "Lakštų":"Sheets",
+  "Kaina €":"Price €",
+  "Statusas":"Status",
+  "Atvykimas":"Arrival",
+  "🔴 Reikia":"🔴 Needed",
+  "🟡 Užsakyta":"🟡 Ordered",
+  "🟢 Sandėlyje":"🟢 In stock",
+  "✅ Baigta":"✅ Done",
+  "Vnt.":"Unit",
+  "Metrai":"Meters",
+  "Parsisiųsti CSV su detalių sąrašu":"Download CSV with the parts list",
+  "Peržiūrėti ↗":"View ↗",
+  "🔴 Reikia užsakyti":"🔴 To order",
+  "Kiekis":"Quantity",
+  "Veiksmai":"Actions",
+  "✏ Redaguoti medžiagą":"✏ Edit material",
+  "Pavadinimas *":"Name *",
+  "pvz. Tvirtinimo varžtai 4×40":"e.g. Mounting screws 4×40",
+  "Matas":"Unit",
+  "Planuojama pristatymo data":"Planned delivery date",
+  "Pastaba (neprivaloma)":"Note (optional)",
+  "Tiekėjas, užsakymo nr., specifikacija...":"Supplier, order no., specification...",
+  "Pridėti":"Add",
+  "Įveskite pavadinimą":"Enter a name",
+  "✅ Medžiaga atnaujinta":"✅ Material updated",
+  "✅ Medžiaga pridėta":"✅ Material added",
+  "Ištrinti medžiagą?":"Delete material?",
+  "Importuokite Excel failą":"Import an Excel file",
+  "Stalčių iš viso":"Total drawers",
+  "M aukščio":"M height",
+  "D aukščio (su reling)":"D height (with railing)",
+  "Tipų":"Types",
+  "vnt.":"pcs",
+  "📦 Blum bėgelių užsakymo santrauka":"📦 Blum runners order summary",
+  "Gylis":"Depth",
+  "Stalčių":"Drawers",
+  "Bėgelių porų":"Runner pairs",
+  "Art. nr.":"Art. no.",
+  "Lankstas":"Hinge",
+  "Plokštelė":"Plate",
+  "stalč.":"drw.",
+  "kompl.":"set",
+  "eil.":"lines",
+  "Eil.":"No.",
+  "poz.":"items",
+  "Projektas nerastas":"Project not found",
+  "Furnitūros sąrašas tuščias":"Hardware list is empty",
+  "Iš XLSM eilučių":"From XLSM rows",
+  "vnt. iš viso":"pcs total",
+  "Auto-komplektai":"Auto kits",
+  "stalčiai + lankstai":"drawers + hinges",
+  "Lankstų kompl.":"Hinge sets",
+  "Lankstai":"Hinges",
+  "TANDEMBOX priedai":"TANDEMBOX accessories",
+  "Neatitikimai":"Discrepancies",
+  "numanoma":"implied",
+  "Eilutės XLSM faile":"Rows in the XLSM file",
+  "Kitos pozicijos":"Other items",
+  "Bėgeliai":"Runners",
+  "Rankenėlės":"Handles",
+  "Mechanizmai":"Mechanisms",
+  "Varžtai / Tvirtinimas":"Screws / Fasteners",
+  "Kita furnitūra":"Other hardware",
+  "Surinkimo sąrašas tuščias":"Collection list is empty",
+  "+ Pridėti rankiniu būdu":"+ Add manually",
+  "📦 Iš komplekto:":"📦 From kit:",
+  "📊 Iš HARDWARE_LIST:":"📊 From HARDWARE_LIST:",
+  "✏ Rankiniu būdu:":"✏ Manual:",
+  "📋 Furnitūros surinkimo sąrašas":"📋 Hardware collection list",
+  "pažymėta":"selected",
+  "Pridėti poziciją rankiniu būdu":"Add an item manually",
+  "Eksportuoti Excel":"Export to Excel",
+  "Spausdinti PDF":"Print PDF",
+  "↺ Atžymėti":"↺ Unmark",
+  "Atžymėti visus":"Unmark all",
+  "✏ rankinis":"✏ manual",
+  "Pašalinti":"Remove",
+  "Atžymėti visas pozicijas?":"Unmark all items?",
+  "✅ Pozicija pridėta":"✅ Item added",
+  "XLSX biblioteka nepasiekiama":"XLSX library unavailable",
+  "Sąrašas tuščias":"List is empty",
+  "Surinkimo sąrašas:":"Collection list:",
+  "Klientas:":"Client:",
+  "Terminas:":"Deadline:",
+  "Sukurta:":"Created:",
+  "Kategorija":"Category",
+  "Vieta":"Location",
+  "Šaltinis":"Source",
+  "Komplektas":"Kit",
+  "⬇ Excel atsisiunčiamas":"⬇ Excel downloading",
+  "Kiek.":"Qty",
+  "Data:":"Date:",
+  "🖨 Spausdinti":"🖨 Print",
+  "Naršyklė užblokavo iškylantį langą":"The browser blocked the popup window",
+  "spausdinta:":"printed:",
+  "Be datos":"No date",
+  "📅 Pristatymas:":"📅 Delivery:",
+  "🖨 Pakavimo lapas":"🖨 Packing list",
+  "📦 Pakavimo pozicijos":"📦 Packing items",
+  "🖨 Spausdinti pažymėtus":"🖨 Print selected",
+  "Pažymėtos pozicijos":"Selected items",
+  "Visos pozicijos":"All items",
+  "🚚 Pristatyta":"🚚 Delivered",
+  "🚚 Dalinai":"🚚 Partial",
+  "🚚 Pristatėme klientui":"🚚 We delivered",
+  "🤝 Klientas atsiėmė":"🤝 Customer picked up",
+  "🚚 Žymėti pristatytą":"🚚 Mark delivered",
+  "🚚 Pristatymas":"🚚 Delivery",
+  "Supakuota":"Packed",
+  "Uždaryti":"Close",
+  "👁 Peržiūrėti":"👁 View",
+  "⬇ Atsisiųsti":"⬇ Download",
+  "Nėra failų":"No files",
+  "failai":"files",
+  "+ Pridėti failus":"+ Add files",
+  "Nepavyko perskaityti":"Failed to read",
+  "Klaida:":"Error:",
+  "✅ Pridėta:":"✅ Added:",
+  "Failas ištrintas":"File deleted",
+  "Nėra medžiagų duomenų":"No material data",
+  "Importuokite Excel failą projektuose — automatiškai atsiras čia":"Import an Excel file into projects — it will appear here automatically",
+  "Plokštės iš viso":"Boards total",
+  "Bendra kaina":"Total cost",
+  "Visi statusai":"All statuses",
+  "🔵 Cechui išduota":"🔵 Issued to workshop",
+  "🔵 Cechui":"🔵 Workshop",
+  "+ Komentaras":"+ Comment",
+  "reikia":"needed",
+  "Komentaras":"Comment",
+  "Nėra atitinkančių medžiagų":"No matching materials",
+  "💬 Komentaras:":"💬 Comment:",
+  "Komentaras (vidinis)":"Comment (internal)",
+  "✅ Išsaugota":"✅ Saved",
+  "⏸ Projektas pristabdytas":"⏸ Project paused",
+  "▶ Projektas tęsiamas":"▶ Project resumed",
+  "↩ Grąžinta į projektavimą":"↩ Returned to design",
+  "Žurnalas tuščias":"The log is empty",
+  "📋 Medžiagų žurnalas":"📋 Materials log",
+  "Laikas":"Time",
+  "Pakeitimas":"Change",
+  "✅ Baigti projektą":"✅ Complete the project",
+  "užduotys":"tasks",
+  "✅ Visos užduotys atliktos!":"✅ All tasks are done!",
+  "Baigimo pastaba (neprivaloma)":"Completion note (optional)",
+  "Po baigimo":"After completion",
+  "Pažymėti kaip baigtą (lieka sąraše)":"Mark as done (stays in the list)",
+  "Archyvuoti (perkelti į archyvą)":"Archive (move to archive)",
+  "📦 Projektas archyvuotas":"📦 Project archived",
+  "✅ Projektas baigtas!":"✅ Project completed!",
+  "↩ Projektas atstatytas":"↩ Project restored",
+  "Nenustatytas terminas":"No deadline set",
+  "Nustatyti terminą":"Set deadline",
+  "liko":"left",
+  "vėlu":"overdue",
+  "Iš viso reikia":"Total needed",
+  "d. d.":"wd",
+  "Pradėti ne vėliau":"Start no later than",
+  "Įvykdymas":"Feasibility",
+  "✓ Įmanoma":"✓ Feasible",
+  "⚠ Rizika":"⚠ Risk",
+  "Praleista":"Skipped",
+  "✅ Atlikta":"✅ Done",
+  "🔄 Vykdoma":"🔄 In progress",
+  "⚠ Vėluoja":"⚠ Overdue",
+  "⏳ Laukia":"⏳ Waiting",
+  "d.d.":"wd",
+  "Faktas:":"Actual:",
+  "📅 Žingsnių grafikas":"📅 Steps schedule",
+  "Pradžia":"Start",
+  "Pabaiga":"End",
+  "Laiko juosta →":"Timeline →",
+  "⏱ Laiko žurnalas":"⏱ Time log",
+  "Pradėta":"Started",
+  "Trukmė":"Duration",
+  "Skirtumas":"Variance",
+  "val.":"h",
+  "Užbaigtų projektų":"Completed projects",
+  "d. liko":"d. left",
+  "🏆 Pasiekta!":"🏆 Achieved!",
+  "✅ Tempas geras":"✅ Good pace",
+  "⚠ Reikia paspartinti":"⚠ Need to speed up",
+  "🎉 Asmeninis rekordas!":"🎉 Personal record!",
+  "Mano savaitė":"My week",
+  "Atlikta šią savaitę":"Done this week",
+  "vs praėjusi":"vs previous",
+  "Serija (streak)":"Streak",
+  "dienų iš eilės":"days in a row",
+  "Asmeninis rekordas":"Personal record",
+  "per savaitę":"per week",
+  "Laiku atlikta":"Done on time",
+  "iš visų su terminu":"of all with a deadline",
+  "Mano įsipareigojimai šią savaitę":"My commitments this week",
+  "🟢 Viršija vidurkį":"🟢 Above average",
+  "🟡 Apie vidurkį":"🟡 Around average",
+  "🔴 Žemiau vidurkio":"🔴 Below average",
+  "TU":"YOU",
+  "Šią savaitę":"This week",
+  "8 sav. trendas":"8-wk trend",
+  "Rekordas:":"Record:",
+  "/sav.":"/wk",
+  "🔥 Serija:":"🔥 Streak:",
+  "⏱ Vid.:":"⏱ Avg.:",
+  "🎯 Laiku:":"🎯 On time:",
+  "🤝 Įsipareigojimai:":"🤝 Commitments:",
+  "Komandos atliktos užduotys (8 sav.)":"Team's completed tasks (8 wks)",
+  "Nėra komandos narių":"No team members",
+  "Tik vadovams":"For managers only",
+  "🎯 Nustatyti WIG":"🎯 Set the WIG",
+  "Ką matuojame":"What we measure",
+  "Iš (dabar)":"From (now)",
+  "Į (tikslas)":"To (target)",
+  "Iki":"By",
+  "💡 Pavyzdys:":"💡 Example:",
+  "🎯 WIG atnaujintas":"🎯 WIG updated",
+  "🤝 Naujas įsipareigojimas":"🤝 New commitment",
+  "Įveskite tekstą":"Enter text",
+  "🤝 Įsipareigojimas pridėtas":"🤝 Commitment added",
+  "✅ Įsipareigojimas atliktas!":"✅ Commitment done!",
+  "Šią savaitę dar nėra įsipareigojimų":"No commitments this week yet",
+  "📅 WIG Sesija":"📅 WIG Session",
+  "Šios savaitės įsipareigojimai":"This week's commitments",
+  "Sesijos pastabos":"Session notes",
+  "Užbaigti sesiją":"Finish session",
+  "📅 WIG sesija užfiksuota":"📅 WIG session recorded",
+  "Dar nėra duomenų":"No data yet",
+  "Vidurkis":"Average",
+  "Vidurkis:":"Average:",
+  "Trukmės diagrama":"Duration chart",
+  "Savalaikumas":"On-time",
+  "% vėlavo":"% late",
+  "⏱ Žingsnių trukmė (vidurkiai)":"⏱ Step duration (averages)",
+  "užbaigtų užduočių":"completed tasks",
+  "👥 Darbuotojų veikla":"👥 Worker activity",
+  "Atlikta":"Done",
+  "Valandos":"Hours",
+  "Dabar":"Now",
+  "Daugiausia":"Most",
+  "aktyvios":"active",
+  "📋 Projektų progresija":"📋 Project progression",
+  "Klientas":"Client",
+  "Ciklo laikas":"Cycle time",
+  "žingsnių":"steps",
+  "užduočių":"tasks",
+  "Dar nėra įrašytų laikų — pradėkite ir baigkite užduotis":"No times recorded yet — start and finish tasks",
+  "⚙️ Žingsnių trukmių kalibravimas":"⚙️ Step duration calibration",
+  "Naudojama grafikų skaičiavimui":"Used for schedule calculation",
+  "🔄 Pradėta:":"🔄 Started:",
+  "✅ Atlikta!":"✅ Done!",
+  "🎉 Visi žingsniai atlikti!":"🎉 All steps completed!",
+  "🚀 Naujas projektas gamyboje":"🚀 New project in production",
+  "✨ sukūrė užduotį":"✨ created task",
+  "🔄 pradėjo darbą":"🔄 started work",
+  "✅ užbaigė žingsnį":"✅ completed step",
+  "✅ žingsnis užbaigtas automatiškai":"✅ step completed automatically",
+  "↩️ vėl atidarė":"↩️ reopened",
+  "↔️ perkėlė:":"↔️ moved:",
+  "🔁 statusas →":"🔁 status →",
+  "👤 priskyrė:":"👤 assigned:",
+  "👥 pašalino:":"👥 removed:",
+  "🚫 pažymėjo bloką:":"🚫 set blocker:",
+  "✅ pašalino bloką":"✅ cleared blocker",
+  "📦 pridėjo medžiagą:":"📦 added material:",
+  "🗑️ pašalino medžiagą:":"🗑️ removed material:",
+  "📅 terminas →":"📅 deadline →",
+  "pakeitimas":"change",
+  "Laukia":"Waiting",
+  "🔴 Vėluoja":"🔴 Overdue",
+  "🟠 Šiandien":"🟠 Today",
+  "🟡 Rytoj":"🟡 Tomorrow",
+  "Užblokuota":"Blocked",
+  "Baigti žingsnį":"Finish step",
+  "Pradėti žingsnį":"Start step",
+  "koment.":"comments",
+  "🚫 Pirmiausia išspręskite blokatorių":"🚫 First resolve the blocker",
+  "🔔 Nėra pranešimų":"🔔 No notifications",
+  "Aukštyn":"Up",
+  "Žemyn":"Down",
+  "Žingsnio pavadinimas":"Step name",
+  "TRMP":"ABBR",
+  "Trumpinys":"Abbreviation",
+  "Spalva":"Color",
+  "užduočių šiame žingsnyje":"tasks in this step",
+  "Nėra žingsnių. Pridėkite bent vieną.":"No steps. Add at least one.",
+  "+ Pridėti žingsnį":"+ Add step",
+  "💾 Išsaugoti":"💾 Save",
+  "Naujas žingsnis":"New step",
+  "Visi žingsniai turi turėti pavadinimą":"All steps must have a name",
+  "Turi būti bent vienas žingsnis":"There must be at least one step",
+  "✅ Gamybos žingsniai atnaujinti":"✅ Production steps updated",
+  "👁 Peržiūros režimas — redagavimas išjungtas":"👁 View mode — editing disabled",
+  "Pozicijos iš užsakymo":"Items from order",
+  "Aprašymas":"Description",
+  "Prist.":"Deliv.",
+  "Pozicijos (neprivaloma)":"Items (optional)",
+  "Prist. data":"Delivery date",
+  "kiekis":"quantity",
+  "+ Pridėti eilutę":"+ Add row",
+  "🏗 Projektas":"🏗 Project",
+  "pvz. Virtuvė — Petrauskai":"e.g. Kitchen — Petrauskai",
+  "UAB Klientas":"Client Ltd.",
+  "Prioritetas":"Priority",
+  "🟡 Vidutinis":"🟡 Medium",
+  "🔴 Aukštas":"🔴 High",
+  "🟢 Žemas":"🟢 Low",
+  "Žingsniai (pasirinkite tik reikalingus)":"Steps (select only the ones needed)",
+  "Pastabos":"Notes",
+  "Sukurti":"Create",
+  "Artikulas / Aprašymas":"Article / Description",
+  "Σ Kiekis":"Σ Quantity",
+  "Inžinierius / Projektuotojas":"Engineer / Designer",
+  "Pasirinkite bent vieną žingsnį":"Select at least one step",
+  "📁 Gamybos projektas":"📁 Production project",
+  "💾 Išsaugoma...":"💾 Saving...",
+  "Projektavimo darbas":"Design work",
+  "Ištrinti?":"Delete?",
+  "Ištrinti projektą ir visas jo užduotis?":"Delete project and all its tasks?",
+  "Ištrinti užsakymą?":"Delete order?",
+  "Nauja užduotis":"New task",
+  "Medžiagos / Pastabos":"Materials / Notes",
+  "✅ Sukurta!":"✅ Created!",
+  "Komentarų nėra":"No comments",
+  "📅 Terminas:":"📅 Deadline:",
+  "ARTIKULAS":"ARTICLE",
+  "APRAŠYMAS":"DESCRIPTION",
+  "UŽS.":"ORD.",
+  "ATLIKTA":"DONE",
+  "LIKO":"LEFT",
+  "Atlikta:":"Done:",
+  "Liko:":"Left:",
+  "KIEKIO SEKIMAS":"QUANTITY TRACKING",
+  "BLOKAS":"BLOCKED",
+  "Išspręsta ✓":"Resolved ✓",
+  "Atsakingi (pasirinkite kelis)":"Assignees (select several)",
+  "Pridėti medžiagą...":"Add material...",
+  "🚫 Blokas / problema":"🚫 Blocker / problem",
+  "Nustatyti":"Set",
+  "Komentaras...":"Comment...",
+  "🚫 Užblokuota":"🚫 Blocked",
+  "→ Perkelti":"→ Advance",
+  "Ši užduotis jau atlikta":"This task is already done",
+  "Priskirta:":"Assigned:",
+  "🚫 Blokas nustatytas:":"🚫 Blocker set:",
+  "✅ Blokas pašalintas":"✅ Blocker cleared",
+  "✅ Blokas išspręstas!":"✅ Blocker resolved!",
+  "Ištrinta":"Deleted",
+  "Projektas ištrintas":"Project deleted",
+  "Nėra detalių sąrašo — importuokite Excel failą pirmiau":"No parts list — import an Excel file first",
+  "CSV parsisiųstas! Įkelkite į Nesting programą.":"CSV downloaded! Load it into the Nesting app.",
+  "📋 Plano peržiūra":"📋 Plan preview",
+  "Režimas:":"Mode:",
+  "Režimas":"Mode",
+  "Atgal":"Back",
+  "📌 Taikyti planą":"📌 Apply plan",
+  "Redaguoti projektą":"Edit project",
+  "Terminas (montavimas)":"Deadline (installation)",
+  "Atsakingas vadovas":"Responsible manager",
+  "Darbo dienos (be savaitgalių)":"Working days (excl. weekends)",
+  "Pradžios data":"Start date",
+  "👁 Peržiūrėti planą":"👁 Preview plan",
+  "📌 Taikyti planą užduotims":"📌 Apply plan to tasks",
+  "Pozicijos / Artikulai":"Items / Articles",
+  "+ Eilutė":"+ Row",
+  "✅ Išsaugota!":"✅ Saved!",
+  "❌ Klaida išsaugant:":"❌ Error saving:",
+  "Turim sandėly":"In stock",
+  "Cechui išduota":"Issued to workshop",
+  "d. vėlu":"d. late",
+  "d. vėluoja!":"d. overdue!",
+  "⏰ Šiandien!":"⏰ Today!",
+  "Projekto terminas šiandien!":"Project deadline today!",
+  "Užduoties terminas šiandien!":"Task deadline today!",
+  "Užduoties terminas rytoj":"Task deadline tomorrow",
+  "Nėra projektavimo darbų":"No design work",
+  "🔴 Šiandien":"🔴 Today",
+  "🟠 Rytoj":"🟠 Tomorrow",
+  "📐 Dizainas":"📐 Design",
+  "🚫 Blokas":"🚫 Blocked",
+  "blokai":"blocks",
+  "Vadybai":"Management",
+  "ir":"and",
+  "Nėra projektų su terminais":"No projects with deadlines",
+  "be termino":"without deadline",
+  "šiandien":"today",
+  "📋 Pozicijos":"📋 Items",
+  "Nėra pozicijų":"No items",
+  "⚙️ Gamyba":"⚙️ Production",
+  "📁 GAMYBOS PROJEKTAI":"📁 PRODUCTION PROJECTS",
+  "Pilni projektai (gamyba)":"Full projects (production)",
+  "⚡ PASLAUGA":"⚡ SERVICE",
+  "Atskirų etapų darbai":"Single-stage jobs",
+  "📐 PROJEKTAVIMAS":"📐 DESIGN",
+  "Dizaino / inžinerijos etape":"In design / engineering stage",
+  "📦 Archyvuotas":"📦 Archived",
+  "✅ Baigtas":"✅ Finished",
+  "Nieko nerasta — pakeiskite filtrus":"Nothing found — change the filters",
+  "Nėra paslaugos darbų":"No service jobs",
+  "📁 Gamyba":"📁 Production",
+  "Atidaryti →":"Open →",
+  "Užverti šiai sesijai":"Close for this session",
+  "🔍 Ieškoti projektų, klientų...":"🔍 Search projects, clients...",
+  "🔄 Vykdomi":"🔄 In progress",
+  "⚠ Vėluojantys":"⚠ Overdue",
+  "📦 Archyvuoti":"📦 Archived",
+  "✕ Išvalyti":"✕ Clear",
+  "Rodoma:":"Showing:",
+  "iš":"of",
+  "projektų":"projects",
+  "Nėra užsakymų":"No orders",
+  "Importuokite iš Excel arba pridėkite rankiniu būdu":"Import from Excel or add manually",
+  "Visi":"All",
+  "✅ Atlikti":"✅ Completed",
+  "Šią sav.":"This wk.",
+  "Nr.":"No.",
+  "Užs. data":"Order date",
+  "Produktas":"Product",
+  "Sukurti projektą / paslaugą":"Create project / service",
+  "Susieti su projektu":"Link to project",
+  "užsakymų":"orders",
+  "Nerasta pagal paiešką":"Nothing found for the search",
+  "Vykdomas":"In progress",
+  "Patvirtintas":"Confirmed",
+  "Naujas":"New",
+  "Paruoštas":"Ready",
+  "Atšauktas":"Cancelled",
+  "✓ Projektas sukurtas":"✓ Project created",
+  "Apmokėta":"Paid",
+  "Neapmokėta":"Unpaid",
+  "▶ Sukurti projektą":"▶ Create project",
+  "→ Atidaryti":"→ Open",
+  "🔗 Susieti":"🔗 Link",
+  "Pasirinkite projektą":"Select a project",
+  "— pasirinkite —":"— select —",
+  "Susieti":"Link",
+  "✅ Susieta!":"✅ Linked!",
+  "⏳ Kraunama…":"⏳ Loading…",
+  "Nerasta duomenų":"No data found",
+  "Užsakymas":"Order",
+  "Faile nerasta tinkamų eilučių":"No suitable rows found in the file",
+  "📥 Importuoti iš failo":"📥 Import from file",
+  "Rasta":"Found",
+  "✅ Sukurti užsakymus":"✅ Create orders",
+  "💡 Pasikartojantis užsakymas":"💡 Repeated order",
+  "Dienos atsarginė kopija":"Daily backup",
+  "Šiandien dar nesukurta atsarginė kopija. Atsisiųsti?":"No backup created today yet. Download?",
+  "📥 Atsisiųsti":"📥 Download",
+  "Atidėti":"Postpone",
+  "Redaguoti užsakymą":"Edit order",
+  "Naujas užsakymas":"New order",
+  "Projekto pavadinimas *":"Project name *",
+  "Pozicijos (eilutės)":"Items (rows)",
+  "Edit":"Edit",
+  "Reikia bent dviejų užsakymų":"At least two orders are required",
+  "💡 Galima sujungti užsakymus":"💡 Orders can be combined",
+  "Terminų langas:":"Deadline window:",
+  "Tos pačios":"The same",
+  "⚡ Sujungti į Paslaugą":"⚡ Combine into Service",
+  "Peržiūrėti sujungtas pozicijas":"Preview the combined items",
+  "👁 Sujungtos pozicijos":"👁 Combined items",
+  "Anksč. prist.":"Earliest deliv.",
+  "Nariai rodomi iš Supabase profiles lentelės":"Members are shown from the Supabase profiles table",
+  "↻ Įkelti iš Supabase":"↻ Load from Supabase",
+  "Kieno planas:":"Whose plan:",
+  "Atžymėti":"Uncheck",
+  "Pažymėti atlikta":"Mark done",
+  "Nuo vadovo":"From manager",
+  "Tvarkote":"You are managing",
+  "Nauja užduotis… (pvz. Paskambinti tiekėjui)":"New task… (e.g. Call a supplier)",
+  "Terminas (nebūtina)":"Deadline (optional)",
+  "Aktyvios":"Active",
+  "🎉 Nėra aktyvių užduočių. Pridėkite pirmąją viršuje.":"🎉 No active tasks. Add your first one above.",
+  "Atliktos":"Completed",
+  "Išvalyti":"Clear",
+  "Pašalinti atliktas užduotis":"Remove completed tasks",
+  "✅ Pridėta":"✅ Added",
+  "Redaguoti užduotį":"Edit task",
+  "Pastaba (nebūtina)":"Note (optional)",
+  "Ištrinti užduotį?":"Delete this task?",
+  "Pašalinti visas atliktas užduotis?":"Remove all completed tasks?",
+  "Tu":"You",
+  "🔄 Aktyvios:":"🔄 Active:",
+  "✅ Atlikta:":"✅ Done:",
+  "✏ Mano profilis":"✏ My profile",
+  "Numatytieji atsakingi asmenys":"Default responsible persons",
+  "🔄 Sinchronizuoti užduotis":"🔄 Sync tasks",
+  "👁 Matomumas darbuotojams":"👁 Visibility for workers",
+  "Meniu punktas":"Menu item",
+  "↻ Atnaujinti":"↻ Refresh",
+  "Nėra neatliktų užduočių":"No unfinished tasks",
+  "Mano profilis":"My profile",
+  "Redaguoti narį":"Edit member",
+  "Vardas Pavardė *":"Full name *",
+  "Vardas Pavardė":"Full name",
+  "Prisijungimo PIN":"Login PIN",
+  "4 skaitm.":"4 digits",
+  "Rolė":"Role",
+  "🗑 Ištrinti":"🗑 Delete",
+  "Tik vadovas gali nustatyti PIN":"Only a manager can set a PIN",
+  "Įveskite vardą":"Enter a name",
+  "PIN turi būti 4–6 skaitmenys":"The PIN must be 4–6 digits",
+  "Tik vadovas gali ištrinti narius":"Only a manager can delete members",
+  "Negalite ištrinti savęs":"You cannot delete yourself",
+  "Negalima ištrinti paskutinio nario":"You cannot delete the last member",
+  "Narys turi":"The member has",
+  "Perduoti užduotis kam":"Transfer tasks to",
+  "🗑 Ištrinti ir perduoti":"🗑 Delete and transfer",
+  "Pasirinkite kam perduoti užduotis":"Choose whom to transfer the tasks to",
+  "Naujas komandos narys":"New team member",
+  "El. paštas (neprivalomas)":"Email (optional)",
+  "Narys pašalintas.":"Member removed.",
+  "Excel importuotas sėkmingai":"Excel imported successfully",
+  "✅ Importas sėkmingas!":"✅ Import successful!",
+  "Vilkite arba spustelėkite":"Drag or click",
+  "XLSX neįkelta":"XLSX not loaded",
+  "🪵 Plokštės":"🪵 Boards",
+  "Pridėti prie projekto":"Add to project",
+  "✅ Importuoti":"✅ Import",
+  "Vyriai":"Hinges",
+  "Stalčių sistemos":"Drawer systems",
+  "Pakėlimo mechanizmai":"Lift mechanisms",
+  "Varžtai / smulkmena":"Screws / small parts",
+  "Aksesuarai":"Accessories",
+  "Pristatymas iš tiekėjo":"Delivery from supplier",
+  "Grąžinta į sandėlį":"Returned to warehouse",
+  "Pažeista / brokas":"Damaged / defective",
+  "Inventorizacija — skirtumas":"Stocktake — variance",
+  "Įvedimo klaidos taisymas":"Data-entry correction",
+  "Praradimas":"Loss",
+  "Rasta papildomai":"Found extra",
+  "Kita":"Other",
+  "Juodraštis":"Draft",
+  "Rezervuota":"Reserved",
+  "Komplektuojama":"Picking",
+  "Paruošta":"Ready",
+  "Išduota cechui":"Issued to workshop",
+  "Atšaukta":"Cancelled",
+  "SKU nerastas":"SKU not found",
+  "Ištrinti susiejimo taisyklę?":"Delete the mapping rule?",
+  "Excel byloje nėra žinomų lapų":"The Excel file has no known sheets",
+  "Nėra teisių":"No permission",
+  "📥 Importuoti furnitūros katalogą":"📥 Import a hardware catalog",
+  "Toliau →":"Next →",
+  "Pasirinkite bylą":"Choose a file",
+  "Skaitoma...":"Reading...",
+  "Byloje nerasta pozicijų":"No items found in the file",
+  "Klaida skaitant bylą":"Error reading the file",
+  "jau yra":"exists",
+  "📥 Patvirtinkite importą":"📥 Confirm the import",
+  "Lapas:":"Sheet:",
+  "Naujos":"New",
+  "Jau yra":"Already exists",
+  "Pradinis kiekis":"Initial quantity",
+  "☑ Žymėti visas":"☑ Select all",
+  "☐ Nuimti žymes":"☐ Deselect",
+  "Tik naujas":"Only new",
+  "Grupė":"Group",
+  "Atributai":"Attributes",
+  "📥 Importuoti pasirinktas":"📥 Import selected",
+  "Nėra duomenų":"No data",
+  "Niekas nepasirinkta":"Nothing selected",
+  "📥 Atnaujinti sandėlį iš Excel":"📥 Update the warehouse from Excel",
+  "Korekcija":"Correction",
+  "ir t.t.":"etc.",
+  "Pavadinimas / Medžiaga":"Name / Material",
+  "Tipas":"Type",
+  "Lapas tuščias":"The sheet is empty",
+  "Skirtumų nėra":"No differences",
+  "Pervadinti SKU":"Rename SKU",
+  "blokuojami":"blocked",
+  "📥 Sandėlio importas — peržiūra":"📥 Warehouse import — preview",
+  "Kiekio keit.":"Qty change",
+  "Pervadinimai":"Renames",
+  "Nepakitę":"Unchanged",
+  "✓ Pažymėti visus":"✓ Select all",
+  "✗ Atžymėti visus":"✗ Deselect all",
+  "➕ Tik naujus":"➕ Only new",
+  "✏ Tik atnaujinimus":"✏ Only updates",
+  "🔄 Pervadinti visus":"🔄 Rename all",
+  "Veiksmas":"Action",
+  "Pakeitimai":"Changes",
+  "Taikyti pakeitimus":"Apply changes",
+  "➕ NAUJA":"➕ NEW",
+  "✏ Atnaujinti":"✏ Update",
+  "= Nepakitę":"= Unchanged",
+  "🚫 Pervadinimas blok.":"🚫 Rename blocked",
+  "🔄 Pervadinimas":"🔄 Rename",
+  "Nieko nepasirinkta":"Nothing selected",
+  "Importuota iš Excel (nauja pozicija)":"Imported from Excel (new item)",
+  "Šiame projekte nėra medžiagų ar furnitūros sąrašo":"This project has no materials or hardware list",
+  "Šiam projektui jau yra atviras komplektas":"This project already has an open kit",
+  "Komplektas jau perduotas":"The kit has already been handed over",
+  "Rezervuota komplektui":"Reserved for the kit",
+  "Nieko surinkti":"Nothing to pick",
+  "Surinkta komplektui":"Picked for the kit",
+  "Jau išduota":"Already issued",
+  "Nieko nesurinkta":"Nothing picked",
+  "Išduota cechui (komplektas)":"Issued to workshop (kit)",
+  "Komplektas atšauktas":"Kit cancelled",
+  "Grąžinta — komplektas atšauktas":"Returned — kit cancelled",
+  "✓ ABC klasifikacija atnaujinta":"✓ ABC classification updated",
+  "Pjovimo rezervacija —":"Cutting reservation —",
+  "nerasta":"not found",
+  "Sunaudota":"Used",
+  "Patvirtinti ir nurašyti":"Confirm and write off",
+  "Pjovimas patvirtintas — sandėlis atnaujintas":"Cut confirmed — warehouse updated",
+  "Įrašas archyvuotas":"Item archived",
+  "📊 Apžvalga":"📊 Overview",
+  "📥 Priėmimas":"📥 Receiving",
+  "🏭 Atsargos":"🏭 Stock",
+  "📦 Komplektai → cechas":"📦 Kits → workshop",
+  "📋 Inventorizacija":"📋 Stocktake",
+  "📜 Žurnalas":"📜 Log",
+  "🔗 Taisyklės":"🔗 Rules",
+  "Pozicijos (SKU)":"Items (SKU)",
+  "Sandėlio vertė":"Warehouse value",
+  "🔴 Tuščios pozicijos":"🔴 Empty items",
+  "reikia užsakyti":"to order",
+  "🟠 Žemiau ROP":"🟠 Below ROP",
+  "reikia papildyti":"needs restock",
+  "📥 Laukiami pristatymai":"📥 Expected deliveries",
+  "pasenusių pozicijų":"overdue items",
+  "🎯 Tikslumas (90d)":"🎯 Accuracy (90d)",
+  "pagal skaičiavimus":"by counts",
+  "⚠ Įspėjimai ir veiksmai":"⚠ Warnings and actions",
+  "ABC klasifikacija (pagal vertę)":"ABC classification (by value)",
+  "ABC klasifikacija (pagal kiekį)":"ABC classification (by quantity)",
+  "↻ Perskaičiuoti":"↻ Recalculate",
+  "Paskutinis judėjimas":"Latest movement",
+  "Sąrašas →":"List →",
+  "Priėmimas →":"Receiving →",
+  "Komplektai →":"Kits →",
+  "Furnitūra →":"Hardware →",
+  "Skaičiuoti →":"Count →",
+  "📦 Padėta":"📦 Put away",
+  "🔒 Rezerv.":"🔒 Reserved",
+  "🔓 Atlaisv.":"🔓 Released",
+  "✋ Surinkta":"✋ Picked",
+  "→ Cechas":"→ Workshop",
+  "↩ Grąžinta":"↩ Returned",
+  "⚖ Koreg.":"⚖ Adjusted",
+  "📋 Skaič.":"📋 Counted",
+  "Laukiamų pristatymų":"Expected deliveries",
+  "⏰ Vėluoja":"⏰ Overdue",
+  "📅 Šiandien":"📅 Today",
+  "Iš viso m²":"Total m²",
+  "Nėra laukiamų pristatymų":"No expected deliveries",
+  "be ETA":"no ETA",
+  "📅 šiandien":"📅 today",
+  "Medžiaga / projektas":"Material / project",
+  "Užsakyta m²":"Ordered m²",
+  "Gauta m²":"Received m²",
+  "☑ Visus":"☑ All",
+  "Važtaraščio nr.":"Delivery note no.",
+  "Pastaba":"Note",
+  "✓ Priimti pažymėtus":"✓ Receive selected",
+  "Plokštės m²":"Boards m²",
+  "Vertė":"Value",
+  "Žemiau ROP":"Below ROP",
+  "Visos furnit. grupės":"All hardware groups",
+  "Visos ABC klasės":"All ABC classes",
+  "A — kritinė":"A — critical",
+  "B — vidutinė":"B — medium",
+  "C — žema":"C — low",
+  "Tik žemiau ROP":"Only below ROP",
+  "↻ Sync plokštes":"↻ Sync boards",
+  "📥 Atnaujinti iš Excel":"📥 Update from Excel",
+  "📥 Importuoti katalogą":"📥 Import catalog",
+  "+ Naujas SKU":"+ New SKU",
+  "Nepridėtos furnitūros pozicijos":"No hardware items added",
+  "Nėra plokščių sandėly":"No boards in stock",
+  "Sandėlis tuščias":"Warehouse is empty",
+  "📋 Importuoti katalogą":"📋 Import catalog",
+  "↻ Importuoti iš projektų":"↻ Import from projects",
+  "Nėra atitinkančių pozicijų":"No matching items",
+  "Pakeiskite filtrus":"Change the filters",
+  "SKU / Pavadinimas":"SKU / Name",
+  "Klasė":"Class",
+  "Likutis":"On hand",
+  "Rezerv.":"Reserved",
+  "Galima":"Available",
+  "Tiekėjas / Brand":"Supplier / Brand",
+  "€/vnt":"€/pcs",
+  "Veiks.":"Actions",
+  "Inventorizacija":"Stocktake",
+  "Archyvuoti":"Archive",
+  "Nėra projektų su medžiagomis":"No projects with materials",
+  "+ Naujas komplektas...":"+ New kit...",
+  "Nėra komplektų":"No kits",
+  "Pasirinkite projektą...":"Select a project...",
+  "+ Sukurti":"+ Create",
+  "Pozicijų":"Items",
+  "Surinkta":"Picked",
+  "Nesusieta":"Unmapped",
+  "Trūksta":"Short",
+  "reikia susieti su SKU":"needs SKU mapping",
+  "pozicijų sandėly":"items in stock",
+  "Komplekto eiga":"Kit progress",
+  "Cechui":"For workshop",
+  "🔒 Rezervuoti atsargas":"🔒 Reserve stock",
+  "✋ Surinkti viską galima":"✋ Pick everything available",
+  "🏭 Išduoti cechui":"🏭 Issue to workshop",
+  "× Atšaukti komplektą":"× Cancel kit",
+  "Atidaryti projektą →":"Open project →",
+  "SKU / Medžiaga":"SKU / Material",
+  "Sandėly":"In stock",
+  "Surinkti":"Pick",
+  "susieti":"link",
+  "nesusieta":"unmapped",
+  "Iš XLSM":"From XLSM",
+  "Komplekto ID:":"Kit ID:",
+  "🔗 Susieti su sandėlio SKU":"🔗 Link to a warehouse SKU",
+  "Kiekis:":"Quantity:",
+  "Pasirinkite SKU iš sandėlio":"Choose a SKU from the warehouse",
+  "— pasirinkti —":"— select —",
+  "Kiekio koeficientas":"Quantity multiplier",
+  "Sukurti taisyklę":"Create a rule",
+  "+ Sukurti naują SKU":"+ Create a new SKU",
+  "Pasirinkite SKU":"Select a SKU",
+  "Pasenusios pozicijos":"Overdue items",
+  "reikia perskaičiuoti":"need recounting",
+  "Skaičiavimai (50d)":"Counts (50d)",
+  "Vidutinis tikslumas":"Average accuracy",
+  "Niekad neskaičiuotos":"Never counted",
+  "📋 Reikia inventorizacijos":"📋 Stocktake needed",
+  "📋 Skaičiuoti":"📋 Count",
+  "Skaičiavimo istorija":"Count history",
+  "Data / vartotojas":"Date / user",
+  "Sistema":"System",
+  "Suskaič.":"Counted",
+  "🗄 BĖGELIAI":"🗄 RUNNERS",
+  "🔩 LANKSTAI":"🔩 HINGES",
+  "numatytoji":"default",
+  "išjungta":"disabled",
+  "Įjungti":"Enable",
+  "Išjungti":"Disable",
+  "▶ Įjungti":"▶ Enable",
+  "⏸ Išjungti":"⏸ Disable",
+  "XLSM šablonas":"XLSM pattern",
+  "Susiejimo taisyklės":"Mapping rules",
+  "Komplektavimo taisyklės":"Pairing rules",
+  "+ Nauja taisyklė":"+ New rule",
+  "Atstatyti numatytąsias":"Restore defaults",
+  "Taisyklė nerasta":"Rule not found",
+  "Nauja komplektavimo taisyklė":"New pairing rule",
+  "Redaguoti taisyklę":"Edit rule",
+  "Taisyklės tipas":"Rule type",
+  "Šablonas (kurios eilutės)":"Pattern (which lines)",
+  "Išskirti (jei nenoroma)":"Exclude (if not wanted)",
+  "Detalių komplekte":"Parts per kit",
+  "Komplekto pavadinimas":"Kit name",
+  "Vienetas":"Unit",
+  "+ Komponentas":"+ Component",
+  "Lanksto šablonas":"Hinge pattern",
+  "Plokštelės šablonas":"Plate pattern",
+  "Lankstų komplektai":"Hinge kits",
+  "Komponentų nėra.":"No components.",
+  "Komponento pavadinimas":"Component name",
+  "Reikalingas pavadinimas":"A name is required",
+  "Reikalingas šablonas":"A pattern is required",
+  "✓ Taisyklė sukurta":"✓ Rule created",
+  "🔒 Rezervavimas":"🔒 Reservation",
+  "✋ Surinkimas":"✋ Picking",
+  "↩ Grąžinimas":"↩ Return",
+  "⚖ Koregavimas":"⚖ Adjustment",
+  "📋 Skaičiavimas":"📋 Counting",
+  "Rodomi naujausi 200 įrašų":"Showing the latest 200 entries",
+  "SKU / medžiaga":"SKU / material",
+  "🪵 Plokštė":"🪵 Board",
+  "🔩 Furnitūra":"🔩 Hardware",
+  "Kiekis (lakštai)":"Quantity (boards)",
+  "Min. atsarga":"Min. stock",
+  "Tiekėjas":"Supplier",
+  "Kaina €/vnt":"Price €/pcs",
+  "Vieta — zona":"Location — zone",
+  "Vieta — lentyna":"Location — shelf",
+  "Brūkšninis kodas":"Barcode",
+  "(pasirinktinai)":"(optional)",
+  "Pridėti SKU":"Add SKU",
+  "Pirminis įvedimas":"Initial entry",
+  "Gamintojo nr. (MPN)":"Manufacturer no. (MPN)",
+  "Gamintojas":"Manufacturer",
+  "vnt":"pcs",
+  "pora":"pair",
+  "Storis (mm)":"Thickness (mm)",
+  "Lakšto plotis (mm)":"Board width (mm)",
+  "Lakšto aukštis (mm)":"Board height (mm)",
+  "Kaina €/lakštas":"Price €/board",
+  "Kaina €/m²":"Price €/m²",
+  "Įveskite lakšto matmenis":"Enter the board dimensions",
+  "Redaguoti SKU":"Edit SKU",
+  "Subkategorija":"Subcategory",
+  "Prekės ženklas":"Brand",
+  "Pakuotėje vnt.":"Units per pack",
+  "Šalinti taisyklę":"Remove the rule",
+  "Maks.":"Max.",
+  "SKU privalomas":"SKU is required",
+  "Pavadinimas privalomas":"Name is required",
+  "Mano užduotys":"My tasks",
+  "Vykstantys projektai":"Ongoing projects",
+  "Sustabdyti projektai":"On-hold projects",
+  "Nėra vykstančių projektų.":"No ongoing projects.",
+  "Kas padaryta per dieną · pagal žingsnį":"What was done per day · by step",
+  "Pagal žingsnį":"By step",
+  "Pagal darbuotoją":"By worker",
+  "Pagaminta vnt":"Pieces produced",
+  "Baigta užduočių":"Tasks completed",
+  "Šiandien":"Today",
+  "Paskutinės 14 d. (vnt / dieną)":"Last 14 days (pcs / day)",
+  "Šią dieną darbų neužfiksuota.":"No work recorded for this day.",
+  "Prieiga tik vadovams.":"Managers only.",
+  "Supjauta (įvertis)":"Cut (estimate)",
+  "Kantuota (įvertis)":"Edgebanded (estimate)",
+  "Stulpelis = pagaminta vienetų per dieną. Geltona = pasirinkta diena. Spustelėkite stulpelį, kad atidarytumėte tą dieną. m²/m — įvertis iš importo duomenų.":"Bar = pieces produced per day. Yellow = selected day. Click a bar to open that day. m²/m — estimated from import data.",
+  "Darbuotojas":"Worker",
+  "Vnt":"Pcs",
+  "Užduotys":"Tasks",
+  "Ankstesnė diena":"Previous day",
+  "Kita diena":"Next day",
+  "Rodiniai":"Views",
+  "Cecho rodinys":"Workshop",
+  "Visi projektai":"All projects",
+  "Gamybos Projektai":"Production",
+  "Paslauga":"Service",
+  "Projektavimas":"Design",
+  "Užsakymai":"Orders",
+  "Medžiagų poreikis":"Material needs",
+  "Sandėlis":"Warehouse",
+  "Grafikas / Lean":"Schedule / Lean",
+  "Komanda":"Team",
+  "Disciplina (4DX)":"Discipline (4DX)",
+  "Ataskaita":"Reports",
+  "Pranešimai":"Notifications",
+  "Importuoti Excel":"Import Excel",
+  "Atsarginė kopija":"Backup",
+  "Pjovimo optimizacija ↗":"Cutting optimization ↗",
+  "Pjovimo optimizacija":"Cutting optimization",
+  "Visi aktyvūs projektai":"All active projects",
+  "Paslaugos gamybos projektai · pozicijos ir pakavimo lapai":"Service production jobs · items and packing lists",
+  "Žingsniai":"Steps",
+  "Planas":"Plan",
+  "Pipeline":"Pipeline",
+  "Darbuotojai":"Workers",
+  "Medžiagos":"Materials",
+  "Stalčiai":"Drawers",
+  "Furnitūra":"Hardware",
+  "Surinkimui":"Assembly",
+  "Failai":"Files",
+  "Kortelės":"Cards",
+  "Sąrašas":"List",
+  "Lenta":"Board",
+  "Laiko juosta":"Timeline",
+  "Iš viso":"Total",
+  "Aktyvūs":"Active",
+  "Šiandien terminas":"Due today",
+  "Vėluoja":"Overdue",
+  "Nepradėta":"Not started",
+  "Vykdoma":"In progress",
+  "Blokuota":"Blocked",
+  "Baigta":"Done",
+  "aktyvus":"active",
+  "laukia":"waiting",
+  "Blokas":"Blocked",
+  "sustabdyta":"paused",
+  "dabartinis žingsnis":"current step",
+  "— dabartinis žingsnis":"— current step",
+  "— sustabdyta":"— paused",
+  "Be aplanko":"No folder",
+  "📁 Be aplanko":"📁 No folder",
+  "+ Naujas aplankas":"+ New folder",
+  "Naujas aplankas…":"New folder…",
+  "📁 + Naujas aplankas":"📁 + New folder",
+  "Pervadinti":"Rename",
+  "Ištrinti aplanką":"Delete folder",
+  "Priskirti aplankui":"Assign to folder",
+  "📁 Sugrupuota pagal aplankus — priskirkite projektus klientui ar darbui":"📁 Grouped by folders — assign projects to a client or job",
+  "Tuščias aplankas — priskirkite projektų arba ištrinkite 🗑":"Empty folder — assign projects or delete 🗑",
+  "Projektas":"Project",
+  "Atsakingas":"Responsible",
+  "Būsena":"Status",
+  "Progresas":"Progress",
+  "Terminas":"Deadline",
+  "Aplankas":"Folder",
+  "Nėra projektų":"No projects",
+  "Rytoj":"Tomorrow",
+  "Pakavimo pozicijos":"Packing items",
+  "Pakavimo lapas":"Packing list",
+  "Spausdinti pažymėtus":"Print selected",
+  "Žymėti visus":"Select all",
+  "Nužymėti":"Deselect",
+  "Spausdinimo istorija":"Print history",
+  "🖨 Spausdinimo istorija":"🖨 Print history",
+  "skirtingos pristatymo datos":"different delivery dates",
+  "Artikulas / Pavadinimas":"Article / Name",
+  "Artikulas":"Article",
+  "Pavadinimas":"Name",
+  "Užs.":"Ord.",
+  "Supak.":"Pack.",
+  "Detalės":"Details",
+  "Pozicijos":"Items",
+  "Pažymėkite bent vieną poziciją":"Select at least one item",
+  "Nėra pažymėtų pozicijų":"No items selected",
+  "Pristatymas":"Delivery",
+  "Pristatymas:":"Delivery:",
+  "Pristatymų istorija":"Delivery history",
+  "🚚 Pristatymų istorija":"🚚 Delivery history",
+  "Pristatėme klientui":"We delivered",
+  "Klientas atsiėmė":"Customer picked up",
+  "Žymėti pristatytą":"Mark delivered",
+  "Atnaujinti":"Update",
+  "Atšaukti":"Cancel",
+  "Būdas":"Method",
+  "Data":"Date",
+  "Pristatyti dabar":"Deliver now",
+  "Pristatyta/Užs.":"Delivered/Ord.",
+  "✅ Viskas pristatyta":"✅ All delivered",
+  "Pristatyta":"Delivered",
+  "Pažymėkite bent vieną poziciją su kiekiu":"Select at least one item with a quantity",
+  "Auto":"Auto",
+  "Rankinis":"Manual",
+  "Supabase ✓":"Supabase ✓",
+  "Saugoma…":"Saving…",
+  "Lokalus":"Local",
+  "Klaida":"Error",
+  "+ Naujas projektas":"+ New project",
+  "Naujas projektas":"New project",
+  "Spausdinti":"Print",
+  "Peržiūrėti":"View",
+  "Pridėti medžiagą":"Add material",
+  "+ Pridėti medžiagą":"+ Add material",
+  "+ Pridėti":"+ Add",
+  "Atsijungti":"Sign out",
+  "Atsijungti?":"Sign out?",
+  "Išsaugoti":"Save",
+  "Atidaryti Nesting ↗":"Open Nesting ↗",
+  "Eksportuokite detales → įkelkite į Nesting":"Export parts → load into Nesting",
+  "Visi projektai vienoje vietoje":"All projects in one place",
+  "Rankiniu būdu pridėtos medžiagos":"Manually added materials",
+  "Komentarai":"Comments",
+  "Siųsti":"Send",
+  "Rašykite komentarą… (Ctrl+Enter siųsti, @ paminėti)":"Write a comment… (Ctrl+Enter to send, @ to mention)",
+  "Komentarų nėra. Pradėkite diskusiją!":"No comments yet. Start the discussion!",
+  "Naudokite @ pažymėti komandos narius":"Use @ to mention team members",
+  "Plokštės":"Boards",
+  "Plokščių kaina":"Boards cost",
+  "Briaunos":"Edges",
+  "Briaunų kaina":"Edges cost",
+  "Reikia užsakyti":"To order",
+  "Užsakyta":"Ordered",
+  "Sandėlyje":"In stock",
+  "Plokštės — iš SUMMARY lapo":"Boards — from SUMMARY sheet",
+  "Briaunos — iš SUMMARY lapo":"Edges — from SUMMARY sheet",
+  "Papildomos medžiagos, kurių nėra SUMMARY lape":"Extra materials not in the SUMMARY sheet",
+  "Dar nepridėta jokių medžiagų rankiniu būdu.":"No materials added manually yet.",
+  "Reikia":"Needed",
+  "Bendroji suma":"Grand total",
+  "Prisijungti":"Sign in",
+  "El. paštas":"Email",
+  "Slaptažodis":"Password",
+  "Pirmas prisijungimas?":"First time?",
+  "Sukurti darbo vietą":"Create workspace",
+  "Dirbti lokaliai (be interneto) →":"Work locally (offline) →",
+  "Debesis nepasiekiamas?":"Cloud unavailable?",
+  "Darbuotojo prisijungimas":"Worker sign in",
+  "Vadovas":"Manager",
+  "Nėra gamybos projektų":"No production projects",
+  "Nėra paslaugos projektų":"No service projects",
+  "Tuščias aplankas":"Empty folder"
 };
 const I18N_ATTRS=['placeholder','title'];
 let _i18nObserver=null,_i18nBusy=false;
@@ -2080,6 +3298,8 @@ function rerenderCurrentView(){
   try{
     if(DB.currentView==='project'&&DB.currentProjectId){ if(typeof renderProjectView==='function') renderProjectView(DB.currentProjectId,_projTab); }
     else if(DB.currentView==='floor'){ if(typeof renderFloor==='function') renderFloor(); }
+    else if(DB.currentView==='planner'){ if(typeof renderPlanner==='function'){ renderPlanner(); updatePlannerBadge(); } }
+    else if(DB.currentView==='daily'){ if(typeof renderDailyReport==='function') renderDailyReport(); }
     else if(typeof rerenderProjectsViews==='function'){ rerenderProjectsViews(); }
   }catch(e){}
 }
@@ -2109,6 +3329,9 @@ function startAutoRefresh(){
     } else if(DB.currentView==='floor'){
       const ok=await loadFromCloud();
       if(ok)renderFloor();
+    } else if(DB.currentView==='planner'){
+      const ok=await loadFromCloud();
+      if(ok){renderPlanner();updatePlannerBadge();}
     }
   },20000);
 }
@@ -2329,7 +3552,19 @@ function showView(name,extra){
       : '<button class="btn btn-sm btn-primary" onclick="openMyCommitmentModal()">+ Mano įsipareigojimas</button>';
     renderDiscipline();
   }
+  else if(name==='planner'){
+    document.getElementById('topbar-title').textContent='Mano planas';
+    document.getElementById('topbar-sub').textContent='Mano užduotys ir projektų apžvalga';
+    renderPlanner();
+  }
+  else if(name==='daily'){
+    document.getElementById('topbar-title').textContent='Dienos ataskaita';
+    document.getElementById('topbar-sub').textContent='Kas padaryta per dieną · pagal žingsnį';
+    renderDailyReport();
+  }
+  updatePlannerBadge();
   renderSidebar();save();
+  if(typeof LANG!=='undefined'&&LANG==='en'&&typeof i18nApply==='function')i18nApply();
 }
 
 // Sidebar group collapse state — projects expanded by default, archive collapsed by default
@@ -2469,6 +3704,8 @@ function renderSidebar(){
   const wcBar=document.getElementById('workspace-code-bar');
   const wcDisp=document.getElementById('ws-code-display');
   if(wcBar&&wcDisp){wcBar.style.display=isManager()&&WORKSPACE_CODE?'block':'none';wcDisp.textContent=WORKSPACE_CODE;}
+  const billNav=document.getElementById('nav-billing'); if(billNav) billNav.style.display=(isManager()&&PAYWALL_ENABLED)?'flex':'none';
+  const dailyNav=document.getElementById('nav-daily'); if(dailyNav) dailyNav.style.display=isManager()?'flex':'none';
   // Apply nav visibility for non-admin roles
   applyNavVisibility();
 }
@@ -10088,6 +11325,278 @@ async function loadTeamFromSupabase(){
   if(v){try{const u=JSON.parse(v);if(u.length){USERS=u;renderTeam();renderSidebar();toast('✅ Komanda atnaujinta ('+USERS.length+' nariai)','success');}}catch(e){}}
 }
 
+// ════════════════════════════════════════════════
+// MANO PLANAS — personal per-member to-do planner.
+// Tasks NOT tied to any project (daily work, reminders). Each member has their
+// own list. Managers (Vadyba) can view any member's plan and assign tasks to
+// them. Stored in DB.todos[], synced inside the settings blob.
+// ════════════════════════════════════════════════
+let _plannerViewId=''; // manager-only: whose plan is being viewed ('' = own)
+const _todoOwner = () => (isManager() && _plannerViewId) ? _plannerViewId : DB.currentUserId;
+const todosFor = oid => DB.todos.filter(t=>t.ownerId===oid);
+
+function updatePlannerBadge(){
+  const b=document.getElementById('planner-badge'); if(!b)return;
+  const n=todosFor(DB.currentUserId).filter(t=>!t.done).length;
+  b.textContent=n; b.style.display=n?'':'none';
+}
+
+function plannerSetOwner(id){ _plannerViewId=(id===DB.currentUserId)?'':id; renderPlanner(); }
+
+function renderPlanner(){
+  const host=document.getElementById('planner-content'); if(!host)return;
+  const mgr=isManager();
+  const ownerId=_todoOwner();
+  const owner=getUser(ownerId);
+  const viewingOther = mgr && ownerId!==DB.currentUserId;
+  const today=fmtDate(new Date().toISOString());
+  const list=todosFor(ownerId).slice().sort((a,b)=>{
+    if(a.done!==b.done) return a.done?1:-1;          // active before done
+    const ad=a.due||'9999-99', bd=b.due||'9999-99';  // earlier due first
+    if(ad!==bd) return ad<bd?-1:1;
+    return (a.created||'')<(b.created||'')?-1:1;       // then oldest first
+  });
+  const active=list.filter(t=>!t.done);
+  const done=list.filter(t=>t.done);
+
+  let picker='';
+  if(mgr){
+    const opts=USERS.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(u=>
+      `<option value="${u.id}" ${u.id===ownerId?'selected':''}>${escHtml(u.name)}${u.id===DB.currentUserId?' (aš)':''}</option>`).join('');
+    picker=`<div class="pl-picker"><span style="font-size:12px;color:var(--muted)">Kieno planas:</span>
+      <select onchange="plannerSetOwner(this.value)" style="max-width:260px">${opts}</select></div>`;
+  }
+
+  const row=t=>{
+    const overdue=!t.done && t.due && t.due<today;
+    const fromMgr=t.createdBy && t.createdBy!==t.ownerId;
+    const mine=t.createdBy===DB.currentUserId;
+    const canDel=mgr||mine;            // workers can't delete a manager-assigned task
+    const canEditTodo=mgr||mine;
+    return `<div class="pl-item ${t.done?'done':''}">
+      <button class="pl-check ${t.done?'on':''}" title="${t.done?'Atžymėti':'Pažymėti atlikta'}" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</button>
+      <div class="pl-body" ${canEditTodo?`onclick="editTodoModal('${t.id}')" style="cursor:pointer"`:''}>
+        <div class="pl-title ${t.done?'done':''}">${escHtml(t.title)}</div>
+        ${(t.note||t.due||fromMgr)?`<div class="pl-meta">
+          ${t.due?`<span class="pl-due ${overdue?'overdue':''}">📅 ${escHtml(t.due)}${overdue?' · vėluoja':''}</span>`:''}
+          ${fromMgr?`<span class="badge badge-purple">Nuo vadovo${viewingOther?'':' · '+escHtml(getUser(t.createdBy).name)}</span>`:''}
+          ${t.note?`<span class="pl-note">${escHtml(t.note)}</span>`:''}
+        </div>`:''}
+      </div>
+      <div class="pl-actions">
+        ${canEditTodo?`<button class="btn btn-xs" onclick="event.stopPropagation();editTodoModal('${t.id}')" title="Redaguoti">✏</button>`:''}
+        ${canDel?`<button class="btn btn-xs btn-danger" onclick="event.stopPropagation();delTodo('${t.id}')" title="Ištrinti">🗑</button>`:''}
+      </div>
+    </div>`;
+  };
+
+  // Projects overview — ongoing + on-hold (paused), filtered by what the role may see
+  const visActive=DB.projects.filter(p=>p.status!=='archived'&&p.status!=='completed'&&canSeeProject(p));
+  const ongoing=visActive.filter(p=>!p.paused);
+  const onhold=visActive.filter(p=>p.paused);
+  const planCard=p=>{
+    const pct=projProgress(p.id);
+    const ts=projTasks(p.id), doneT=ts.filter(t=>t.status==='done').length;
+    const area=projectArea(p);
+    const areaBadge=area==='paslauga'?'<span class="badge badge-amber">⚡ Paslauga</span>':area==='design'?'<span class="badge badge-purple">📐 Projektavimas</span>':'';
+    return `<div class="pl-proj" onclick="showView('project','${p.id}')" title="${escHtml(p.name)}">
+      <div class="pl-proj-top">
+        <span class="pl-proj-dot" style="background:${p.color||'var(--blue)'}"></span>
+        <div style="flex:1;min-width:0"><div class="pl-proj-name">${escHtml(p.name)}</div><div class="pl-proj-client">${escHtml(p.client||'')}</div></div>
+        ${areaBadge}
+      </div>
+      <div class="pl-proj-bar"><div style="width:${pct}%;background:${p.color||'var(--blue)'}"></div></div>
+      <div class="pl-proj-meta">${doneT}/${ts.length} užduočių · ${pct}%</div>
+    </div>`;
+  };
+  const overview=`
+    <div class="pl-section-title" style="margin-top:26px">🏭 Vykstantys projektai <span class="pl-count">${ongoing.length}</span></div>
+    <div class="pl-proj-grid">${ongoing.length?ongoing.map(planCard).join(''):`<div class="pl-empty">Nėra vykstančių projektų.</div>`}</div>
+    ${onhold.length?`<div class="pl-section-title" style="margin-top:22px">⏸ Sustabdyti projektai <span class="pl-count">${onhold.length}</span></div>
+      <div class="pl-proj-grid pl-hold">${onhold.map(planCard).join('')}</div>`:''}`;
+
+  host.innerHTML=`<div class="pl-wrap">
+    ${picker}
+    ${viewingOther?`<div class="pl-banner">Tvarkote <strong>${escHtml(owner.name)}</strong> planą — pridėtos užduotys atsiras jo/jos sąraše su žyma „Nuo vadovo“.</div>`:''}
+    <div class="pl-section-title" style="margin-top:0">📋 ${viewingOther?escHtml(owner.name)+' užduotys':'Mano užduotys'}</div>
+    <div class="pl-quickadd">
+      <input type="text" id="pl-new-title" placeholder="Nauja užduotis… (pvz. Paskambinti tiekėjui)" onkeydown="if(event.key==='Enter')addTodo()" style="flex:1">
+      <input type="date" id="pl-new-due" title="Terminas (nebūtina)" style="width:150px">
+      <button class="btn btn-primary" onclick="addTodo()">+ Pridėti</button>
+    </div>
+    <div class="pl-section-title">Aktyvios <span class="pl-count">${active.length}</span></div>
+    <div class="pl-list">${active.length?active.map(row).join(''):`<div class="pl-empty">🎉 Nėra aktyvių užduočių. Pridėkite pirmąją viršuje.</div>`}</div>
+    ${done.length?`<div class="pl-section-title done-h">Atliktos <span class="pl-count">${done.length}</span>
+      <button class="btn btn-xs" onclick="clearDoneTodos()" title="Pašalinti atliktas užduotis">Išvalyti</button></div>
+    <div class="pl-list pl-done-list">${done.map(row).join('')}</div>`:''}
+    ${overview}
+  </div>`;
+}
+
+function addTodo(){
+  const ti=document.getElementById('pl-new-title'), di=document.getElementById('pl-new-due');
+  const title=((ti&&ti.value)||'').trim(); if(!title){ti&&ti.focus();return;}
+  const ownerId=_todoOwner(), now=new Date().toISOString();
+  DB.todos.push({id:uid(),ownerId,title,note:'',due:(di&&di.value)||'',done:false,createdBy:DB.currentUserId,created:now,completedAt:null,lastModified:now});
+  if(ti)ti.value=''; if(di)di.value='';
+  save(); renderPlanner(); updatePlannerBadge(); ti&&ti.focus();
+  toast(ownerId===DB.currentUserId?'✅ Pridėta':'✅ Pridėta nariui: '+getUser(ownerId).name,'success');
+}
+
+function toggleTodo(id){
+  const t=DB.todos.find(x=>x.id===id); if(!t)return;
+  t.done=!t.done; t.completedAt=t.done?new Date().toISOString():null; t.lastModified=new Date().toISOString();
+  save(); renderPlanner(); updatePlannerBadge();
+}
+
+function editTodoModal(id){
+  const t=DB.todos.find(x=>x.id===id); if(!t)return;
+  if(!(isManager()||t.createdBy===DB.currentUserId))return;
+  openModal(`<div class="modal-title">Redaguoti užduotį <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-field"><label class="form-label">Pavadinimas</label><input type="text" id="pl-edit-title" value="${escHtml(t.title)}"></div>
+    <div class="form-field"><label class="form-label">Pastaba (nebūtina)</label><textarea id="pl-edit-note" rows="3">${escHtml(t.note||'')}</textarea></div>
+    <div class="form-field"><label class="form-label">Terminas (nebūtina)</label><input type="date" id="pl-edit-due" value="${escHtml(t.due||'')}"></div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="saveTodoEdit('${t.id}')">Išsaugoti</button><button class="btn" onclick="closeModal()">Atšaukti</button></div>`);
+  setTimeout(()=>document.getElementById('pl-edit-title')?.focus(),50);
+}
+
+function saveTodoEdit(id){
+  const t=DB.todos.find(x=>x.id===id); if(!t)return;
+  const title=(document.getElementById('pl-edit-title').value||'').trim(); if(!title){toast('Įveskite pavadinimą','error');return;}
+  t.title=title;
+  t.note=(document.getElementById('pl-edit-note').value||'').trim();
+  t.due=document.getElementById('pl-edit-due').value||'';
+  t.lastModified=new Date().toISOString();
+  closeModal(); save(); renderPlanner(); updatePlannerBadge(); toast('✅ Išsaugota','success');
+}
+
+function delTodo(id){
+  const t=DB.todos.find(x=>x.id===id); if(!t)return;
+  if(!(isManager()||t.createdBy===DB.currentUserId))return;
+  if(!confirm('Ištrinti užduotį?'))return;
+  DB.todos=DB.todos.filter(x=>x.id!==id);
+  save(); renderPlanner(); updatePlannerBadge();
+}
+
+function clearDoneTodos(){
+  const ownerId=_todoOwner();
+  if(!confirm('Pašalinti visas atliktas užduotis?'))return;
+  DB.todos=DB.todos.filter(t=>!(t.ownerId===ownerId && t.done));
+  save(); renderPlanner(); updatePlannerBadge();
+}
+
+// ════════════════════════════════════════════════
+// DIENOS ATASKAITA — manager daily production report.
+// Per day: pieces produced per step (from timeLog qty-deltas + completions),
+// tasks completed, by worker; plus estimated m² cut / edgeband meters derived
+// from project importData. 14-day comparison chart. Manager-only.
+// ════════════════════════════════════════════════
+let _dailyDate='';
+
+function _dailyProduction(day){
+  const steps={}, workers={}, projects={};
+  let totalPieces=0, totalTasks=0, m2=0, meters=0;
+  const wk=id=>(workers[id]=workers[id]||{pieces:0,tasksCompleted:0});
+  DB.tasks.forEach(t=>{
+    const sid=t.stepId||'?', pid=t.projectId;
+    let taskDay=0;
+    const log=Array.isArray(t.timeLog)?t.timeLog.slice().sort((a,b)=>String(a.at).localeCompare(String(b.at))):[];
+    if(log.length){
+      let prev=0;
+      log.forEach(e=>{
+        let nd=null;
+        if(e.event==='qty'&&typeof e.done==='number') nd=e.done;
+        else if(e.event==='completed'||e.event==='auto-completed') nd=(parseInt(t.qtyOrdered)||prev);
+        if(nd==null) return;
+        const delta=nd-prev; prev=nd;
+        if(delta>0 && fmtDate(e.at)===day){ taskDay+=delta; wk(e.by||t.assigneeId||'?').pieces+=delta; }
+      });
+    } else if(t.completedAt && fmtDate(t.completedAt)===day){
+      taskDay=parseInt(t.qtyDone)||parseInt(t.qtyOrdered)||0;
+      if(taskDay>0) wk(t.assigneeId||'?').pieces+=taskDay;
+    }
+    const completedToday = t.completedAt && fmtDate(t.completedAt)===day;
+    const mkBucket=()=> (steps[sid]=steps[sid]||{pieces:0,tasksCompleted:0,projects:{},area:0,length:0});
+    if(taskDay>0){
+      const b=mkBucket();
+      b.pieces+=taskDay; b.projects[pid]=true;
+      (projects[pid]=projects[pid]||{pieces:0}).pieces+=taskDay;
+      totalPieces+=taskDay;
+    }
+    // Dimensional output (m² cut / edgeband m): task-level fields from the Excel
+    // import, credited in proportion to the day's progress (full credit on completion).
+    const ord=parseInt(t.qtyOrdered)||0;
+    const fracDay = ord>0 ? Math.min(1,taskDay/ord) : (completedToday?1:0);
+    if(fracDay>0){
+      const area=(parseFloat(t.areaM2)||0)*fracDay, len=(parseFloat(t.lengthM)||0)*fracDay;
+      if(area||len){ const b=mkBucket(); b.area+=area; b.length+=len; b.projects[pid]=true; m2+=area; meters+=len; }
+    }
+    if(completedToday){
+      const b=mkBucket();
+      b.tasksCompleted++; b.projects[pid]=true; wk(t.assigneeId||'?').tasksCompleted++; totalTasks++;
+    }
+  });
+  return {steps,workers,projects,totalPieces,totalTasks,m2,meters};
+}
+
+function renderDailyReport(){
+  const host=document.getElementById('daily-content'); if(!host)return;
+  if(!isManager()){ host.innerHTML='<div class="pl-empty">Prieiga tik vadovams.</div>'; return; }
+  if(!_dailyDate)_dailyDate=fmtDate(new Date().toISOString());
+  const day=_dailyDate;
+  const agg=_dailyProduction(day);
+  const base=new Date(day+'T12:00:00');
+  const series=[];
+  for(let i=13;i>=0;i--){ const ds=fmtDate(new Date(base.getTime()-i*86400000).toISOString()); series.push({ds,v:_dailyProduction(ds).totalPieces}); }
+  const maxV=Math.max(1,...series.map(s=>s.v));
+  const bars=series.map(s=>`<div class="dr-bar-wrap ${s.ds===day?'sel':''}" onclick="dailySetDate('${s.ds}')" title="${s.ds}: ${s.v} vnt">
+      <div class="dr-bar-v">${s.v||''}</div><div class="dr-bar" style="height:${Math.round(s.v/maxV*78)}px"></div><div class="dr-bar-x">${s.ds.slice(5)}</div></div>`).join('');
+  const stepCards=STEPS.map(s=>{
+    const b=agg.steps[s.id]||{pieces:0,tasksCompleted:0,projects:{},area:0,length:0};
+    const projN=Object.keys(b.projects||{}).length;
+    let big, unit, extra='';
+    if(s.id==='pjovimas'){ big=(b.area||0).toFixed(1); unit='m²'; if(b.pieces) extra=` · ${b.pieces} det.`; }
+    else if(s.id==='briaunavimas'){ big=(b.length||0).toFixed(1); unit='m'; if(b.pieces) extra=` · ${b.pieces} det.`; }
+    else { big=b.pieces; unit='vnt'; }
+    return `<div class="dr-step" style="border-left:3px solid ${s.color}">
+      <div class="dr-step-h"><span>${s.icon||''}</span>${escHtml(s.label)}</div>
+      <div class="dr-step-pieces" style="color:${s.color}">${big}<span style="font-size:11px;color:var(--muted);font-weight:500"> ${unit}</span></div>
+      <div class="dr-step-sub">${b.tasksCompleted} užd. baigta · ${projN} proj.${extra}</div>
+    </div>`;
+  }).join('');
+  const workerRows=Object.keys(agg.workers).map(id=>({id,...agg.workers[id]}))
+    .filter(w=>w.pieces>0||w.tasksCompleted>0).sort((a,b)=>b.pieces-a.pieces)
+    .map(w=>`<tr><td>${escHtml(getUser(w.id).name)}</td><td>${w.pieces}</td><td>${w.tasksCompleted}</td></tr>`).join('');
+  const dims=[];
+  if(agg.m2>0) dims.push(`<div class="dr-stat"><div class="dr-stat-v">~${agg.m2.toFixed(1)} m²</div><div class="dr-stat-l">✂️ Supjauta (įvertis)</div></div>`);
+  if(agg.meters>0) dims.push(`<div class="dr-stat"><div class="dr-stat-v">~${agg.meters.toFixed(1)} m</div><div class="dr-stat-l">📏 Kantuota (įvertis)</div></div>`);
+  const empty=agg.totalPieces===0 && agg.totalTasks===0;
+  host.innerHTML=`<div style="max-width:900px">
+    <div class="dr-head"><div class="dr-nav">
+      <button class="btn btn-sm" onclick="dailyShift(-1)" title="Ankstesnė diena">←</button>
+      <input type="date" value="${day}" onchange="dailySetDate(this.value)">
+      <button class="btn btn-sm" onclick="dailyShift(1)" title="Kita diena">→</button>
+      <button class="btn btn-sm" onclick="dailySetDate('${fmtDate(new Date().toISOString())}')">Šiandien</button>
+    </div></div>
+    <div class="dr-stats">
+      <div class="dr-stat"><div class="dr-stat-v">${agg.totalPieces}</div><div class="dr-stat-l">Pagaminta vnt</div></div>
+      <div class="dr-stat"><div class="dr-stat-v">${agg.totalTasks}</div><div class="dr-stat-l">Baigta užduočių</div></div>
+      ${dims.join('')}
+    </div>
+    ${empty?`<div class="pl-empty">Šią dieną darbų neužfiksuota.</div>`:`
+    <div class="pl-section-title">Pagal žingsnį</div>
+    <div class="dr-grid">${stepCards}</div>
+    <div class="pl-section-title" style="margin-top:22px">Paskutinės 14 d. (vnt / dieną)</div>
+    <div class="dr-chart">${bars}</div>
+    <div class="dr-note">Stulpelis = pagaminta vienetų per dieną. Geltona = pasirinkta diena. Spustelėkite stulpelį, kad atidarytumėte tą dieną. m²/m — įvertis iš importo duomenų.</div>
+    ${workerRows?`<div class="pl-section-title">Pagal darbuotoją</div>
+    <table class="dr-table"><thead><tr><th>Darbuotojas</th><th>Vnt</th><th>Užduotys</th></tr></thead><tbody>${workerRows}</tbody></table>`:''}
+    `}
+  </div>`;
+}
+function dailyShift(d){ const b=new Date((_dailyDate||fmtDate(new Date().toISOString()))+'T12:00:00'); _dailyDate=fmtDate(new Date(b.getTime()+d*86400000).toISOString()); renderDailyReport(); }
+function dailySetDate(v){ if(v)_dailyDate=v; renderDailyReport(); }
+
 function renderTeam(){
   const el=document.getElementById('team-content');
   if(!el)return;
@@ -10292,7 +11801,7 @@ async function setMemberPin(uid2,btn){
     const r=await fetch(SB_URL+'/functions/v1/set-worker-pin',{
       method:'POST',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(SB_TOKEN||SB_KEY),'Content-Type':'application/json'},
-      body:JSON.stringify({name,pin})
+      body:JSON.stringify({name,pin,workspace_code:WORKSPACE_CODE,email_scope:WORKER_EMAIL_SCOPE})
     });
     const d=await r.json().catch(()=>({}));
     if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status));
@@ -10355,7 +11864,7 @@ async function confirmDeleteMember(uid2,btn){
   try{
     const r=await fetch(SB_URL+'/functions/v1/set-worker-pin',{method:'POST',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(SB_TOKEN||SB_KEY),'Content-Type':'application/json'},
-      body:JSON.stringify({action:'delete',name})});
+      body:JSON.stringify({action:'delete',name,workspace_code:WORKSPACE_CODE,email_scope:WORKER_EMAIL_SCOPE})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok||d.error) authMsg=' ⚠ prisijungimą ištrinkite rankiniu būdu';
   }catch(e){ authMsg=' ⚠ prisijungimą ištrinkite rankiniu būdu'; }
@@ -10730,91 +12239,74 @@ function classifyEdgebandByUsage(edgebandName, parts){
 function applyImport(data,pid){
   const p=getProject(pid);if(!p)return;
   p.importData={stocks:data.stocks,edgebands:data.edgebands,parts:data.parts,drawers:data.drawers,hardware:data.hardware||[]};
-  const existing=new Set(DB.tasks.filter(t=>t.projectId===pid).map(t=>t.stepId));
   const pName=p.name.split('—')[0].trim();
+  const now=new Date().toISOString();
   const sm=data.stocks.map(s=>`${s.material} ${s.thickness}mm (${s.m2} m²)`);
   const em=data.edgebands.map(e=>`${e.material} (${e.meters} m)`);
   const dm=data.drawers.map(d=>`TANDEMBOX ${d.depth}/${d.height||98} ×${d.qty}`);
+  const totalAreaM2=(data.stocks||[]).reduce((s,x)=>s+(parseFloat(x.m2)||0),0);
+  const totalEdgeM =(data.edgebands||[]).reduce((s,x)=>s+(parseFloat(x.meters)||0),0);
 
-  // ── PJOVIMAS: one task per material found in PARTLIST ─────────────────
-  // e.g. "PA_BU_VIRT – KARKASAI 18mm", "PA_BU_VIRT – Basalt L927", etc.
-  // Materials are pulled from the parts list (PLOKŠTĖ column), so they reflect
-  // exactly what the cutter has to load on the saw. Each material task carries
-  // a count of how many panels are cut from it and the total m² when known.
+  // The design→gamyba transition pre-creates EMPTY Pjovimas/Briaunavimas tasks.
+  // Drop those still-pending placeholders so the import can (re)populate them with
+  // real piece counts + dimensions (m²/m). Started or finished work is preserved.
+  const repop=new Set(['pjovimas','briaunavimas']);
+  DB.tasks=DB.tasks.filter(t=>!(t.projectId===pid&&repop.has(t.stepId)&&t.status==='pending'&&!t.areaM2&&!t.lengthM));
+  const existing=new Set(DB.tasks.filter(t=>t.projectId===pid).map(t=>t.stepId));
+
+  // ── PJOVIMAS: one task per material — carries piece count (qtyLines) + m² ──
   if(!existing.has('pjovimas')){
-    const matCounts = {};
-    for(const part of (data.parts||[])){
-      if(!part.mat) continue;
-      const k = part.mat;
-      if(!matCounts[k]) matCounts[k] = {qty:0, T:part.T||0};
-      matCounts[k].qty++;
-    }
-    const stockByMat = {};
-    for(const s of (data.stocks||[])) stockByMat[String(s.material).trim().toLowerCase()] = s;
-    const matList = Object.keys(matCounts);
-    if(matList.length === 0){
-      // No parts data — fall back to old behaviour so the import never silently
-      // skips creating a pjovimas task.
-      DB.tasks.push({id:uid(),projectId:pid,stepId:'pjovimas',name:`Pjovimas – ${pName}`,status:'pending',assigneeId:USERS[0].id,materials:sm.slice(0,4),created:new Date().toISOString()});
+    const matCounts={};
+    for(const part of (data.parts||[])){ if(!part.mat)continue; const k=part.mat; if(!matCounts[k])matCounts[k]={qty:0,T:part.T||0}; matCounts[k].qty++; }
+    const stockByMat={}; for(const s of (data.stocks||[])) stockByMat[String(s.material).trim().toLowerCase()]=s;
+    const defIds=getStepAssignees('pjovimas',p.owner);
+    const matList=Object.keys(matCounts);
+    if(matList.length===0){
+      DB.tasks.push({id:uid(),projectId:pid,stepId:'pjovimas',name:`Pjovimas – ${pName}`,status:'pending',assigneeId:defIds[0]||USERS[0].id,assigneeIds:defIds,qtyOrdered:0,qtyDone:0,areaM2:Math.round(totalAreaM2*100)/100,materials:sm.slice(0,4),created:now,timeLog:[{event:'created',at:now,by:DB.currentUserId}]});
     } else {
       matList.forEach((mat,idx)=>{
-        const info = matCounts[mat];
-        const stock = stockByMat[mat.toLowerCase()];
-        const detail = stock ? ` (${stock.m2} m²)` : (info.T?` (${info.T}mm)`:'');
+        const info=matCounts[mat]; const stock=stockByMat[mat.toLowerCase()];
+        const area=stock?(parseFloat(stock.m2)||0):0;
+        const detail=stock?` (${stock.m2} m²)`:(info.T?` (${info.T}mm)`:'');
         DB.tasks.push({
-          id:uid(), projectId:pid, stepId:'pjovimas',
-          name:`${pName} ${mat}`,
-          status:'pending',
-          assigneeId:USERS[idx % USERS.length].id,
+          id:uid(),projectId:pid,stepId:'pjovimas',
+          name:`${pName} ${mat}`,status:'pending',
+          assigneeId:(defIds[idx%defIds.length]||USERS[idx%USERS.length].id),assigneeIds:defIds,
+          qtyOrdered:info.qty,qtyDone:0,
+          qtyLines:[{art:mat,desc:`Detalės${detail}`,qty:info.qty,done:0}],
+          areaM2:Math.round(area*100)/100,
           materials:[`${mat}${detail} · ${info.qty} det.`],
-          created:new Date().toISOString()
+          created:now,timeLog:[{event:'created',at:now,by:DB.currentUserId}]
         });
       });
     }
     existing.add('pjovimas');
   }
 
-  // ── BRIAUNAVIMAS: two tasks — Karkasai (frame edges) & Fasadai (door edges) ──
-  // Each edgeband is routed to the bucket where it is actually applied, so the
-  // operator only sees the rolls relevant to their batch. Empty buckets are
-  // skipped — no point creating a task with no material.
+  // ── BRIAUNAVIMAS: Karkasai (frame) & Fasadai (door) edge tasks — carry meters ──
   if(!existing.has('briaunavimas')){
-    const buckets = {karkasai:[], fasadai:[]};
-    for(const e of (data.edgebands||[])){
-      const cls = classifyEdgebandByUsage(e.material, data.parts);
-      buckets[cls].push(`${e.material} (${e.meters} m)`);
-    }
-    const briaunaJobs = [
-      {suffix:'Karkasai', mats:buckets.karkasai},
-      {suffix:'Fasadai',  mats:buckets.fasadai},
-    ];
-    let createdAny = false;
-    briaunaJobs.forEach((job,idx)=>{
-      if(!job.mats.length) return;
-      DB.tasks.push({
-        id:uid(), projectId:pid, stepId:'briaunavimas',
-        name:`${pName} ${job.suffix}`,
-        status:'pending',
-        assigneeId:USERS[(idx+1) % USERS.length].id,
-        materials:job.mats,
-        created:new Date().toISOString()
-      });
-      createdAny = true;
+    const buckets={karkasai:[],fasadai:[]}, bucketM={karkasai:0,fasadai:0};
+    for(const e of (data.edgebands||[])){ const cls=classifyEdgebandByUsage(e.material,data.parts); buckets[cls].push(`${e.material} (${e.meters} m)`); bucketM[cls]+=parseFloat(e.meters)||0; }
+    const defIds=getStepAssignees('briaunavimas',p.owner);
+    const jobs=[{suffix:'Karkasai',k:'karkasai'},{suffix:'Fasadai',k:'fasadai'}];
+    let createdAny=false;
+    jobs.forEach((job,idx)=>{
+      if(!buckets[job.k].length)return;
+      DB.tasks.push({id:uid(),projectId:pid,stepId:'briaunavimas',name:`${pName} ${job.suffix}`,status:'pending',assigneeId:(defIds[idx%defIds.length]||USERS[(idx+1)%USERS.length].id),assigneeIds:defIds,lengthM:Math.round(bucketM[job.k]*100)/100,qtyOrdered:0,qtyDone:0,materials:buckets[job.k],created:now,timeLog:[{event:'created',at:now,by:DB.currentUserId}]});
+      createdAny=true;
     });
-    // Fallback: if no edgebands had usage data we can classify, still create
-    // a single task so the step isn't lost.
-    if(!createdAny && em.length){
-      DB.tasks.push({id:uid(),projectId:pid,stepId:'briaunavimas',name:`Briaunavimas – ${pName}`,status:'pending',assigneeId:USERS[1 % USERS.length].id,materials:em,created:new Date().toISOString()});
+    if(!createdAny&&em.length){
+      DB.tasks.push({id:uid(),projectId:pid,stepId:'briaunavimas',name:`Briaunavimas – ${pName}`,status:'pending',assigneeId:defIds[0]||USERS[1%USERS.length].id,assigneeIds:defIds,lengthM:Math.round(totalEdgeM*100)/100,qtyOrdered:0,qtyDone:0,materials:em,created:now,timeLog:[{event:'created',at:now,by:DB.currentUserId}]});
     }
     existing.add('briaunavimas');
   }
 
-  // ── All other steps: unchanged (one generic task per step) ─────────────
+  // ── All other steps: one generic task per step (unchanged behaviour) ──
   STEPS.forEach((step,i)=>{
     if(existing.has(step.id))return;
-    let mats=[];
-    if(step.id==='surinkimas')mats=dm.length?dm:sm.slice(0,2);
-    DB.tasks.push({id:uid(),projectId:pid,stepId:step.id,name:`${step.label} – ${pName}`,status:'pending',assigneeId:USERS[i%USERS.length].id,materials:mats,created:new Date().toISOString()});
+    let mats=[]; if(step.id==='surinkimas')mats=dm.length?dm:sm.slice(0,2);
+    const defIds=getStepAssignees(step.id,p.owner);
+    DB.tasks.push({id:uid(),projectId:pid,stepId:step.id,name:`${step.label} – ${pName}`,status:'pending',assigneeId:defIds[0]||USERS[i%USERS.length].id,assigneeIds:defIds,materials:mats,created:now,timeLog:[{event:'created',at:now,by:DB.currentUserId}]});
   });
   addNotif('step-move','Excel importuotas sėkmingai',p.name,pid);
   toast('✅ Importas sėkmingas!','success');save();showView('project',pid);

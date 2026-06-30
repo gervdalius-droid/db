@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fabsuite — gamybos programinė įranga baldų cechams</title>
+<meta name="description" content="Nesting ir DB — pjovimo optimizacija ir gamybos valdymas baldų gamybai. Prenumeruok ir pradėk per kelias minutes.">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="logo">F</span> Fabsuite</a>
+    <div class="links">
+      <a href="#features" class="hide-sm">Galimybės</a>
+      <a href="#pricing" class="hide-sm">Kainos</a>
+      <a href="account.html" class="hide-sm">Mano paskyra</a>
+      <a class="btn btn-primary" href="#pricing" style="padding:8px 16px">Pradėti</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Baldų gamybos programinė įranga</span>
+    <h1>Nuo pjovimo plano<br>iki išsiųsto užsakymo.</h1>
+    <p class="lead">Fabsuite jungia dvi įrankius, sukurtus realiam baldų cechui: <b>Nesting</b> optimizuoja
+      pjovimą ir likučius, <b>DB</b> valdo visą gamybos eigą — projektus, žingsnius ir komandą.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary btn-lg" href="#pricing">Išbandyti nemokamai →</a>
+      <a class="btn btn-lg" href="#features">Kaip tai veikia</a>
+    </div>
+    <div class="note">14 dienų nemokamas bandymas · atšauk bet kada · be įdiegimo</div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Du įrankiai. Viena darbo vieta.</h2>
+      <p>Tie patys prisijungimai, tas pats sandėlis, ta pati komanda — abiejose programose.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="ico">📐</div>
+        <h3>Nesting — pjovimo optimizacija</h3>
+        <p>Automatinis detalių išdėstymas lakštuose, likučių sandėlis ir medžiagų sąnaudų skaičiavimas.
+          Mažiau atliekų, daugiau panaudotų likučių.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🏭</div>
+        <h3>DB — gamybos valdymas</h3>
+        <p>Cecho rodinys, gamybos žingsniai, projektai ir užsakymai, komandos vaidmenys su PIN
+          prisijungimu, terminų sekimas ir ataskaitos.</p>
+      </div>
+    </div>
+    <div class="grid grid-3" style="margin-top:18px">
+      <div class="card"><div class="ico">🔐</div><h3>Vieni prisijungimai</h3><p>Darbuotojas prisijungia vardu ir PIN — veikia abiejose programose iš karto.</p></div>
+      <div class="card"><div class="ico">📦</div><h3>Bendras sandėlis</h3><p>Pjovimo likučiai ir lakštai matomi tiek Nesting, tiek DB programoje realiu laiku.</p></div>
+      <div class="card"><div class="ico">☁️</div><h3>Debesyje</h3><p>Nieko įdiegti nereikia. Atsidaryk naršyklėje, duomenys sinchronizuojami automatiškai.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" style="background:var(--surface2)">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Paprasta kaina pagal poreikį</h2>
+      <p>Pirk vieną įrankį arba abu su nuolaida. Visi planai — 14 dienų nemokamai.</p>
+    </div>
+    <div class="center">
+      <div class="toggle" id="billing-toggle">
+        <button data-int="month" class="on" onclick="setInterval2('month')">Mėnesinis</button>
+        <button data-int="year" onclick="setInterval2('year')">Metinis <span class="save">–2 mėn.</span></button>
+      </div>
+    </div>
+    <div class="plans" id="plans"></div>
+    <p class="center note" style="margin-top:26px">Kainos be PVM. Mokėjimai saugiai apdorojami per Stripe.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap center">
+    <div class="sec-head" style="margin-bottom:18px">
+      <h2>Pasiruošę pradėti?</h2>
+      <p>Susikurk darbo vietą per kelias minutes ir pakviesk komandą.</p>
+    </div>
+    <a class="btn btn-primary btn-lg" href="#pricing">Pasirinkti planą →</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>© <span id="yr"></span> Fabsuite · Gamybos programinė įranga</div>
+    <div>
+      <a href="account.html">Mano paskyra</a>
+      <a href="#pricing">Kainos</a>
+      <a id="supafoot" href="#">Pagalba</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+var INTERVAL = "month";
+document.getElementById("yr").textContent = new Date().getFullYear();
+(function(){ var s=document.getElementById("supafoot"); s.href="mailto:"+FABSUITE.SUPPORT_EMAIL; })();
+
+function setInterval2(i){
+  INTERVAL = i;
+  document.querySelectorAll("#billing-toggle button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-int")===i);
+  });
+  renderPlans();
+}
+
+function planUrl(code){
+  var ws = (new RegExp("[?&]ws=([^&#]*)").exec(location.search)||[])[1] || "";
+  var u = "signup.html?plan="+code+"&interval="+INTERVAL;
+  if(ws) u += "&ws="+ws;
+  return u;
+}
+
+function renderPlans(){
+  var order = ["nesting","suite","db"]; // suite in the middle, highlighted
+  var html = order.map(function(code){
+    var p = FABSUITE.PLANS[code];
+    var price = INTERVAL==="year" ? p.year : p.month;
+    var per = INTERVAL==="year" ? "per metus" : "per mėnesį";
+    var feats = (p.features||[]).map(function(f){return "<li>"+f+"</li>";}).join("");
+    var miss = (p.missing||[]).map(function(f){return '<li class="muted">'+f+"</li>";}).join("");
+    return ''
+      + '<div class="plan'+(p.featured?' featured':'')+'">'
+      +   (p.featured?'<div class="badge">Populiariausia</div>':'')
+      +   '<div class="pname">'+p.name+'</div>'
+      +   '<div class="ptag">'+p.tagline+'</div>'
+      +   '<div class="price">'+FABSUITE.CURRENCY+price+' <small>/'+(INTERVAL==="year"?"m.":"mėn.")+'</small></div>'
+      +   '<div class="per">'+per+' · 14 d. nemokamai</div>'
+      +   '<ul>'+feats+miss+'</ul>'
+      +   '<a class="btn '+(p.featured?'btn-primary':'')+' btn-block" href="'+planUrl(code)+'">Pradėti →</a>'
+      + '</div>';
+  }).join("");
+  document.getElementById("plans").innerHTML = html;
+}
+renderPlans();
+</script>
+</body>
+</html>

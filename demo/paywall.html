@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo — programos užraktas</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../fabsuite/styles.css">
+<script src="../shared/fabsuite-license.js"></script>
+<style>
+  .bar{display:flex;gap:10px;align-items:center;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 18px;position:sticky;top:0;z-index:10}
+  .bar .t{font-weight:700}
+  .bar .sp{flex:1}
+  .faux{padding:26px 22px;max-width:1000px;margin:0 auto;filter:saturate(.7)}
+  .faux .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .faux .card{height:90px}
+  .hint{max-width:1000px;margin:0 auto;padding:0 22px 22px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="t">📐 FabFlow — Nesting <span style="color:var(--hint);font-weight:400;font-size:12px">(demonstracija)</span></span>
+  <span class="sp"></span>
+  <button class="btn btn-primary" onclick="lock()">🔒 Klientas BE prenumeratos</button>
+  <button class="btn" onclick="unlock()">✓ Klientas SU prenumerata</button>
+</div>
+
+<div class="faux" id="app">
+  <h2 style="margin-bottom:14px">Pjovimo darbai</h2>
+  <div class="grid">
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+  </div>
+</div>
+<div class="hint" id="hint"></div>
+
+<script>
+FabsuiteLicense.config({ supabaseUrl:"https://demo.invalid", anonKey:"demo", fabsuiteUrl:"../fabsuite", app:"nesting" });
+
+function lock(){
+  document.getElementById("hint").textContent = "Taip atrodo programa, kai darbo vieta neturi galiojančios prenumeratos. Mygtukas „Pasirinkti planą“ nuveda klientą į parduotuvę; „Valdyti atsiskaitymus“ — į mokėjimų portalą (demonstracijoje neaktyvu).";
+  FabsuiteLicense.showPaywall({ app:"nesting", workspaceCode:"DEMO42", ent:{ status:"canceled" }, onSignOut:function(){ location.reload(); } });
+}
+function unlock(){
+  FabsuiteLicense.hidePaywall();
+  document.getElementById("hint").textContent = "Su galiojančia prenumerata (arba nemokama prieiga) programa atsidaro normaliai — jokio užrakto.";
+}
+lock(); // start locked — that's the instructive state
+</script>
+</body>
+</html>

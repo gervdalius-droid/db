@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FabFlow — Administravimas</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../fabsuite/styles.css">
+<script src="../config.js"></script>
+<style>
+  body{overflow-x:hidden}
+  .topbar{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--border);padding:0}
+  .topbar .wrap{display:flex;align-items:center;gap:14px;height:60px;max-width:1200px}
+  .topbar .who{margin-left:auto;font-size:13px;color:var(--muted)}
+  .page{max-width:1200px;margin:0 auto;padding:24px 22px 80px}
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:26px}
+  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+  .stat .n{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:6px}
+  .stat.accent{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border:0}
+  .stat.accent .l{color:rgba(255,255,255,.85)}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar input,.toolbar select{padding:10px 12px;border-radius:10px}
+  .toolbar input{flex:1;min-width:200px}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+  th,td{text-align:left;padding:12px 14px;font-size:13.5px;border-bottom:1px solid var(--border)}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);font-weight:600;background:var(--surface2)}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--surface2)}
+  td .mono{font-size:12px;color:var(--muted)}
+  .empty{padding:40px;text-align:center;color:var(--hint)}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:none}
+  .scrim.show{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,100%);background:var(--bg);z-index:61;
+    box-shadow:var(--sh3);transform:translateX(100%);transition:transform .2s;overflow-y:auto;padding:24px}
+  .drawer.show{transform:none}
+  .drawer h2{font-size:22px;letter-spacing:-.02em}
+  .drawer .close{position:absolute;top:18px;right:18px;font-size:22px;background:none;border:0;color:var(--muted);cursor:pointer}
+  .act{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-top:12px}
+  .act h4{font-size:14px;margin-bottom:4px}
+  .act p{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  .act .row2{display:flex;gap:8px;align-items:center}
+  .danger-zone{border-color:var(--red-t)}
+  details summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
+  .kv{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;padding:7px 0;border-bottom:1px dashed var(--border)}
+  .kv .k{color:var(--muted)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);
+    padding:12px 18px;border-radius:11px;font-size:14px;font-weight:600;z-index:200;box-shadow:var(--sh3);opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .log-item{font-size:12.5px;color:var(--muted);padding:6px 0;border-bottom:1px dashed var(--border)}
+  .log-item b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="shell" id="login">
+  <div class="panel">
+    <h2>FabFlow administravimas</h2>
+    <div class="sub">Prisijunkite administratoriaus paskyra.</div>
+    <label>El. paštas</label>
+    <input id="le" type="email" autocomplete="username" placeholder="jus@pastas.lt">
+    <label>Slaptažodis</label>
+    <input id="lp" type="password" autocomplete="current-password" placeholder="••••••••">
+    <div class="err" id="lerr"></div>
+    <button class="btn btn-primary btn-block btn-lg" id="lgo" style="margin-top:18px" onclick="doLogin()">Prisijungti →</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <div class="topbar"><div class="wrap" style="margin:0 auto;padding:0 22px">
+    <a class="brand" href="#" onclick="refreshAll();return false"><span class="logo">F</span> Administravimas</a>
+    <div class="who"><span id="me"></span> · <a href="#" onclick="logout();return false" style="color:var(--blue)">Atsijungti</a></div>
+  </div></div>
+
+  <div class="page">
+    <div class="stats" id="stats"></div>
+
+    <h3 style="font-size:18px;margin:0 0 12px">Klientai</h3>
+    <div class="toolbar">
+      <input id="search" placeholder="Ieškoti pagal pavadinimą, kodą ar el. paštą…" oninput="debouncedLoad()">
+      <select id="status" onchange="loadOrgs()">
+        <option value="">Visi statusai</option>
+        <option value="active">Aktyvūs</option>
+        <option value="trialing">Bandymas</option>
+        <option value="past_due">Vėluoja mokėjimas</option>
+        <option value="canceled">Atšaukti</option>
+        <option value="unpaid">Neapmokėti</option>
+        <option value="none">Be plano</option>
+        <option value="comp">Nemokama prieiga</option>
+      </select>
+      <button class="btn" onclick="loadOrgs()">↻ Atnaujinti</button>
+    </div>
+    <table>
+      <thead><tr><th>Įmonė</th><th>Kodas</th><th>Vadovas</th><th>Planas</th><th>Statusas</th><th>Galioja iki</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="empty">Kraunama…</td></tr></tbody>
+    </table>
+    <div id="more" style="text-align:center;margin-top:14px"></div>
+
+    <h3 style="font-size:18px;margin:30px 0 12px">Paskutiniai veiksmai</h3>
+    <div class="card" id="activity"><div class="empty">—</div></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var CFG = window.FAB_CONFIG || {};
+var URL_ = CFG.SUPABASE_URL, KEY = CFG.SUPABASE_ANON_KEY;
+var SESSION = null;
+try { SESSION = JSON.parse(localStorage.getItem("fab_admin_session") || "null"); } catch(e){}
+
+function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(function(){t.classList.remove("show");},2200); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function fmtDate(iso){ if(!iso) return "—"; try{ return new Date(iso).toLocaleDateString("lt-LT"); }catch(e){ return "—"; } }
+function fmtDateTime(iso){ try{ return new Date(iso).toLocaleString("lt-LT"); }catch(e){ return iso; } }
+
+var STATUS = {
+  active:["green","Aktyvi"], trialing:["green","Bandymas"], past_due:["amber","Vėluoja"],
+  unpaid:["red","Neapmokėta"], canceled:["red","Atšaukta"], none:["grey","Be plano"], incomplete:["grey","Nebaigta"],
+};
+function pill(o){
+  if(o.comp) return '<span class="pill green">Nemokama</span>';
+  var m = STATUS[o.status] || ["grey", o.status||"—"];
+  return '<span class="pill '+m[0]+'">'+m[1]+'</span>';
+}
+function planName(p){ return p==="suite"?"FabFlow (abu)":p==="nesting"?"Nesting":p==="db"?"DB":"—"; }
+
+// ── auth + api ──
+async function signIn(email, pw){
+  var r = await fetch(URL_+"/auth/v1/token?grant_type=password", {
+    method:"POST", headers:{apikey:KEY,"Content-Type":"application/json"},
+    body: JSON.stringify({email:email, password:pw}),
+  });
+  return r.json();
+}
+async function api(action, params){
+  if(!SESSION) throw new Error("Neprisijungta");
+  var r = await fetch(URL_+"/functions/v1/admin", {
+    method:"POST",
+    headers:{apikey:KEY,"Authorization":"Bearer "+SESSION.access,"Content-Type":"application/json"},
+    body: JSON.stringify(Object.assign({action:action}, params||{})),
+  });
+  var d = await r.json().catch(function(){return {};});
+  if(!r.ok) throw new Error(d.error || ("Klaida "+r.status));
+  return d;
+}
+
+async function doLogin(){
+  var e=document.getElementById("le").value.trim(), p=document.getElementById("lp").value;
+  var err=document.getElementById("lerr"); err.classList.remove("show");
+  var b=document.getElementById("lgo"); b.disabled=true; b.innerHTML='<span class="spin"></span> Jungiamasi…';
+  try{
+    var res = await signIn(e,p);
+    if(!res.access_token){ err.textContent="Neteisingas el. paštas arba slaptažodis."; err.classList.add("show"); return; }
+    SESSION = { access:res.access_token, refresh:res.refresh_token, email:res.user&&res.user.email };
+    localStorage.setItem("fab_admin_session", JSON.stringify(SESSION));
+    await enter();
+  }catch(ex){ err.textContent="Klaida: "+ex.message; err.classList.add("show"); }
+  finally{ b.disabled=false; b.textContent="Prisijungti →"; }
+}
+function logout(){ localStorage.removeItem("fab_admin_session"); SESSION=null; location.reload(); }
+
+function showLogin(){ document.getElementById("login").style.display="flex"; document.getElementById("app").style.display="none"; }
+async function enter(){
+  try{
+    await loadStats(); // also confirms admin rights (403 → caught)
+  }catch(ex){
+    var m=String(ex.message||"");
+    if(m.indexOf("administrato")>=0 || m.indexOf("teis")>=0){
+      alert("Ši paskyra neturi administratoriaus teisių.\n\n"+m); logout(); return;
+    }
+    if(m.indexOf("prisijung")>=0 || m.indexOf("401")>=0 || m.indexOf("Sesija")>=0){
+      // expired/invalid session → quietly return to login
+      localStorage.removeItem("fab_admin_session"); SESSION=null; showLogin(); return;
+    }
+    alert("Klaida: "+m); showLogin(); return;
+  }
+  document.getElementById("login").style.display="none";
+  document.getElementById("app").style.display="block";
+  document.getElementById("me").textContent = SESSION.email||"";
+  loadOrgs();
+}
+
+// ── dashboard ──
+async function loadStats(){
+  var d = await api("stats");
+  var t = d.totals;
+  var cards = [
+    {n:t.customers, l:"Klientai"},
+    {n:t.active, l:"Aktyvūs"},
+    {n:t.trialing, l:"Bandymai"},
+    {n:t.past_due, l:"Vėluoja"},
+    {n:t.comp, l:"Nemokami"},
+    {n:"€"+(d.mrr_eur||0), l:"MRR (per mėn.)", accent:true},
+  ];
+  document.getElementById("stats").innerHTML = cards.map(function(c){
+    return '<div class="stat'+(c.accent?' accent':'')+'"><div class="n">'+esc(c.n)+'</div><div class="l">'+c.l+'</div></div>';
+  }).join("");
+  renderActivity(d.activity);
+}
+function renderActivity(log){
+  var el=document.getElementById("activity");
+  if(!log || !log.length){ el.innerHTML='<div class="empty">Veiksmų dar nėra.</div>'; return; }
+  el.innerHTML = log.map(function(a){
+    return '<div class="log-item">'+fmtDateTime(a.at)+' · <b>'+esc(actionLabel(a.action))+'</b>'+(a.workspace_code?' · '+esc(a.workspace_code):'')+' · '+esc(a.admin_email||'')+'</div>';
+  }).join("");
+}
+function actionLabel(a){
+  return ({grant_free_access:"Suteikta nemokama prieiga",revoke_free_access:"Atšaukta nemokama prieiga",
+    extend_access:"Pratęsta prieiga",cancel_subscription:"Atšaukta prenumerata",set_owner_password:"Pakeistas slaptažodis",
+    manual_override:"Rankinis koregavimas",delete_org:"Pašalintas klientas"})[a] || a;
+}
+
+// ── customers table ──
+var _t;
+function debouncedLoad(){ clearTimeout(_t); _t=setTimeout(loadOrgs, 300); }
+async function loadOrgs(){
+  var search=document.getElementById("search").value.trim();
+  var status=document.getElementById("status").value;
+  document.getElementById("rows").innerHTML='<tr><td colspan="6" class="empty">Kraunama…</td></tr>';
+  try{
+    var d = await api("list_orgs", {search:search, status:status, limit:100});
+    var rows = d.orgs||[];
+    if(!rows.length){ document.getElementById("rows").innerHTML='<tr><td colspan="6" class="empty">Nieko nerasta.</td></tr>'; document.getElementById("more").textContent=""; return; }
+    document.getElementById("rows").innerHTML = rows.map(function(o){
+      return '<tr onclick="openDrawer(\''+esc(o.workspace_code)+'\')">'
+        +'<td>'+esc(o.name||"—")+'</td>'
+        +'<td class="mono">'+esc(o.workspace_code)+'</td>'
+        +'<td class="mono">'+esc(o.owner_email||"—")+'</td>'
+        +'<td>'+planName(o.plan)+'</td>'
+        +'<td>'+pill(o)+'</td>'
+        +'<td>'+fmtDate(o.current_period_end||o.trial_end)+'</td>'
+        +'</tr>';
+    }).join("");
+    document.getElementById("more").textContent = d.total>rows.length ? ("Rodoma "+rows.length+" iš "+d.total) : "";
+  }catch(ex){ document.getElementById("rows").innerHTML='<tr><td colspan="6" class="empty">Klaida: '+esc(ex.message)+'</td></tr>'; }
+}
+
+function refreshAll(){ loadStats(); loadOrgs(); }
+
+// ── customer drawer ──
+var CUR=null;
+async function openDrawer(code){
+  document.getElementById("scrim").classList.add("show");
+  var dr=document.getElementById("drawer"); dr.classList.add("show");
+  dr.innerHTML='<button class="close" onclick="closeDrawer()">✕</button><div class="empty">Kraunama…</div>';
+  try{
+    var d = await api("get_org", {workspace_code:code});
+    CUR = d.org;
+    dr.innerHTML = drawerHtml(d);
+  }catch(ex){ dr.innerHTML='<button class="close" onclick="closeDrawer()">✕</button><div class="empty">Klaida: '+esc(ex.message)+'</div>'; }
+}
+function closeDrawer(){ document.getElementById("scrim").classList.remove("show"); document.getElementById("drawer").classList.remove("show"); }
+
+function drawerHtml(d){
+  var o=d.org;
+  var members = (d.members||[]).map(function(m){ return '<div class="kv"><span class="k">'+esc(m.role)+'</span><span>'+esc(m.email||m.user_id)+'</span></div>'; }).join("") || '<div class="empty" style="padding:10px">—</div>';
+  var act = (d.activity||[]).map(function(a){ return '<div class="log-item">'+fmtDateTime(a.at)+' · <b>'+esc(actionLabel(a.action))+'</b></div>'; }).join("") || '<div class="empty" style="padding:10px">—</div>';
+  return ''
+  +'<button class="close" onclick="closeDrawer()">✕</button>'
+  +'<h2>'+esc(o.name||o.workspace_code)+'</h2>'
+  +'<div style="margin:6px 0 16px">'+pill(o)+' <span class="mono" style="font-size:12px;color:var(--hint)">'+esc(o.workspace_code)+'</span></div>'
+  +'<div class="card">'
+    +'<div class="kv"><span class="k">Vadovas</span><span>'+esc(o.owner_email||"—")+'</span></div>'
+    +'<div class="kv"><span class="k">Planas</span><span>'+planName(o.plan)+' ('+esc(o.billing_interval||"—")+')</span></div>'
+    +'<div class="kv"><span class="k">Programos</span><span>'+esc((o.apps||[]).join(", ")||"—")+'</span></div>'
+    +'<div class="kv"><span class="k">Galioja iki</span><span>'+fmtDate(o.current_period_end||o.trial_end)+'</span></div>'
+    +'<div class="kv"><span class="k">Sukurta</span><span>'+fmtDate(o.created_at)+'</span></div>'
+  +'</div>'
+
+  // grant/revoke free access
+  +'<div class="act"><h4>Nemokama prieiga</h4>'
+    +'<p>'+(o.comp?'Šis klientas turi nemokamą prieigą prie visko.':'Suteikti šiam klientui nemokamą prieigą (be Stripe).')+'</p>'
+    +(o.comp
+      ? '<button class="btn" onclick="act(\'set_comp\',{comp:false},\'Atšaukti nemokamą prieigą?\')">Atšaukti nemokamą prieigą</button>'
+      : '<button class="btn btn-primary" onclick="act(\'set_comp\',{comp:true})">Suteikti nemokamą prieigą</button>')
+  +'</div>'
+
+  // extend
+  +'<div class="act"><h4>Pratęsti prieigą</h4>'
+    +'<p>Pridėti dienų prie galiojimo (pvz. pratęsti bandymą). Nepriklauso nuo Stripe.</p>'
+    +'<div class="row2"><input id="ext-days" type="number" value="14" min="1" max="365" style="width:90px">'
+    +'<button class="btn btn-primary" onclick="act(\'extend_trial\',{days:Number(document.getElementById(\'ext-days\').value)})">Pratęsti</button></div>'
+  +'</div>'
+
+  // cancel
+  +'<div class="act"><h4>Atšaukti prenumeratą</h4>'
+    +'<p>Atšaukti Stripe prenumeratą. Pasibaigus laikotarpiui — prieiga dingsta.</p>'
+    +'<div class="row2">'
+      +'<button class="btn" onclick="act(\'cancel_subscription\',{immediately:false},\'Atšaukti laikotarpio pabaigoje?\')">Laikotarpio pabaigoje</button>'
+      +'<button class="btn btn-danger" onclick="act(\'cancel_subscription\',{immediately:true},\'Atšaukti NEDELSIANT? Prieiga dings iškart.\')">Nedelsiant</button>'
+    +'</div>'
+  +'</div>'
+
+  // owner password
+  +'<div class="act"><h4>Vadovo slaptažodis</h4>'
+    +'<p>Nustatyti naują slaptažodį šio kliento vadovui (jei jis pamiršo).</p>'
+    +'<div class="row2"><input id="newpw" type="text" placeholder="naujas slaptažodis" style="flex:1">'
+    +'<button class="btn btn-primary" onclick="setPw()">Nustatyti</button></div>'
+  +'</div>'
+
+  // stripe
+  +'<div class="act"><h4>Stripe (pinigai, sąskaitos, grąžinimai)</h4>'
+    +'<p>Atidaryti šį klientą Stripe valdymo skydelyje.</p>'
+    +'<button class="btn" onclick="openStripe()">Atidaryti Stripe ↗</button>'
+  +'</div>'
+
+  // members
+  +'<div class="act"><h4>Komanda</h4>'+members+'</div>'
+
+  // advanced override
+  +'<details><summary>Papildomi nustatymai (rankinis koregavimas)</summary>'
+    +'<div class="act"><h4>Pakeisti statusą / programas</h4>'
+      +'<p>Naudokite tik jei reikia ištaisyti neatitikimą.</p>'
+      +'<div class="row2"><select id="ov-status">'
+        +['','active','trialing','past_due','canceled','none'].map(function(s){return '<option value="'+s+'">'+(s||'(nekeisti statuso)')+'</option>';}).join("")
+      +'</select></div>'
+      +'<div class="row2" style="margin-top:8px">'
+        +'<label style="margin:0"><input type="checkbox" id="ov-nesting" style="width:auto"> Nesting</label>'
+        +'<label style="margin:0;margin-left:14px"><input type="checkbox" id="ov-db" style="width:auto"> DB</label>'
+        +'<button class="btn" style="margin-left:auto" onclick="doOverride()">Išsaugoti</button>'
+      +'</div>'
+    +'</div>'
+    +'<div class="act danger-zone"><h4 style="color:var(--red-t)">Pašalinti klientą</h4>'
+      +'<p>Pašalina klientą iš registro (duomenys lieka). Negrįžtama.</p>'
+      +'<button class="btn btn-danger" onclick="doDelete(\''+esc(o.workspace_code)+'\')">Pašalinti…</button>'
+    +'</div>'
+  +'</details>'
+
+  +'<h4 style="margin:18px 0 6px;font-size:13px;color:var(--muted)">Šio kliento veiksmai</h4>'+act;
+}
+
+// ── drawer actions ──
+async function act(action, params, confirmMsg){
+  if(confirmMsg && !confirm(confirmMsg)) return;
+  try{
+    var d = await api(action, Object.assign({workspace_code:CUR.workspace_code}, params));
+    toast("Atlikta ✓");
+    if(d.org) { CUR=d.org; }
+    await openDrawer(CUR.workspace_code);
+    refreshAll();
+  }catch(ex){ alert("Klaida: "+ex.message); }
+}
+async function setPw(){
+  var pw=document.getElementById("newpw").value;
+  if(pw.length<6){ alert("Slaptažodis turi būti bent 6 simbolių."); return; }
+  if(!confirm("Nustatyti naują vadovo slaptažodį?")) return;
+  try{ await api("set_owner_password",{workspace_code:CUR.workspace_code,password:pw}); toast("Slaptažodis pakeistas ✓"); document.getElementById("newpw").value=""; }
+  catch(ex){ alert("Klaida: "+ex.message); }
+}
+async function openStripe(){
+  try{ var d=await api("stripe_link",{workspace_code:CUR.workspace_code}); window.open(d.live,"_blank"); }
+  catch(ex){ alert(ex.message); }
+}
+async function doOverride(){
+  var status=document.getElementById("ov-status").value;
+  var apps=[]; if(document.getElementById("ov-nesting").checked) apps.push("nesting"); if(document.getElementById("ov-db").checked) apps.push("db");
+  var params={workspace_code:CUR.workspace_code};
+  if(status) params.status=status;
+  params.apps=apps; // explicit apps set
+  try{ var d=await api("set_override",params); toast("Išsaugota ✓"); CUR=d.org; openDrawer(CUR.workspace_code); refreshAll(); }
+  catch(ex){ alert("Klaida: "+ex.message); }
+}
+async function doDelete(code){
+  var c=prompt("Norėdami pašalinti, įveskite kodą: "+code);
+  if(!c) return;
+  try{ await api("delete_org",{workspace_code:code,confirm:c}); toast("Pašalinta"); closeDrawer(); refreshAll(); }
+  catch(ex){ alert("Klaida: "+ex.message); }
+}
+
+// ── boot ──
+if(!URL_ || !KEY){
+  document.getElementById("login").innerHTML='<div class="panel"><h2>Konfigūracija nerasta</h2><div class="sub">Trūksta config.js (SUPABASE_URL / anon raktas).</div></div>';
+} else if(SESSION && SESSION.access){
+  enter().catch(function(){ document.getElementById("login").style.display="flex"; });
+}
+document.getElementById("lp").addEventListener("keydown",function(e){ if(e.key==="Enter") doLogin(); });
+</script>
+</body>
+</html>
