@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FabFlow — Demonstracija</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../fabsuite/styles.css">
+<style>
+  .page{max-width:920px;margin:0 auto;padding:36px 22px 80px}
+  .demo-banner{background:#fef9c3;color:#854d0e;text-align:center;font-size:13px;font-weight:600;padding:9px}
+  .step{display:flex;gap:16px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;margin-bottom:14px;box-shadow:var(--sh)}
+  .step .num{flex-shrink:0;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+  .step .body{flex:1}
+  .step h3{font-size:17px;margin-bottom:4px}
+  .step p{color:var(--muted);font-size:14px;margin-bottom:12px}
+  .step .who{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+  .who.cust{color:var(--blue-t)} .who.you{color:var(--purple-t)}
+  .glossary{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:22px;margin-top:30px}
+  .glossary h2{font-size:18px;margin-bottom:14px}
+  .gloss-item{padding:10px 0;border-bottom:1px dashed var(--border)}
+  .gloss-item b{font-size:14px}
+  .gloss-item span{display:block;color:var(--muted);font-size:13.5px;margin-top:3px}
+  .flow{font-size:13px;color:var(--muted);text-align:center;margin:6px 0 26px;line-height:2}
+  .flow b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="demo-banner">🧪 DEMONSTRACIJA · netikri duomenys · nieko realaus nevyksta (jokių mokėjimų, jokios registracijos)</div>
+
+<div class="page">
+  <div style="text-align:center;margin-bottom:8px">
+    <div class="brand" style="justify-content:center;font-size:24px"><span class="logo">F</span> FabFlow</div>
+    <h1 style="font-size:30px;margin:14px 0 8px">Išbandykite viską be jokio nustatymo</h1>
+    <p style="color:var(--muted);max-width:600px;margin:0 auto 6px">Spauskite mygtukus iš eilės — pamatysite tą patį kelią, kurį pereis Jūsų klientas, ir Jūsų valdymo pultą. Viskas veikia su netikrais duomenimis.</p>
+  </div>
+
+  <div class="flow">
+    <b>Klientas:</b> Parduotuvė → Registracija → Apmokėjimas → Programa &nbsp;•&nbsp; <b>Jūs:</b> Operatoriaus pultas
+  </div>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div class="body">
+      <div class="who cust">Klientas mato</div>
+      <h3>Parduotuvė ir kainos</h3>
+      <p>Pradžios puslapis, kuriame klientas mato programas ir pasirenka planą — vieną programą arba visą rinkinį (suite).</p>
+      <a class="btn btn-primary" href="../fabsuite/index.html?demo=1" target="_blank">Atidaryti parduotuvę →</a>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div class="body">
+      <div class="who cust">Klientas daro</div>
+      <h3>Registracija ir „apmokėjimas“</h3>
+      <p>Klientas įveda įmonę, el. paštą ir slaptažodį. Demonstracijoje apmokėjimas praleidžiamas — iškart pamatysite sėkmės ekraną su darbo vietos kodu.</p>
+      <a class="btn btn-primary" href="../fabsuite/signup.html?plan=suite&interval=month&demo=1" target="_blank">Išbandyti registraciją →</a>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div class="body">
+      <div class="who cust">Klientas gauna</div>
+      <h3>Sėkmės ekranas</h3>
+      <p>Sukurta darbo vieta + kodas, kurį klientas duoda savo komandai. Iš čia atidaromos programos.</p>
+      <a class="btn" href="../fabsuite/success.html?ws=DEMO42&demo=1" target="_blank">Pamatyti sėkmės ekraną →</a>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">4</div>
+    <div class="body">
+      <div class="who cust">Apsauga</div>
+      <h3>Programos užraktas (be prenumeratos)</h3>
+      <p>Jei klientas neturi galiojančios prenumeratos, programa parodo užraktą su mygtuku „Pasirinkti planą“. Su prenumerata — programa atsidaro normaliai.</p>
+      <a class="btn btn-primary" href="paywall.html" target="_blank">Pamatyti užraktą →</a>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">5</div>
+    <div class="body">
+      <div class="who you">Jūs valdote</div>
+      <h3>Operatoriaus pultas</h3>
+      <p>Jūsų valdymo svetainė: visi klientai, prenumeratos, nemokama prieiga, bandymų pratęsimas, atšaukimai — viskas vienoje vietoje.</p>
+      <a class="btn btn-primary" href="../admin/preview.html" target="_blank">Atidaryti operatoriaus pultą →</a>
+    </div>
+  </div>
+
+  <div class="glossary">
+    <h2>Tie „bauginantys“ žodžiai — paprastai</h2>
+    <div class="gloss-item"><b>Config (konfigūracija)</b><span>Vienas mažas nustatymų failas. Jis nurodo programai: prie kurios duomenų bazės jungtis, koks pavadinimas, ir ar įjungti apmokėjimą. Tas pats programos kodas, du nustatymų failai = Jūsų versija ir parduodama versija.</span></div>
+    <div class="gloss-item"><b>Packaging (pakavimas)</b><span>Kaip parduodate: galima pirkti vieną programą atskirai, arba visą rinkinį (suite) su nuolaida. Tai jau paruošta.</span></div>
+    <div class="gloss-item"><b>Go-live (paleidimas)</b><span>Veiksmų sąrašas, kurį atliekate vieną kartą, kad iš demonstracijos pereitumėte į realų pardavimą: susikuriate Stripe paskyrą (mokėjimams), duomenų bazę (Supabase) ir įkeliate failus. Aš galiu paruošti šį sąrašą paprasta kalba.</span></div>
+    <div class="gloss-item"><b>Workspace (darbo vieta)</b><span>Vienas klientas = viena „darbo vieta“ su kodu. To kliento darbuotojai prisijungia su tuo kodu. Jų duomenys atskirti nuo kitų klientų.</span></div>
+  </div>
+
+  <p style="text-align:center;color:var(--hint);font-size:13px;margin-top:26px">Tai tik demonstracija. Realus pardavimas pradedamas atlikus paleidimo (go-live) žingsnius.</p>
+</div>
+</body>
+</html>

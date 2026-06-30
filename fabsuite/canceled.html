@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atšaukta — Fabsuite</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fab.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="wrap"><a class="brand" href="index.html"><span class="logo">F</span> Fabsuite</a></div></nav>
+<div class="shell">
+  <div class="panel center">
+    <div style="font-size:46px;margin-bottom:10px">🛒</div>
+    <h2>Apmokėjimas neužbaigtas</h2>
+    <div class="sub">Niekas nenuskaityta. Galite pabandyti dar kartą bet kada.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <a class="btn btn-primary btn-lg" href="index.html#pricing">Grįžti prie planų →</a>
+      <a class="btn" href="account.html">Mano paskyra</a>
+    </div>
+    <div class="muted-link" style="margin-top:20px">Reikia pagalbos? <a id="sup" href="#">Susisiekite</a></div>
+  </div>
+</div>
+<script>document.getElementById("sup").href="mailto:"+FABSUITE.SUPPORT_EMAIL;</script>
+</body>
+</html>
