@@ -2127,7 +2127,7 @@ let _offline=false; // local-only mode: no Supabase calls at all
 let LANG=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_lang'))||'lt';
 const I18N_EN={
   "Lentelė":"Table","Prioritetas":"Priority","Reikia padaryti":"To do","Etapas":"Stage","Prior.":"Prio.","Etapas (spustelėkite keisti)":"Stage (click to change)","Prioritetas (spustelėkite keisti)":"Priority (click to change)","Išvalyti atliktas":"Clear completed",
-  "Stalviršis":"Countertop","Stalviršiai":"Countertops","Briauna":"Edge band","Briaunos":"Edge bands","Ilgis (mm)":"Length (mm)","Plotis (mm)":"Width (mm)","Kiekis (vnt)":"Quantity (pcs)","Kiekis (m)":"Quantity (m)","Kaina €/m":"Price €/m","Sandėlio vienetas: metrai (m)":"Stock unit: meters (m)","Vienetas":"Unit",
+  "Projektuotojas (Projektavimas)":"Designer (Design)","Stalviršis":"Countertop","Stalviršiai":"Countertops","Briauna":"Edge band","Briaunos":"Edge bands","Ilgis (mm)":"Length (mm)","Plotis (mm)":"Width (mm)","Kiekis (vnt)":"Quantity (pcs)","Kiekis (m)":"Quantity (m)","Kaina €/m":"Price €/m","Sandėlio vienetas: metrai (m)":"Stock unit: meters (m)","Vienetas":"Unit",
   "Sąskaitos":"Invoices","Įkelti sąskaitą":"Upload invoice","Sąskaitos nr.":"Invoice no.","Sandėlio SKU":"Warehouse SKU","Kita sąskaita":"Another invoice","atitiktis":"matched","naujas":"new","Kaina":"Price","Patvirtinti ir priimti":"Confirm & receive","Įkelkite sąskaitą — eilutės bus nuskaitytos automatiškai patvirtinimui.":"Upload an invoice — lines are read automatically for confirmation.",
   "Gamybos valdymo sistema":"Production management system",
   "Jūsų vardas":"Your name",
@@ -11881,6 +11881,7 @@ function openEditMemberModal(uid2){
   const circles=USER_COLORS.map((c,i)=>'<div onclick="selMemColor('+i+')" id="mc'+i+'" style="width:26px;height:26px;border-radius:50%;background:'+c+';cursor:pointer;border:3px solid '+(i===_memColorIdx?c:'transparent')+';box-shadow:0 1px 3px rgba(0,0,0,.15);transition:all .13s;flex-shrink:0"></div>').join('');
   const workerSel=u.role==='worker'?'selected':'';
   const mgrSel=u.role==='manager'?'selected':'';
+  const engSel=u.role==='engineer'?'selected':'';
   openModal('<div class="modal-title">'+(isMe?'Mano profilis':'Redaguoti narį')+' <button class="modal-close" onclick="closeModal()">✕</button></div>'
     +'<div class="form-field"><label class="form-label">Vardas Pavardė *</label><input id="mem-name" value="'+escHtml(u.name)+'" autofocus placeholder="Vardas Pavardė"></div>'
     +'<div style="font-size:11px;color:var(--muted);background:var(--surface2);padding:7px 10px;border-radius:7px;margin-bottom:12px">✉ '+escHtml(u.email||'—')+'</div>'
@@ -11892,7 +11893,7 @@ function openEditMemberModal(uid2){
       +'<div style="font-size:10px;color:var(--muted);margin-top:5px">Prisijungimas su vardu + PIN „Nesting" programoje (ir darbuotojams – gamybos programoje). Vadovas gamybos programoje toliau jungiasi el. paštu + slaptažodžiu.</div>'
       +'</div>':'')
     +(canEditRole?'<div class="form-field"><label class="form-label">Rolė</label>'
-      +'<select id="mem-role"><option value="worker" '+workerSel+'>Darbuotojas</option><option value="manager" '+mgrSel+'>Vadovas</option></select></div>':'')
+      +'<select id="mem-role"><option value="worker" '+workerSel+'>Darbuotojas</option><option value="engineer" '+engSel+'>Projektuotojas (Projektavimas)</option><option value="manager" '+mgrSel+'>Vadovas</option></select></div>':'')
     +'<div class="form-field"><label class="form-label">Spalva</label>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap;padding:4px 0">'+circles+'</div></div>'
     +'<div class="form-actions">'
@@ -12020,7 +12021,7 @@ function openAddMemberModal(){
     +'<div class="form-field"><label class="form-label">Vardas Pavardė *</label><input id="mem-name" autofocus placeholder="Vardas Pavardė"></div>'
     +'<div class="form-field"><label class="form-label">El. paštas (neprivalomas)</label><input type="email" id="mem-email" placeholder="vardas@imonė.lt"></div>'
     +'<div class="form-field"><label class="form-label">Rolė</label>'
-    +'<select id="mem-role"><option value="worker">Darbuotojas</option><option value="manager">Vadovas</option></select></div>'
+    +'<select id="mem-role"><option value="worker">Darbuotojas</option><option value="engineer">Projektuotojas (Projektavimas)</option><option value="manager">Vadovas</option></select></div>'
     +'<div class="form-field"><label class="form-label">Spalva</label>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap;padding:4px 0">'+circles+'</div></div>'
     +'<div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button>'
@@ -14658,12 +14659,17 @@ function _invParseLinePos(txt){
   const um=txt.match(/\b(m²|m2|vnt|kompl|kg|pak|rul|st|pk|m)\b\.?(?![a-zA-Z²])/i);
   if(!um) return null;
   let unit=um[1].toLowerCase(); if(unit==='m2') unit='m²';
-  const nums=[]; let mm; const re=/\d[\d.,]*/g; while((mm=re.exec(txt))) nums.push({v:_invNum(mm[0]), i:mm.index});
+  const nums=[]; let mm; const re=/\d[\d.,]*/g; while((mm=re.exec(txt))) nums.push({v:_invNum(mm[0]), i:mm.index, s:mm[0]});
   if(!nums.length) return null;
   const ui=um.index;
   const after=nums.filter(n=>n.i>ui).sort((a,b)=>a.i-b.i);
   const before=nums.filter(n=>n.i<ui).sort((a,b)=>b.i-a.i);
-  let qty = after.length?after[0].v : (before.length?before[0].v:1);
+  const qtyLike=(s,v)=>{ if(Number.isInteger(v)) return true; const d=(String(s).match(/[.,](\d+)/)||[])[1]; return !d || d.length<=2; }; // qty is an integer or ≤2 decimals; a 3+ decimal fraction is a unit price
+  const a=after[0], b=before[0];
+  let qty;
+  if(a && qtyLike(a.s,a.v)) qty=a.v;        // prefer a quantity-looking number right after the unit (Impeka/ULMAS)
+  else if(b && qtyLike(b.s,b.v)) qty=b.v;   // else one before the unit ("200,00 m" → Hranipex)
+  else qty=(a||b||{v:1}).v;
   const total = nums[nums.length-1].v;
   let price = (qty>0&&total)?Math.round(total/qty*10000)/10000:0;
   let desc=txt.slice(0,ui).trim().replace(/^\d{1,3}[\s.)]+/,'').replace(/[\d.,]+\s*$/,'').trim();
@@ -14702,19 +14708,16 @@ function _invBuildInvoice(rows, fileName){
   const hi2=seg.findIndex(r=>/kiek/i.test(r.text) && /(kain|suma|viso)/i.test(r.text));
   let cols=null; if(hi2>=0) cols=_invColMap(seg[hi2].cells);
   const haveCols = !!(cols && cols.qty!=null && (cols.sum!=null||cols.price!=null) && seg[hi2].cells.length>=3);
-  const from=hi2>=0?hi2+1:0;
-  let stop=seg.length; for(let k=from;k<seg.length;k++){ if(_INV_STOP.test(seg[k].text)){ stop=k; break; } }
   const lines=[];
-  for(let k=from;k<stop;k++){
-    const r=seg[k], txt=r.text;
-    if(txt.length<3 || _INV_NOISE.test(txt)) continue;
-    if(haveCols){
+  if(haveCols){ // clean table with a detected header (usually digital PDFs)
+    const from=hi2+1;
+    let stop=seg.length; for(let k=from;k<seg.length;k++){ if(_INV_STOP.test(seg[k].text)){ stop=k; break; } }
+    for(let k=from;k<stop;k++){
+      const r=seg[k], txt=r.text;
+      if(txt.length<3 || _INV_NOISE.test(txt)) continue;
       const cc=_invCellsByCol(r.cells, cols); if(!cc) continue;
       const qty=_invNum(cc.qty);
-      if(!(qty>0)){ // maybe a code/EAN sub-line for the previous item
-        const cd=(cc.code||cc.name||'').match(/[A-Z0-9][A-Z0-9.\-\/]{4,}/i); if(cd && lines.length && !lines[lines.length-1].code) lines[lines.length-1].code=cd[0];
-        continue;
-      }
+      if(!(qty>0)){ const cd=(cc.code||cc.name||'').match(/[A-Z0-9][A-Z0-9.\-\/]{4,}/i); if(cd && lines.length && !lines[lines.length-1].code) lines[lines.length-1].code=cd[0]; continue; }
       const sum=_invNum(cc.sum);
       let price=cc.price?_invNum(cc.price):0; if(qty>0 && sum>0) price=Math.round(sum/qty*10000)/10000;
       let unit=(cc.unit||'').toLowerCase().replace(/[^a-z²]/g,''); if(unit==='m2')unit='m²'; if(!unit) unit='vnt';
@@ -14723,9 +14726,12 @@ function _invBuildInvoice(rows, fileName){
       if(!code){ const cm=name.match(/^([0-9]{4,}|[A-Z0-9][A-Z0-9.\-\/]{3,})\s+(.+)/); if(cm){ code=cm[1]; name=cm[2]; } }
       if(!name && !code) continue;
       lines.push({code:code.slice(0,30), name:(name||code).slice(0,90), qty, unit, price, total:sum});
-    } else {
-      const l=_invParseLinePos(txt); if(l) lines.push(l);
     }
+  }
+  // Robust fallback (scans/OCR or no clean header): scan EVERY row positionally —
+  // each line self-filters header/footer noise — so items still surface.
+  if(!lines.length){
+    for(const r of seg){ const l=_invParseLinePos(r.text); if(l) lines.push(l); }
   }
   lines.forEach(l=>{ const mt=_invMatchLine(l); l.include=true; l.matchSku=mt?mt.item.sku:''; });
   return {fileName, supplier, invoiceNo, date, lines, multi};
