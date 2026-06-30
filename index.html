@@ -1028,6 +1028,23 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
 .pl-stsel{font-size:12px;padding:4px 6px;font-weight:600;border-radius:6px}
 .pl-st-todo{color:var(--muted)} .pl-st-doing{color:var(--blue-t)} .pl-st-done{color:var(--green-t)}
 .pl-tactions{white-space:nowrap}
+/* invoice reader (Sąskaitos) */
+.inv-up-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.inv-hint{font-size:11px;color:var(--muted);line-height:1.5;margin:6px 0}
+.inv-head{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin:14px 0}
+.inv-tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+.inv-table{width:100%;border-collapse:collapse;font-size:12px;min-width:660px}
+.inv-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--border2);background:var(--surface2)}
+.inv-table td{padding:4px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+.inv-table tr.inv-off{opacity:.4}
+.inv-in{width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface)}
+.inv-qty,.inv-price{width:72px}
+.inv-unit{width:56px}
+.inv-code{width:96px}
+.inv-tag{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;white-space:nowrap}
+.inv-ok{color:var(--green-t);background:var(--green-bg)}
+.inv-new{color:var(--amber-t);background:var(--amber-bg)}
+.inv-actions{display:flex;gap:8px;align-items:center;margin:12px 0}
 /* ── Dienos ataskaita — daily report ── */
 .dr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .dr-nav{display:flex;align-items:center;gap:6px}
@@ -1607,6 +1624,14 @@ async function sbHeartbeat(keys){
   }catch(e){return null;}
 }
 
+// Merge two arrays of {id,...}: cloud wins for shared ids, but local-only items
+// are kept (so a manual add whose cloud save lagged/failed is never clobbered).
+function _mergeById(localArr, cloudArr){
+  const arr=Array.isArray(cloudArr)?cloudArr.slice():[];
+  const ids=new Set(arr.map(x=>x&&x.id));
+  (localArr||[]).forEach(x=>{ if(x&&x.id&&!ids.has(x.id)) arr.push(x); });
+  return arr;
+}
 async function loadFromCloud(force){
   if(!WORKSPACE_CODE)return false;
   // Don't load if we saved recently — our local data is newer
@@ -1683,7 +1708,7 @@ async function loadFromCloud(force){
     if(users!==undefined && users){ const u=JSON.parse(users); if(u.length){USERS=u; applied=true;} }
     if(settings!==undefined && settings){
       const sp=JSON.parse(settings);
-      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=sp.warehouse||[];DB.warehouseLog=sp.warehouseLog||[];DB.pickStatus=sp.pickStatus||{};DB.kits=sp.kits||[];DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];DB.matLog=sp.matLog||[];DB.todos=sp.todos||[];if(Array.isArray(sp.steps)&&sp.steps.length){STEPS=sp.steps;DB.steps=sp.steps;}rebuildStepsIndex();
+      DB.stepDefaults=sp.stepDefaults||{};DB.stepDays=sp.stepDays||{};DB.orders=sp.orders||[];DB.matStatus=sp.matStatus||{};DB.navVisibility=sp.navVisibility||{};DB.warehouse=_mergeById(DB.warehouse,sp.warehouse||[]);DB.warehouseLog=_mergeById(DB.warehouseLog,sp.warehouseLog||[]);DB.pickStatus=sp.pickStatus||{};DB.kits=_mergeById(DB.kits,sp.kits||[]);DB.cycleCounts=sp.cycleCounts||[];DB.fittingAliases=sp.fittingAliases||[];DB.fittingPairingRules=sp.fittingPairingRules||[];DB.matLog=sp.matLog||[];DB.todos=sp.todos||[];if(Array.isArray(sp.steps)&&sp.steps.length){STEPS=sp.steps;DB.steps=sp.steps;}rebuildStepsIndex();
       applied=true;
     }
     if(folders!==undefined){
@@ -2056,6 +2081,7 @@ async function enterApp(){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('main-app').style.display='flex';
   // Load data: from cloud normally, or from localStorage in offline mode
+  if(!_offline){ try{ load(); }catch(e){} }  // seed from localStorage first so unsynced local changes survive the cloud merge
   const loaded = _offline ? load() : await loadFromCloud(true);
   if(!loaded&&currentUserRole==='manager'&&!_offline)seed();
   // Find current user
@@ -2101,6 +2127,8 @@ let _offline=false; // local-only mode: no Supabase calls at all
 let LANG=(typeof localStorage!=='undefined'&&localStorage.getItem('fab_lang'))||'lt';
 const I18N_EN={
   "Lentelė":"Table","Prioritetas":"Priority","Reikia padaryti":"To do","Etapas":"Stage","Prior.":"Prio.","Etapas (spustelėkite keisti)":"Stage (click to change)","Prioritetas (spustelėkite keisti)":"Priority (click to change)","Išvalyti atliktas":"Clear completed",
+  "Stalviršis":"Countertop","Stalviršiai":"Countertops","Briauna":"Edge band","Briaunos":"Edge bands","Ilgis (mm)":"Length (mm)","Plotis (mm)":"Width (mm)","Kiekis (vnt)":"Quantity (pcs)","Kiekis (m)":"Quantity (m)","Kaina €/m":"Price €/m","Sandėlio vienetas: metrai (m)":"Stock unit: meters (m)","Vienetas":"Unit",
+  "Sąskaitos":"Invoices","Įkelti sąskaitą":"Upload invoice","Sąskaitos nr.":"Invoice no.","Sandėlio SKU":"Warehouse SKU","Kita sąskaita":"Another invoice","atitiktis":"matched","naujas":"new","Kaina":"Price","Patvirtinti ir priimti":"Confirm & receive","Įkelkite sąskaitą — eilutės bus nuskaitytos automatiškai patvirtinimui.":"Upload an invoice — lines are read automatically for confirmation.",
   "Gamybos valdymo sistema":"Production management system",
   "Jūsų vardas":"Your name",
   "Darbo vietos kodas":"Workspace code",
@@ -13841,7 +13869,7 @@ function whCreateItem(data){
     kind,
     material: data.material || (kind==='fitting' ? (data.name || data.mpn || '?') : '?'),
     supplier: data.supplier || (data.brand || '—'),
-    unit: data.unit || (kind==='fitting' ? 'vnt' : 'm²'),
+    unit: data.unit || (kind==='fitting' ? 'vnt' : kind==='briauna' ? 'm' : kind==='stalvirsis' ? 'vnt' : 'm²'),
     qty: 0,
     reservedQty: 0,
     minQty: parseFloat(data.minQty)||0,
@@ -13865,6 +13893,15 @@ function whCreateItem(data){
     item.category  = data.category || categorizeFromName(data.material);
     if(data.sheetW) item.sheetW = parseInt(data.sheetW)||0;
     if(data.sheetH) item.sheetH = parseInt(data.sheetH)||0;
+  } else if(kind === 'stalvirsis'){ // countertop — thickness, length, width
+    item.thickness = parseFloat(data.thickness)||0;
+    item.length    = parseFloat(data.length)||0;
+    item.width     = parseFloat(data.width)||0;
+    item.category  = data.category || 'Stalviršis';
+  } else if(kind === 'briauna'){ // edge banding — thickness, width; stocked in meters
+    item.thickness = parseFloat(data.thickness)||0;
+    item.width     = parseFloat(data.width)||0;
+    item.category  = data.category || 'Briauna';
   } else { // fitting
     item.mpn          = String(data.mpn||'').toUpperCase();
     item.distCode     = String(data.distCode||'').toUpperCase(); // your distributor's code (Blulita)
@@ -14544,6 +14581,324 @@ function renderWarehouseDebounced(){
   _whRenderDebounce = setTimeout(()=>{ _whRenderDebounce=null; renderWarehouse(); }, 120);
 }
 
+// ════════════════════════════════════════════════
+// SĄSKAITOS — upload a scanned/PDF/Excel supplier invoice, auto-read the lines
+// on-device (pdf.js text layer · Excel · lazy Tesseract OCR for image scans),
+// then confirm/edit them in a table and receive into the warehouse. No paid API.
+// ════════════════════════════════════════════════
+let _invData=null, _tesseractLoading=null;
+
+// Parse a Lithuanian-style number ("1 234,56" / "1.234,56" / "12.5") to a float.
+function _invNum(s){
+  if(s==null) return 0;
+  s=String(s).replace(/[\s ]/g,'');
+  if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s=s.replace(/\./g,'').replace(',','.');
+  else if(s.indexOf(',')>-1) s=s.replace(',','.');
+  const n=parseFloat(s.replace(/[^0-9.\-]/g,''));
+  return isNaN(n)?0:n;
+}
+
+// Match an extracted line to an existing warehouse SKU (by code, then fuzzy/alias).
+function _invMatchLine(line){
+  if(line.code){ const m=whFindBySku(line.code)||whFindByMpn(line.code)||whFindByDistCode(line.code); if(m) return {item:m, source:'code'}; }
+  const r=whResolveHardwareLine([line.name,line.code].filter(Boolean).join(' '));
+  if(r&&r.item) return {item:r.item, source:r.source};
+  return null;
+}
+
+// ── Invoice parsing (column-aware) ─────────────────────────────────────────
+// Rows are [{cells:[{x,str}]}] top-to-bottom (from pdf.js text OR Tesseract word
+// boxes). We detect the table's column header, map each cell to its column by x,
+// and read qty/unit/price/sum from the right column — so numbers buried in a
+// product name are never mistaken for the quantity.
+const _INV_STOP=/(i[šs]\s*viso|kiekis\s*viso|suma\s*žod|suma\s*mok|mok[ėe]jimo\s*suma|tarpin[ėe]|bendra\s*suma|^\s*viso\b|^\s*suma\b|^\s*pvm\b|nuolaid)/i;
+const _INV_NOISE=/(svoris|[įi]mon[ėe]s\s*kod|pvm\s*(mok|kod)|\ba\.?\s?s\.?\s|iban|bankas|swift|krovini|pristat|vairuot|transp|važtaraš|adres|telef|faks|registr|s[ąa]skait[ąa]\s*(i[šs]ra|gav)|pirk[ėe]jas|pardav[ėe]jas|tiek[ėe]jas|mok[ėe]tojas|klientas|gav[ėe]jas|už[s]?akym|apmok[ėe]ti|dok\.?\s*data|mašin|sutart|el\.?\s*pa[šs]t|www\.|festool|kredit|garant|sąlyg|^ean\b|^prek[ėe]s?\s*kodas\s*:)/i;
+function _invRowText(r){ return r.cells.map(c=>c.str).join(' ').replace(/\s+/g,' ').trim(); }
+
+// Cluster positioned items {str,x,y} into rows. topDown=true when y grows downward (OCR); pdf.js y grows upward.
+function _invToRows(items, topDown){
+  const its=(items||[]).filter(i=>i.str&&String(i.str).trim());
+  its.sort((a,b)=> (topDown? a.y-b.y : b.y-a.y) || a.x-b.x);
+  const rows=[]; const TOL=topDown?8:3;
+  its.forEach(it=>{ let r=rows.find(r=>Math.abs(r.y-it.y)<=TOL); if(!r){ r={y:it.y,cells:[]}; rows.push(r); } r.cells.push({x:Math.round(it.x),str:String(it.str).trim()}); });
+  rows.sort((a,b)=> topDown? a.y-b.y : b.y-a.y);
+  rows.forEach(r=>r.cells.sort((a,b)=>a.x-b.x));
+  return rows;
+}
+
+// From a header row's cells, find the x-anchor of each known column.
+function _invColMap(cells){
+  let code=null,bar=null,name=null,unit=null,qty=null,price=null,sum=null;
+  cells.forEach(c=>{ const s=c.str.toLowerCase();
+    if(bar==null && /(br[uū]k[šs]n|barkod|ean)/.test(s)) bar=c.x;
+    else if(code==null && /kod/.test(s)) code=c.x;
+    if(name==null && /pavadin/.test(s)) name=c.x;
+    else if(name==null && /prek/.test(s) && !/kod/.test(s)) name=c.x;
+    if(unit==null && /(mato|matas|vien)/.test(s)) unit=c.x;
+    else if(unit==null && /^vnt\.?$/.test(s)) unit=c.x;
+    if(qty==null && /kiek/.test(s)) qty=c.x;
+    if(price==null && /kain/.test(s)) price=c.x;
+    if(sum==null && /(suma|viso|vert)/.test(s)) sum=c.x;
+  });
+  return {code,bar,name,unit,qty,price,sum};
+}
+// Assign each data cell to a column by left-edge ranges (anchor[i] <= x < anchor[i+1]).
+function _invCellsByCol(cells, cols){
+  const defs=Object.keys(cols).filter(k=>cols[k]!=null).map(k=>({k,x:cols[k]})).sort((a,b)=>a.x-b.x);
+  if(!defs.length) return null;
+  const out={}; defs.forEach(d=>out[d.k]=[]);
+  cells.forEach(c=>{ let col=defs[0]; for(const d of defs){ if(c.x>=d.x-2) col=d; else break; } out[col.k].push(c.str); });
+  const r={}; for(const k in out) r[k]=out[k].join(' ').trim(); return r;
+}
+
+// Positional fallback for plain text (no coordinates).
+function _invParseLinePos(txt){
+  txt=String(txt||'').replace(/\s+/g,' ').trim();
+  if(txt.length<4 || _INV_STOP.test(txt) || _INV_NOISE.test(txt)) return null;
+  const um=txt.match(/\b(m²|m2|vnt|kompl|kg|pak|rul|st|pk|m)\b\.?(?![a-zA-Z²])/i);
+  if(!um) return null;
+  let unit=um[1].toLowerCase(); if(unit==='m2') unit='m²';
+  const nums=[]; let mm; const re=/\d[\d.,]*/g; while((mm=re.exec(txt))) nums.push({v:_invNum(mm[0]), i:mm.index});
+  if(!nums.length) return null;
+  const ui=um.index;
+  const after=nums.filter(n=>n.i>ui).sort((a,b)=>a.i-b.i);
+  const before=nums.filter(n=>n.i<ui).sort((a,b)=>b.i-a.i);
+  let qty = after.length?after[0].v : (before.length?before[0].v:1);
+  const total = nums[nums.length-1].v;
+  let price = (qty>0&&total)?Math.round(total/qty*10000)/10000:0;
+  let desc=txt.slice(0,ui).trim().replace(/^\d{1,3}[\s.)]+/,'').replace(/[\d.,]+\s*$/,'').trim();
+  let code=''; const cm=desc.match(/^([0-9]{4,}|[A-Z0-9][A-Z0-9.\-\/]{3,})\s+(.+)/); if(cm){ code=cm[1]; desc=cm[2]; }
+  if(!desc) desc=code||txt.slice(0,40);
+  return {code, name:desc.slice(0,90), qty, unit, price, total};
+}
+
+// Build a single invoice {supplier,invoiceNo,date,lines,multi} from positioned rows.
+function _invBuildInvoice(rows, fileName){
+  const RT=rows.map(r=>({cells:r.cells, text:_invRowText(r)})).filter(r=>r.text);
+  // Split bundles: keep only the FIRST invoice when several short "SĄSKAITA FAKTŪRA" titles appear.
+  const heads=RT.map((r,i)=> (r.text.length<45 && /s[ąa]skait\w*\W{0,4}fakt[ūu]r/i.test(r.text)) ? i : -1).filter(i=>i>=0);
+  let multi=false, lo=0, hi=RT.length;
+  if(heads.length>1){ multi=true; lo=heads[0]; hi=heads[1]; }
+  const seg=RT.slice(lo,hi);
+  const joined=seg.map(r=>r.text).join('\n');
+  let invoiceNo='';
+  for(const r of seg){
+    let m=r.text.match(/serija\s*([A-Za-zĄ-Žą-ž]{1,6})\s*(?:nr\.?|no\.?)\s*[:\s]*([0-9]{3,})/i);
+    if(m){ invoiceNo=(m[1]+' '+m[2]).trim(); break; }
+    m=r.text.match(/(?:fakt[ūu]ra|invoice)\s*[:#]?\s*([A-Z]{0,4}\s?\d{4,})/i);
+    if(m){ invoiceNo=m[1].replace(/\s+/g,' ').trim(); break; }
+  }
+  if(!invoiceNo){ for(const r of seg){ const m=r.text.match(/\b(?:nr\.?|no\.?)\s*[:]?\s*([A-Z]{0,4}\d{4,})/i); if(m){ invoiceNo=m[1].trim(); break; } } }
+  let date='';
+  for(const r of seg){ if(/data|i[šs]ra[šs]|sura[šs]/i.test(r.text)){ const m=r.text.match(/\d{4}[.\-]\d{2}[.\-]\d{2}|\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}/); if(m){ date=_poFmtDate(m[0].replace(/\./g,'-')); if(date) break; } } }
+  if(!date){ const m=joined.match(/\d{4}[.\-]\d{2}[.\-]\d{2}/); if(m) date=_poFmtDate(m[0].replace(/\./g,'-')); }
+  let supplier='';
+  let si=seg.findIndex(r=>/pardav[ėe]jas/i.test(r.text));
+  if(si<0) si=seg.findIndex(r=>/tiek[ėe]jas/i.test(r.text));
+  if(si>=0){ for(let k=si;k<Math.min(si+3,seg.length);k++){ const cm=seg[k].text.match(/((?:UAB|MB|AB|I[ĮJ]|V[šs][ĮI])\s+[„"”]?[^,;0-9]{2,40})/); if(cm){ supplier=cm[1].trim(); break; } } }
+  if(!supplier){ const m=joined.match(/((?:UAB|MB|AB|I[ĮJ]|V[šs][ĮI])\s+[„"”]?[^\n,;0-9]{2,40})/); if(m) supplier=m[1].trim(); }
+  supplier=supplier.replace(/[„"”]/g,'').replace(/\s{2,}/g,' ').trim().slice(0,60);
+  // Column header row + totals stop row.
+  const hi2=seg.findIndex(r=>/kiek/i.test(r.text) && /(kain|suma|viso)/i.test(r.text));
+  let cols=null; if(hi2>=0) cols=_invColMap(seg[hi2].cells);
+  const haveCols = !!(cols && cols.qty!=null && (cols.sum!=null||cols.price!=null) && seg[hi2].cells.length>=3);
+  const from=hi2>=0?hi2+1:0;
+  let stop=seg.length; for(let k=from;k<seg.length;k++){ if(_INV_STOP.test(seg[k].text)){ stop=k; break; } }
+  const lines=[];
+  for(let k=from;k<stop;k++){
+    const r=seg[k], txt=r.text;
+    if(txt.length<3 || _INV_NOISE.test(txt)) continue;
+    if(haveCols){
+      const cc=_invCellsByCol(r.cells, cols); if(!cc) continue;
+      const qty=_invNum(cc.qty);
+      if(!(qty>0)){ // maybe a code/EAN sub-line for the previous item
+        const cd=(cc.code||cc.name||'').match(/[A-Z0-9][A-Z0-9.\-\/]{4,}/i); if(cd && lines.length && !lines[lines.length-1].code) lines[lines.length-1].code=cd[0];
+        continue;
+      }
+      const sum=_invNum(cc.sum);
+      let price=cc.price?_invNum(cc.price):0; if(qty>0 && sum>0) price=Math.round(sum/qty*10000)/10000;
+      let unit=(cc.unit||'').toLowerCase().replace(/[^a-z²]/g,''); if(unit==='m2')unit='m²'; if(!unit) unit='vnt';
+      let name=(cc.name||'').trim(), code=(cc.code||'').trim();
+      code=code.replace(/^\d{1,3}\s+/,'').trim();   // drop leading line number (Eil./Nr.)
+      if(!code){ const cm=name.match(/^([0-9]{4,}|[A-Z0-9][A-Z0-9.\-\/]{3,})\s+(.+)/); if(cm){ code=cm[1]; name=cm[2]; } }
+      if(!name && !code) continue;
+      lines.push({code:code.slice(0,30), name:(name||code).slice(0,90), qty, unit, price, total:sum});
+    } else {
+      const l=_invParseLinePos(txt); if(l) lines.push(l);
+    }
+  }
+  lines.forEach(l=>{ const mt=_invMatchLine(l); l.include=true; l.matchSku=mt?mt.item.sku:''; });
+  return {fileName, supplier, invoiceNo, date, lines, multi};
+}
+
+// Back-compat: build an invoice from plain text lines (no coordinates) → positional fallback.
+function _invExtract(textLines, fileName){
+  const rows=(textLines||[]).map(t=>({y:0, cells:[{x:0, str:String(t||'')}]}));
+  return _invBuildInvoice(rows, fileName);
+}
+
+function _invLoadTesseract(){
+  if(window.Tesseract) return Promise.resolve(window.Tesseract);
+  if(_tesseractLoading) return _tesseractLoading;
+  _tesseractLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+    s.onload=()=>res(window.Tesseract); s.onerror=()=>rej(new Error('OCR biblioteka neįsikėlė (reikia interneto)'));
+    document.head.appendChild(s);
+  });
+  return _tesseractLoading;
+}
+async function _ocrImageItems(img){
+  const T=await _invLoadTesseract();
+  toast('🔎 Atpažįstamas tekstas (gali užtrukti)…','');
+  const r=await T.recognize(img,'lit+eng');
+  const d=(r&&r.data)||{};
+  let words=d.words||[];
+  if((!words||!words.length) && Array.isArray(d.lines)) words=d.lines.reduce((a,l)=>a.concat(l.words||[]),[]);
+  const items=(words||[]).filter(w=>w&&w.text&&w.text.trim()).map(w=>({str:w.text, x:(w.bbox?w.bbox.x0:0), y:(w.bbox?w.bbox.y0:0)}));
+  return {items, text:d.text||''};
+}
+async function _pdfPageCanvas(page,scale){ const vp=page.getViewport({scale:scale||2}); const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height; await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise; return c; }
+
+function whInvoiceFile(input){
+  const f=input.files&&input.files[0]; if(!f){ return; }
+  const ext=(f.name.split('.').pop()||'').toLowerCase();
+  if(ext==='pdf') whInvoiceFromPDF(f);
+  else if(['xlsx','xls','csv'].includes(ext)) whInvoiceFromXlsx(f);
+  else if(['png','jpg','jpeg','webp','bmp','gif'].includes(ext)) whInvoiceFromImage(f);
+  else toast('Nepalaikomas formatas (PDF, Excel ar nuotrauka)','error');
+  input.value='';
+}
+
+async function whInvoiceFromPDF(file){
+  if(typeof pdfjsLib==='undefined'){ toast('PDF biblioteka neįsikėlė','error'); return; }
+  toast('⏳ Skaitoma sąskaita…','');
+  try{
+    const buf=await file.arrayBuffer();
+    const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+    let rows;
+    // 1) text layer (digital PDF) — keep x/y per item, offset pages so they stack
+    let textItems=[];
+    for(let p=1;p<=doc.numPages;p++){ const page=await doc.getPage(p); const tc=await page.getTextContent(); const off=(p-1)*100000; tc.items.forEach(it=>{ if(it.str&&it.str.trim()) textItems.push({str:it.str,x:Math.round(it.transform[4]),y:Math.round(it.transform[5])-off}); }); }
+    if(textItems.length>5){
+      rows=_invToRows(textItems,false);
+    } else { // 2) scanned / image-only PDF → render + OCR each page
+      let ocrItems=[];
+      for(let p=1;p<=doc.numPages;p++){ const page=await doc.getPage(p); const c=await _pdfPageCanvas(page,2); const {items}=await _ocrImageItems(c); const off=(p-1)*100000; items.forEach(it=>ocrItems.push({str:it.str,x:it.x,y:it.y+off})); }
+      rows=_invToRows(ocrItems,true);
+    }
+    _invData=_invBuildInvoice(rows,file.name);
+    renderWarehouse();
+    if(_invData.multi) toast('Faile rasta kelios sąskaitos — apdorota pirmoji. Kitas įkelkite atskirai.','');
+    if(!_invData.lines.length) toast('Eilučių atpažinti nepavyko — pataisykite rankiniu būdu.','error');
+  }catch(e){ console.error(e); toast('Klaida skaitant: '+e.message,'error'); }
+}
+
+async function whInvoiceFromImage(file){
+  try{
+    const url=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=()=>rej(new Error('Nepavyko perskaityti failo')); r.readAsDataURL(file); });
+    const {items,text}=await _ocrImageItems(url);
+    _invData = items.length>5 ? _invBuildInvoice(_invToRows(items,true), file.name) : _invExtract(text.split('\n'), file.name);
+    renderWarehouse();
+    if(_invData.multi) toast('Rasta kelios sąskaitos — apdorota pirmoji.','');
+    if(!_invData.lines.length) toast('Eilučių atpažinti nepavyko — pataisykite rankiniu būdu.','error');
+  }catch(e){ console.error(e); toast('Klaida: '+e.message,'error'); }
+}
+
+function whInvoiceFromXlsx(file){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      const rows=aoa.map((r,ri)=>({y:ri, cells:r.map((c,ci)=>({x:ci*100, str:String(c==null?'':c).trim()})).filter(c=>c.str)})).filter(r=>r.cells.length);
+      _invData=_invBuildInvoice(rows,file.name);
+      renderWarehouse();
+      if(!_invData.lines.length) toast('Eilučių faile atpažinti nepavyko.','error');
+    }catch(err){ console.error(err); toast('Klaida skaitant failą: '+err.message,'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function invSet(i,f,v){ if(_invData&&_invData.lines[i]) _invData.lines[i][f]=v; }
+function invHeaderSet(f,v){ if(_invData) _invData[f]=v; }
+function invToggle(i){ if(_invData&&_invData.lines[i]){ _invData.lines[i].include=!_invData.lines[i].include; renderWarehouse(); } }
+function invAddRow(){ if(!_invData) _invData={fileName:'',supplier:'',invoiceNo:'',date:'',lines:[]}; _invData.lines.push({code:'',name:'',qty:1,unit:'vnt',price:0,total:0,include:true,matchSku:''}); renderWarehouse(); }
+function invDel(i){ if(_invData){ _invData.lines.splice(i,1); renderWarehouse(); } }
+function invReset(){ _invData=null; renderWarehouse(); }
+
+function whInvoiceApply(){
+  if(!_invData){ return; }
+  const inv=_invData;
+  const ref=(inv.invoiceNo||'').trim();
+  const note='Sąskaita'+(inv.supplier?(': '+inv.supplier):'')+(inv.date?(' · '+inv.date):'');
+  let received=0, created=0;
+  inv.lines.filter(l=>l.include && (l.name||l.code)).forEach(l=>{
+    const qty=_invNum(l.qty); if(!(qty>0)) return;
+    let item = l.matchSku ? whFindBySku(String(l.matchSku).trim()) : null;
+    if(!item){
+      const unit=(l.unit||'vnt').toLowerCase();
+      const kind = /m²/.test(unit) ? 'sheet' : 'fitting';
+      item=whCreateItem({ material:l.name||l.code||'Prekė', name:l.name, mpn:(kind==='fitting'?l.code:''), supplier:inv.supplier||'', unit, cost:_invNum(l.price), kind, aliases:l.name?[l.name]:[] });
+      created++;
+      if(kind==='fitting' && l.name){ try{ whAddAliasRule(l.name, item.sku, 1, ''); }catch(e){} }
+    }
+    item.qty=(parseFloat(item.qty)||0)+qty;
+    item.lastReceived=whNow(); if(!item.firstReceived) item.firstReceived=whNow();
+    const c=_invNum(l.price); if(c) item.cost=c;
+    if(inv.supplier && (!item.supplier || item.supplier==='—')) item.supplier=inv.supplier;
+    whLog({ type:'receive', itemId:item.id, sku:item.sku, material:item.material, qty, unit:item.unit, reason:WH_REASONS.receive, refNumber:ref, note });
+    received++;
+  });
+  if(!received){ toast('Pažymėkite bent vieną eilutę su kiekiu','error'); return; }
+  save(); _invData=null; renderWarehouse();
+  toast('✅ Priimta: '+received+' poz.'+(created?(' · sukurta naujų SKU: '+created):''),'success');
+}
+
+function renderWhInvoices(){
+  const upload=`<div class="inv-up">
+    <div class="inv-up-row">
+      <label class="btn btn-primary" style="cursor:pointer">📄 Įkelti sąskaitą<input type="file" accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp" capture="environment" style="display:none" onchange="whInvoiceFile(this)"></label>
+      ${_invData?`<button class="btn" onclick="invReset()">🔄 Kita sąskaita</button>`:''}
+    </div>
+    <div class="inv-hint">Geriausiai veikia <b>tekstinis PDF</b> arba Excel. Nuotraukos ir skenai be teksto atpažįstami įrenginyje (gali užtrukti, mažesnis tikslumas). Po įkėlimo <b>patikrinkite ir pataisykite</b> reikšmes prieš patvirtindami.</div>
+  </div>`;
+  if(!_invData) return upload+`<div class="pl-empty" style="margin-top:14px">Įkelkite sąskaitą — eilutės bus nuskaitytos automatiškai patvirtinimui.</div>`;
+  const inv=_invData;
+  const skuOpts=DB.warehouse.filter(w=>!w.archived).slice().sort((a,b)=>String(a.sku).localeCompare(b.sku)).map(w=>`<option value="${escHtml(w.sku)}">${escHtml(w.sku)} — ${escHtml(w.material)}</option>`).join('');
+  const rows=inv.lines.map((l,i)=>{
+    const matched=l.matchSku&&whFindBySku(String(l.matchSku).trim());
+    return `<tr class="${l.include?'':'inv-off'}">
+      <td><input type="checkbox" ${l.include?'checked':''} onchange="invToggle(${i})"></td>
+      <td><input class="inv-in inv-code" value="${escHtml(l.code||'')}" onchange="invSet(${i},'code',this.value)"></td>
+      <td><input class="inv-in inv-name" value="${escHtml(l.name||'')}" onchange="invSet(${i},'name',this.value)"></td>
+      <td><input class="inv-in inv-qty" type="number" step="any" value="${l.qty}" onchange="invSet(${i},'qty',this.value)"></td>
+      <td><input class="inv-in inv-unit" value="${escHtml(l.unit||'')}" onchange="invSet(${i},'unit',this.value)"></td>
+      <td><input class="inv-in inv-price" type="number" step="any" value="${l.price||''}" onchange="invSet(${i},'price',this.value)"></td>
+      <td><input class="inv-in inv-sku" list="inv-sku-list" value="${escHtml(l.matchSku||'')}" placeholder="naujas SKU" onchange="invSet(${i},'matchSku',this.value)"> <span class="inv-tag ${matched?'inv-ok':'inv-new'}">${matched?'atitiktis':'naujas'}</span></td>
+      <td><button class="btn btn-xs btn-danger" onclick="invDel(${i})" title="Pašalinti">🗑</button></td>
+    </tr>`;
+  }).join('');
+  const nInc=inv.lines.filter(l=>l.include).length;
+  return upload+`
+    <div class="inv-head">
+      <div class="form-field"><label class="form-label">Tiekėjas</label><input value="${escHtml(inv.supplier||'')}" onchange="invHeaderSet('supplier',this.value)"></div>
+      <div class="form-field"><label class="form-label">Sąskaitos nr.</label><input value="${escHtml(inv.invoiceNo||'')}" onchange="invHeaderSet('invoiceNo',this.value)"></div>
+      <div class="form-field"><label class="form-label">Data</label><input type="date" value="${escHtml(inv.date||'')}" onchange="invHeaderSet('date',this.value)"></div>
+    </div>
+    <div class="inv-tablewrap"><table class="inv-table">
+      <thead><tr><th></th><th>Kodas</th><th>Pavadinimas</th><th>Kiekis</th><th>Matas</th><th>Kaina</th><th>Sandėlio SKU</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <datalist id="inv-sku-list">${skuOpts}</datalist>
+    <div class="inv-actions">
+      <button class="btn btn-sm" onclick="invAddRow()">+ Eilutė</button>
+      <button class="btn btn-primary" onclick="whInvoiceApply()">✓ Patvirtinti ir priimti (${nInc})</button>
+    </div>
+    <div class="inv-hint">Tuščias „Sandėlio SKU" laukas = bus sukurtas naujas SKU. Patvirtinus, kiekiai pridedami prie sandėlio atsargų ir įrašomi į žurnalą su sąskaitos numeriu.</div>`;
+}
+
 function renderWarehouse(){
   const el = document.getElementById('warehouse-content');
   if(!el) return;
@@ -14570,6 +14925,7 @@ function renderWarehouse(){
   const tabs = `<div class="wh-tabs">
     <button class="wh-tab ${_whTab==='dashboard'?'active':''}" onclick="_whTab='dashboard';renderWarehouse()">📊 Apžvalga</button>
     <button class="wh-tab ${_whTab==='inbound'?'active':''}" onclick="_whTab='inbound';renderWarehouse()">📥 Priėmimas</button>
+    <button class="wh-tab ${_whTab==='invoices'?'active':''}" onclick="_whTab='invoices';renderWarehouse()">📄 Sąskaitos</button>
     <button class="wh-tab ${_whTab==='stock'?'active':''}" onclick="_whTab='stock';renderWarehouse()">🏭 Atsargos</button>
     <button class="wh-tab ${_whTab==='kits'?'active':''}" onclick="_whTab='kits';renderWarehouse()">📦 Komplektai → cechas</button>
     <button class="wh-tab ${_whTab==='counts'?'active':''}" onclick="_whTab='counts';renderWarehouse()">📋 Inventorizacija</button>
@@ -14579,6 +14935,7 @@ function renderWarehouse(){
   let body='';
   if(_whTab==='dashboard') body = renderWhDashboard();
   else if(_whTab==='inbound') body = renderWhInbound();
+  else if(_whTab==='invoices') body = renderWhInvoices();
   else if(_whTab==='stock') body = renderWhStock();
   else if(_whTab==='kits') body = renderWhKits();
   else if(_whTab==='counts') body = renderWhCounts();
@@ -14829,8 +15186,10 @@ function renderWhStock(){
   // Sub-tab filter
   const kindFilter = _whStockSubtab; // 'all' | 'sheets' | 'fittings'
   let filtered = items.filter(w=>{
-    if(kindFilter==='sheets'   && w.kind==='fitting') return false;
-    if(kindFilter==='fittings' && w.kind!=='fitting') return false;
+    if(kindFilter==='sheets'    && !(w.kind==='sheet'||!w.kind)) return false;
+    if(kindFilter==='fittings'  && w.kind!=='fitting') return false;
+    if(kindFilter==='counters'  && w.kind!=='stalvirsis') return false;
+    if(kindFilter==='edges'     && w.kind!=='briauna') return false;
     if(search && !whNorm(w.material).includes(search) && !whNorm(w.sku).includes(search) && !whNorm(w.mpn||'').includes(search)) return false;
     if(cls && w.abcClass!==cls) return false;
     if(subcatFilter && w.subcategory!==subcatFilter) return false;
@@ -14850,12 +15209,16 @@ function renderWhStock(){
   const mgr = isManager();
 
   const k = whKPIs();
-  const sheetCount = items.filter(w=>w.kind!=='fitting').length;
+  const sheetCount = items.filter(w=>w.kind==='sheet'||!w.kind).length;
   const fittingCount = items.filter(w=>w.kind==='fitting').length;
+  const counterCount = items.filter(w=>w.kind==='stalvirsis').length;
+  const edgeCount = items.filter(w=>w.kind==='briauna').length;
 
   const subtabs = `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
     <button class="wh-tab ${_whStockSubtab==='all'?'active':''}" onclick="_whStockSubtab='all';renderWarehouse()">📦 Visos (${items.length})</button>
     <button class="wh-tab ${_whStockSubtab==='sheets'?'active':''}" onclick="_whStockSubtab='sheets';renderWarehouse()">🪵 Plokštės (${sheetCount})</button>
+    <button class="wh-tab ${_whStockSubtab==='counters'?'active':''}" onclick="_whStockSubtab='counters';renderWarehouse()">🟫 Stalviršiai (${counterCount})</button>
+    <button class="wh-tab ${_whStockSubtab==='edges'?'active':''}" onclick="_whStockSubtab='edges';renderWarehouse()">📏 Briaunos (${edgeCount})</button>
     <button class="wh-tab ${_whStockSubtab==='fittings'?'active':''}" onclick="_whStockSubtab='fittings';renderWarehouse()">🔩 Furnitūra (${fittingCount})</button>
   </div>`;
 
@@ -14892,11 +15255,11 @@ function renderWhStock(){
     ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="syncWarehouseFromMaterials()" title="Importuoti plokštes su statusu Sandėlyje iš projektų">↻ Sync plokštes</button>`:''}
     ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="openWhImportModal()" title="Atnaujinti sandėlį iš Excel — sukuria naujas pozicijas, atnaujina pavadinimus, kodus ir kiekius pagal SKU">📥 Atnaujinti iš Excel</button>`:''}
     ${(isManager()||isEngineer())&&kindFilter==='fittings'?`<button class="btn btn-sm" onclick="openCatalogImportModal()" title="Importuoti furnitūros katalogą iš Excel (LoMag, tiekėjo lapas, ir pan.)">📥 Importuoti katalogą</button>`:''}
-    ${(isManager()||isEngineer())?`<button class="btn btn-sm btn-primary" onclick="openWhAddModal('${kindFilter==='fittings'?'fitting':'sheet'}')">+ Naujas SKU</button>`:''}
+    ${(isManager()||isEngineer())?`<button class="btn btn-sm btn-primary" onclick="openWhAddModal('${kindFilter==='fittings'?'fitting':kindFilter==='counters'?'stalvirsis':kindFilter==='edges'?'briauna':'sheet'}')">+ Naujas SKU</button>`:''}
   </div>`;
 
   if(!filtered.length){
-    const emptyMsg = kindFilter==='fittings' ? 'Nepridėtos furnitūros pozicijos' : (kindFilter==='sheets' ? 'Nėra plokščių sandėly' : 'Sandėlis tuščias');
+    const emptyMsg = kindFilter==='fittings' ? 'Nepridėtos furnitūros pozicijos' : kindFilter==='sheets' ? 'Nėra plokščių sandėly' : kindFilter==='counters' ? 'Nėra stalviršių' : kindFilter==='edges' ? 'Nėra briaunų' : 'Sandėlis tuščias';
     const helper = kindFilter==='fittings'
       ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="openWhImportModal()">📥 Atnaujinti iš Excel</button><button class="btn" onclick="openCatalogImportModal()">📋 Importuoti katalogą</button><button class="btn" onclick="openWhAddModal('fitting')">+ Pridėti rankiniu būdu</button></div>`
       : `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="openWhImportModal()">📥 Atnaujinti iš Excel</button><button class="btn" onclick="syncWarehouseFromMaterials()">↻ Importuoti iš projektų</button></div>`;
@@ -14942,6 +15305,10 @@ function renderWhStock(){
         ? `<span title="XLSM aliasų: ${aliasCount} · taisyklių: ${ruleCount}" style="display:inline-block;background:var(--blue-bg);color:var(--blue-t);padding:1px 5px;border-radius:3px;font-weight:600;margin-left:3px">🔗 ${Math.max(aliasCount, ruleCount)}</span>`
         : '';
       subline = `<div style="font-size:9px;color:var(--hint);margin-top:2px"><span style="display:inline-block;background:var(--purple-bg);color:var(--purple-t);padding:1px 5px;border-radius:3px;font-weight:600;margin-right:4px">${FITTING_SUBCAT_ICONS[w.subcategory]||'🔩'} ${escHtml(w.subcategory||'Aks.')}</span>${w.mpn&&w.mpn!==w.sku?'MPN '+escHtml(w.mpn):''}${formatFittingAttrs(w.attributes)}${linkBadge}</div>`;
+    } else if(w.kind==='stalvirsis'){
+      subline = `<div style="font-size:9px;color:var(--hint)">${w.thickness||'?'}mm · ${whFmt(w.length||0,0)}×${whFmt(w.width||0,0)} mm · ${escHtml(w.category||'Stalviršis')}</div>`;
+    } else if(w.kind==='briauna'){
+      subline = `<div style="font-size:9px;color:var(--hint)">${w.thickness||'?'}mm × ${whFmt(w.width||0,0)} mm pl. · ${escHtml(w.category||'Briauna')}</div>`;
     } else {
       subline = `<div style="font-size:9px;color:var(--hint)">${w.thickness||18}mm · ${escHtml(w.category||'—')}</div>`;
     }
@@ -15786,7 +16153,7 @@ function openWhAddModal(presetKind){
        </select>`
     : '';
 
-  const fittingFields = isFit ? `
+  let fittingFields = isFit ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">⭐ Vidinis kodas (Blulita) *</label>
@@ -15829,14 +16196,37 @@ function openWhAddModal(presetKind){
     </div>
     <div id="wh-sheet-hint" style="font-size:10px;color:var(--green-t);background:var(--green-bg);padding:6px 10px;border-radius:6px">1 lakštas = 5.80 m²</div>
   `;
+  const isStal=kind==='stalvirsis', isBriauna=kind==='briauna';
+  const _whLBL='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em';
+  if(isStal) fittingFields = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="${_whLBL}">Storis (mm)</label><input id="wh-th" type="number" step="0.5" value="38" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Ilgis (mm)</label><input id="wh-len" type="number" value="3000" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Plotis (mm)</label><input id="wh-wid" type="number" value="600" style="margin-top:4px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="${_whLBL}">Vienetas</label><select id="wh-unit" style="margin-top:4px"><option value="vnt">vnt</option><option value="m²">m²</option><option value="m">m</option></select></div>
+      <div><label style="${_whLBL}">Kaina €/vnt</label><input id="wh-cost" type="number" step="0.01" value="0" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Kategorija</label><input id="wh-cat" value="Stalviršis" style="margin-top:4px"></div>
+    </div>`;
+  if(isBriauna) fittingFields = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div><label style="${_whLBL}">Storis (mm)</label><input id="wh-th" type="number" step="0.1" value="0.8" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Plotis (mm)</label><input id="wh-wid" type="number" step="0.5" value="22" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Kaina €/m</label><input id="wh-cost" type="number" step="0.001" value="0" style="margin-top:4px"></div>
+    </div>
+    <input type="hidden" id="wh-unit" value="m">
+    <div style="font-size:10px;color:var(--green-t);background:var(--green-bg);padding:6px 10px;border-radius:6px">Sandėlio vienetas: metrai (m)</div>`;
 
   const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
     <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh3)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="font-size:15px;font-weight:600">+ Naujas SKU</div>
         <div style="flex:1"></div>
-        <div style="display:flex;gap:2px;background:var(--surface2);padding:3px;border-radius:8px">
+        <div style="display:flex;gap:2px;background:var(--surface2);padding:3px;border-radius:8px;flex-wrap:wrap">
           <button class="wh-tab ${kind==='sheet'?'active':''}" onclick="whCloseModal();openWhAddModal('sheet')">🪵 Plokštė</button>
+          <button class="wh-tab ${kind==='stalvirsis'?'active':''}" onclick="whCloseModal();openWhAddModal('stalvirsis')">🟫 Stalviršis</button>
+          <button class="wh-tab ${kind==='briauna'?'active':''}" onclick="whCloseModal();openWhAddModal('briauna')">📏 Briauna</button>
           <button class="wh-tab ${kind==='fitting'?'active':''}" onclick="whCloseModal();openWhAddModal('fitting')">🔩 Furnitūra</button>
         </div>
       </div>
@@ -15845,7 +16235,7 @@ function openWhAddModal(presetKind){
         <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
         ${fittingFields}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${isFit?'Pradinis kiekis':'Kiekis (lakštai)'}</label><input id="wh-qty" type="number" step="1" value="0" oninput="whPriceSync()" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${isFit?'Pradinis kiekis':isStal?'Kiekis (vnt)':isBriauna?'Kiekis (m)':'Kiekis (lakštai)'}</label><input id="wh-qty" type="number" step="1" value="0" oninput="whPriceSync()" style="margin-top:4px"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="wh-min" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px"></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">ROP (užsak. taškas)</label><input id="wh-rop" type="number" step="${isFit?'1':'0.01'}" value="0" style="margin-top:4px" title="Reorder Point — žemiau šio kiekio bus įspėjimas"></div>
         </div>
@@ -15923,6 +16313,19 @@ function submitWhAdd(){
     // Prefer distCode as SKU; fall back to MPN
     data.sku = distCode || mpn;
     if(!data.supplier || data.supplier==='—') data.supplier = data.brand;
+  } else if(kind==='stalvirsis'){
+    data.unit = document.getElementById('wh-unit').value;
+    data.thickness = document.getElementById('wh-th').value;
+    data.length = document.getElementById('wh-len').value;
+    data.width = document.getElementById('wh-wid').value;
+    data.cost = document.getElementById('wh-cost').value;
+    data.category = document.getElementById('wh-cat').value.trim()||'Stalviršis';
+  } else if(kind==='briauna'){
+    data.unit = 'm';
+    data.thickness = document.getElementById('wh-th').value;
+    data.width = document.getElementById('wh-wid').value;
+    data.cost = document.getElementById('wh-cost').value;
+    data.category = 'Briauna';
   } else {
     data.unit = 'm²';
     data.thickness = document.getElementById('wh-th').value;
