@@ -14401,6 +14401,26 @@ function whAdjust(itemId, deltaQty, reason, note){
   save();
 }
 
+// Receive/consume sheet stock in BOARD units (the human-friendly way).
+// Internally converts boards → m² so all m²-based logic keeps working.
+function whQuickBoard(itemId, deltaBoards){
+  if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
+  const item = DB.warehouse.find(w=>w.id===itemId); if(!item) return;
+  const n = parseInt(deltaBoards)||0; if(!n) return;
+  const area = _boardAreaM2(item);
+  whAdjust(itemId, n*area, n>0?'Priėmimas':'Nurašymas', (n>0?'+':'')+n+' lakšt.');
+  try{ publishWarehouseShared(); }catch(e){}
+  renderWarehouse();
+  toast((n>0?'+':'')+n+' lakšt. · '+item.material, 'success');
+}
+
+// Live "1 board area" readout in the edit modal as dimensions change.
+function whEditAreaHint(){
+  const sw = parseFloat((document.getElementById('we-sw')||{}).value)||0;
+  const sh = parseFloat((document.getElementById('we-sh')||{}).value)||0;
+  const el = document.getElementById('we-area'); if(el) el.value = ((sw*sh/1e6)||0).toFixed(2)+' m²';
+}
+
 // ══════════════════════════════════════════════
 // CUT JOBS — reservations sent from the Nesting app (reserve → confirm → recalc)
 // ══════════════════════════════════════════════
@@ -15338,9 +15358,14 @@ function renderWhStock(){
       qtyDisplay = `<span class="wh-stock-pill ${stockClass}">${whFmt(w.qty,isFit?0:2)}</span><div style="font-size:9px;color:var(--hint)">${w.unit}</div>`;
     }
 
+    const boardBtns = (editable && !isFit && bArea>0)?`
+      <button class="btn btn-xs" title="−1 lakštas" onclick="event.stopPropagation();whQuickBoard('${w.id}',-1)" style="font-weight:700;min-width:24px">−</button>
+      <button class="btn btn-xs" title="+1 lakštas (priimti)" onclick="event.stopPropagation();whQuickBoard('${w.id}',1)" style="font-weight:700;min-width:24px;color:var(--green-t);border-color:var(--green-t)">＋</button>
+    `:'';
     const actions = editable?`
+      ${boardBtns}
       <button class="btn btn-xs" title="Redaguoti" onclick="openWhEditModal('${w.id}')">✎</button>
-      <button class="btn btn-xs" title="Inventorizacija" onclick="openWhCountModal('${w.id}')">📋</button>
+      <button class="btn btn-xs" title="Inventorizacija (suskaičiuoti)" onclick="openWhCountModal('${w.id}')">📋</button>
       <button class="btn btn-xs btn-danger" title="Archyvuoti" onclick="whArchive('${w.id}')">×</button>
     `:'';
     return `<div class="wh-stock-row">
@@ -16461,6 +16486,12 @@ function openWhEditModal(itemId){
       ${fittingHeader}
       <div style="display:grid;gap:10px">
         ${identityBlock}
+        ${(w.kind==='sheet') ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Lakšto plotis (mm)</label><input id="we-sw" type="number" value="${w.sheetW||2800}" oninput="whEditAreaHint()" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Lakšto aukštis (mm)</label><input id="we-sh" type="number" value="${w.sheetH||2070}" oninput="whEditAreaHint()" style="margin-top:4px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">1 lakšto plotas</label><input id="we-area" readonly value="${whFmt(_boardAreaM2(w),2)} m²" style="margin-top:4px;background:var(--surface2);color:var(--muted)"></div>
+        </div>` : ''}
         ${fittingFields}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Min. atsarga</label><input id="we-min" type="number" step="${isFit?'1':'0.01'}" value="${w.minQty}" style="margin-top:4px"></div>
@@ -16482,8 +16513,8 @@ function openWhEditModal(itemId){
         </label>
         <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
         <div style="background:var(--surface2);padding:10px 12px;border-radius:8px;font-size:11px">
-          Likutis: <strong style="font-family:var(--mono)">${whFmt(w.qty,isFit?0:2)} ${w.unit}</strong> · Rezerv.: <strong style="font-family:var(--mono);color:var(--purple-t)">${whFmt(w.reservedQty||0,isFit?0:2)}</strong>
-          <div style="font-size:10px;color:var(--hint);margin-top:3px">Kiekio koregavimui naudokite "Inventorizacija" arba "Priėmimas"</div>
+          Likutis: <strong style="font-family:var(--mono)">${w.kind==='sheet' ? (whFmt(w.qty/_boardAreaM2(w),1)+' lakšt. ('+whFmt(w.qty,1)+' m²)') : (whFmt(w.qty,isFit?0:2)+' '+w.unit)}</strong> · Rezerv.: <strong style="font-family:var(--mono);color:var(--purple-t)">${whFmt(w.reservedQty||0,isFit?0:2)}</strong>
+          <div style="font-size:10px;color:var(--hint);margin-top:3px">Kiekiui keisti: naudokite ＋/− lakštus sąraše arba „Inventorizacija"</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
@@ -16535,6 +16566,11 @@ function submitWhEdit(itemId){
   } else {
     const thEl = document.getElementById('we-thick');
     if(thEl) w.thickness = parseInt(thEl.value)||w.thickness;
+    if(w.kind==='sheet'){
+      const swEl = document.getElementById('we-sw'), shEl = document.getElementById('we-sh');
+      if(swEl) w.sheetW = parseInt(swEl.value)||w.sheetW||2800;
+      if(shEl) w.sheetH = parseInt(shEl.value)||w.sheetH||2070;
+    }
   }
   const archEl = document.getElementById('we-archived');
   if(archEl) w.archived = !!archEl.checked;
@@ -16571,6 +16607,9 @@ function submitWhEdit(itemId){
 
 function openWhCountModal(itemId){
   const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
+  const area = _boardAreaM2(w);
+  const useBoards = (w.kind==='sheet' && area>0);        // count full panels in boards
+  const sysBoards = area>0 ? (w.qty/area) : w.qty;
   const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
     <div style="background:var(--surface);border-radius:var(--rxl);padding:22px 26px;width:440px;max-width:95vw;box-shadow:var(--sh3)">
       <div style="font-size:15px;font-weight:600;margin-bottom:4px">📋 Inventorizacija</div>
@@ -16578,11 +16617,15 @@ function openWhCountModal(itemId){
       <div style="display:grid;gap:12px">
         <div style="background:var(--surface2);padding:14px;border-radius:8px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:5px">Sistema rodo</div>
-          <div style="font-size:24px;font-weight:700;font-family:var(--mono)">${whFmt(w.qty)} <span style="font-size:14px;color:var(--muted);font-weight:400">${escHtml(w.unit)}</span></div>
+          ${useBoards
+            ? `<div style="font-size:24px;font-weight:700;font-family:var(--mono)">${whFmt(sysBoards,1)} <span style="font-size:14px;color:var(--muted);font-weight:400">lakšt.</span></div>
+               <div style="font-size:11px;color:var(--hint);margin-top:2px">= ${whFmt(w.qty,1)} m² · 1 lakštas = ${whFmt(area,2)} m²</div>`
+            : `<div style="font-size:24px;font-weight:700;font-family:var(--mono)">${whFmt(w.qty)} <span style="font-size:14px;color:var(--muted);font-weight:400">${escHtml(w.unit)}</span></div>`}
         </div>
         <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Faktiškai suskaičiuota *</label>
-          <input id="cc-counted" type="number" step="0.01" value="${w.qty}" style="margin-top:4px;font-size:18px;font-weight:600;text-align:center" autofocus>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Faktiškai suskaičiuota${useBoards?' (lakštai)':''} *</label>
+          <input id="cc-counted" type="number" step="${useBoards?'1':'0.01'}" value="${useBoards?whFmt(sysBoards,0):w.qty}" ${useBoards?`data-sheet="1" data-area="${area}" oninput="whCountHint(this)"`:''} style="margin-top:4px;font-size:18px;font-weight:600;text-align:center" autofocus>
+          ${useBoards?`<div id="cc-hint" style="font-size:11px;color:var(--green-t);text-align:center;margin-top:5px">= ${whFmt(sysBoards*area,1)} m²</div>`:''}
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pastaba</label>
@@ -16599,11 +16642,20 @@ function openWhCountModal(itemId){
   setTimeout(()=>document.getElementById('cc-counted')?.select(),50);
 }
 
+function whCountHint(el){
+  const h = document.getElementById('cc-hint'); if(!h) return;
+  const boards = parseFloat(el.value)||0, area = parseFloat(el.dataset.area)||0;
+  h.textContent = '= ' + whFmt(boards*area,1) + ' m²';
+}
 function submitWhCount(itemId){
-  const counted = document.getElementById('cc-counted').value;
+  const el = document.getElementById('cc-counted');
+  const counted = el.value;
   const note = document.getElementById('cc-note').value;
   if(counted==='' || isNaN(parseFloat(counted))){ toast('Įveskite skaičių','error'); return; }
-  const r = cycleCount(itemId, counted, note);
+  // Panels are counted in boards → convert to the stored m² before recording.
+  let countedQty = parseFloat(counted);
+  if(el.dataset.sheet){ countedQty = countedQty * (parseFloat(el.dataset.area) || _boardAreaM2(DB.warehouse.find(w=>w.id===itemId))); }
+  const r = cycleCount(itemId, countedQty, note);
   whCloseModal();
   if(Math.abs(r.variance)<0.01) toast(`✓ Tikslu — be skirtumo`,'success');
   else toast(`Skirtumas: ${r.variance>0?'+':''}${whFmt(r.variance,2)} (tikslumas ${whFmt(r.accuracy,0)}%)`, r.accuracy>=95?'success':'');
