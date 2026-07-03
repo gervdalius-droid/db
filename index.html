@@ -16270,6 +16270,79 @@ function whPriceSync(src){
   }
 }
 
+// ── Warehouse add helpers: pick-existing-first flow + duplicate prevention ──
+// Normalise a code so "XX123", "xx_123", "XX-123", "xx 123" all compare equal.
+function whNormCode(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+// How much stock is on hand, in the human unit for that kind.
+function whStockDisplay(w){
+  if(!w) return '';
+  if(w.kind==='sheet'){ const a=_boardAreaM2(w); const boards=a>0?(w.qty/a):w.qty; return whFmt(boards,1)+' lakšt.'; }
+  return whFmt(w.qty, w.kind==='briauna'?1:0)+' '+(w.unit||'');
+}
+// The unit a human enters stock in (sheets are counted in boards, stored as m²).
+function whEntryUnit(w){
+  if(!w) return 'vnt';
+  if(w.kind==='sheet')   return 'lakštai';
+  if(w.kind==='briauna') return 'm';
+  return w.unit||'vnt';
+}
+// Convert a human-entered quantity into the item's stored unit.
+function whEntryToStock(w,qty){ return (w&&w.kind==='sheet') ? qty*_boardAreaM2(w) : qty; }
+// <option>s for every live material, grouped by kind — the "pick existing" dropdown.
+function whExistingOptions(){
+  const groups=[['sheet','🪵 Plokštės'],['stalvirsis','🟫 Stalviršiai'],['briauna','📏 Briaunos'],['fitting','🔩 Furnitūra']];
+  let html='';
+  groups.forEach(([k,lbl])=>{
+    const items=DB.warehouse.filter(w=>!w.archived&&w.kind===k)
+      .sort((a,b)=>String(a.sku||'').localeCompare(String(b.sku||'')));
+    if(!items.length)return;
+    html+=`<optgroup label="${lbl}">`+items.map(w=>
+      `<option value="${w.id}">${escHtml(w.sku||'')} · ${escHtml(w.material||'')} — ${whStockDisplay(w)}</option>`).join('')+`</optgroup>`;
+  });
+  return html;
+}
+// <option>s for the category datalist — distinct categories already used for this kind.
+function whCatOptions(kind){
+  const cats=[...new Set(DB.warehouse.filter(w=>!w.archived&&w.kind===kind&&w.category).map(w=>w.category))].sort();
+  return cats.map(c=>`<option value="${escHtml(c)}"></option>`).join('');
+}
+// Toggle the add modal between "top up existing" and "create new".
+function whAddModeChange(){
+  const id=document.getElementById('wh-existing')?.value||'';
+  const nw=document.getElementById('wh-new-wrap');
+  const ex=document.getElementById('wh-add-existing');
+  const btn=document.getElementById('wh-add-submit');
+  if(id){
+    const w=DB.warehouse.find(x=>x.id===id);
+    if(nw)nw.style.display='none';
+    if(ex){
+      ex.style.display='block';
+      const info=document.getElementById('wh-ae-info');
+      if(info&&w)info.innerHTML=`<div style="font-weight:600;font-family:var(--mono)">${escHtml(w.sku||'')}</div>`+
+        `<div style="font-size:12px">${escHtml(w.material||'')}</div>`+
+        `<div style="font-size:11px;color:var(--muted);margin-top:3px">Dabar sandėlyje: <b>${whStockDisplay(w)}</b></div>`;
+      const u=document.getElementById('wh-ae-unit'); if(u&&w)u.textContent=whEntryUnit(w);
+    }
+    if(btn)btn.textContent='✓ Papildyti atsargas';
+    setTimeout(()=>document.getElementById('wh-add-qty')?.focus(),40);
+  } else {
+    if(nw)nw.style.display='';
+    if(ex)ex.style.display='none';
+    if(btn)btn.textContent='Pridėti SKU';
+  }
+}
+// Submit path for "top up existing" — adds stock, never creates a new item.
+function whSubmitAddExisting(id){
+  const w=DB.warehouse.find(x=>x.id===id); if(!w){toast('Medžiaga nerasta','error');return;}
+  const addQty=parseFloat(document.getElementById('wh-add-qty')?.value)||0;
+  if(addQty<=0){toast('Įveskite kiekį','error');return;}
+  const reason=document.getElementById('wh-add-reason')?.value||'Priėmimas';
+  whAdjust(id, whEntryToStock(w,addQty), reason, '+'+addQty+' '+whEntryUnit(w)+' (rankinis papildymas)');
+  try{ publishWarehouseShared(); }catch(e){}
+  whCloseModal(); renderWarehouse();
+  toast('✓ +'+addQty+' '+whEntryUnit(w)+' · '+w.material,'success');
+}
+
 function openWhAddModal(presetKind){
   if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
   const kind = presetKind || 'sheet';
@@ -16321,7 +16394,7 @@ function openWhAddModal(presetKind){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
       <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/lakštas</label><input id="wh-eur-board" type="number" step="0.01" value="0" oninput="whPriceSync('board')" style="margin-top:4px" title="Įveskite vieną — kitą apskaičiuosime"></div>
       <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kaina €/m²</label><input id="wh-eur-m2" type="number" step="0.01" value="0" oninput="whPriceSync('m2')" style="margin-top:4px" title="Įveskite vieną — kitą apskaičiuosime"></div>
-      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kategorija</label><input id="wh-cat" placeholder="LMDP" style="margin-top:4px"></div>
+      <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Kategorija</label><input id="wh-cat" list="wh-cat-list" placeholder="LMDP" style="margin-top:4px"></div>
     </div>
     <div id="wh-sheet-hint" style="font-size:10px;color:var(--green-t);background:var(--green-bg);padding:6px 10px;border-radius:6px">1 lakštas = 5.80 m²</div>
   `;
@@ -16336,7 +16409,7 @@ function openWhAddModal(presetKind){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
       <div><label style="${_whLBL}">Vienetas</label><select id="wh-unit" style="margin-top:4px"><option value="vnt">vnt</option><option value="m²">m²</option><option value="m">m</option></select></div>
       <div><label style="${_whLBL}">Kaina €/vnt</label><input id="wh-cost" type="number" step="0.01" value="0" style="margin-top:4px"></div>
-      <div><label style="${_whLBL}">Kategorija</label><input id="wh-cat" value="Stalviršis" style="margin-top:4px"></div>
+      <div><label style="${_whLBL}">Kategorija</label><input id="wh-cat" list="wh-cat-list" value="Stalviršis" style="margin-top:4px"></div>
     </div>`;
   if(isBriauna) fittingFields = `
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
@@ -16359,6 +16432,23 @@ function openWhAddModal(presetKind){
           <button class="wh-tab ${kind==='fitting'?'active':''}" onclick="whCloseModal();openWhAddModal('fitting')">🔩 Furnitūra</button>
         </div>
       </div>
+      <div style="margin-bottom:4px">
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Papildyti esamą medžiagą</label>
+        <select id="wh-existing" onchange="whAddModeChange()" style="margin-top:4px;font-size:14px">
+          <option value="">➕ Kurti naują medžiagą…</option>
+          ${whExistingOptions()}
+        </select>
+        <div style="font-size:9px;color:var(--hint);margin-top:3px">Pasirinkite esamą — tik pridėsite kiekį (be dublikatų). Arba palikite „Kurti naują".</div>
+      </div>
+      <datalist id="wh-cat-list">${whCatOptions(kind)}</datalist>
+      <div id="wh-add-existing" style="display:none">
+        <div id="wh-ae-info" style="background:var(--surface2);border-radius:8px;padding:12px 14px;margin:6px 0 12px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pridėti kiekį (<span id="wh-ae-unit"></span>) *</label><input id="wh-add-qty" type="number" step="0.01" min="0" placeholder="pvz. 2" style="margin-top:4px;font-size:16px"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Priežastis</label><select id="wh-add-reason" style="margin-top:4px"><option>Priėmimas</option><option>Korekcija</option><option>Inventorizacija</option></select></div>
+        </div>
+      </div>
+      <div id="wh-new-wrap">
       ${catalogOpts}
       <div style="display:grid;gap:10px;margin-top:10px">
         <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
@@ -16378,10 +16468,11 @@ function openWhAddModal(presetKind){
         </div>
         <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Brūkšninis kodas</label><input id="wh-bc" placeholder="(pasirinktinai)" style="margin-top:4px"></div>
       </div>
+      </div>
       <input type="hidden" id="wh-kind" value="${kind}">
       <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
         <button class="btn" onclick="whCloseModal()">Atšaukti</button>
-        <button class="btn btn-primary" onclick="submitWhAdd()">Pridėti SKU</button>
+        <button class="btn btn-primary" id="wh-add-submit" onclick="submitWhAdd()">Pridėti SKU</button>
       </div>
     </div>
   </div>`;
@@ -16410,6 +16501,9 @@ function whFillFromCatalog(idx){
 function submitWhAdd(){
   const kindInput = document.getElementById('wh-kind');
   const kind = kindInput?.value || 'sheet';
+  // "Top up existing" mode — pick from the dropdown, add stock, never create a duplicate.
+  const existingId = document.getElementById('wh-existing')?.value || '';
+  if(existingId){ return whSubmitAddExisting(existingId); }
   const mat = document.getElementById('wh-mat').value.trim();
   if(!mat){ toast('Įveskite pavadinimą','error'); return; }
 
@@ -16464,6 +16558,30 @@ function submitWhAdd(){
     data.cost = document.getElementById('wh-eur-m2').value; // stored per m²
   }
 
+  // Duplicate guard: whGenSku normalises name+thickness, so "XX123" and "xx_123"
+  // produce the SAME sku. If a live item already carries it, top that up instead of
+  // spawning a near-duplicate position.
+  const _candSku = data.sku || whGenSku(data.mpn||data.material, data.thickness, kind);
+  // Sheets/edges/countertops already normalise name+thickness into the sku, so an exact
+  // match catches "XX123" vs "xx_123". Fittings keep the raw code, so also compare a
+  // stripped form to catch "BL-RUN-50" vs "BL_RUN_50". MPN is checked too for fittings.
+  const _cn = whNormCode(_candSku);
+  const _dup = DB.warehouse.find(w=>!w.archived && (
+    w.sku===_candSku ||
+    (kind==='fitting' && (whNormCode(w.sku)===_cn || (data.mpn && whNormCode(w.mpn)===whNormCode(data.mpn))))
+  ));
+  if(_dup){
+    const _u=whEntryUnit(_dup);
+    const _ok=confirm('⚠ Panaši medžiaga jau yra sandėlyje:\n\n'+_dup.sku+' — '+_dup.material+'\nDabar: '+whStockDisplay(_dup)+'\n\n[OK]  Papildyti ESAMĄ (rekomenduojama — be dublikatų)\n[Atšaukti]  Vis tiek sukurti naują atskirą poziciją');
+    if(_ok){
+      const _addN=parseFloat(document.getElementById('wh-qty').value)||0;
+      if(_addN>0) whAdjust(_dup.id, whEntryToStock(_dup,_addN), 'Priėmimas', '+'+_addN+' '+_u+' (užkirstas dublikatas)');
+      try{ publishWarehouseShared(); }catch(e){}
+      whCloseModal(); renderWarehouse();
+      toast('✓ Papildyta esama: '+_dup.sku,'success');
+      return;
+    }
+  }
   const item = whCreateItem(data);
   let initQty = parseFloat(document.getElementById('wh-qty').value)||0;
   if(kind!=='fitting'){
