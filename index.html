@@ -2093,6 +2093,7 @@ async function enterApp(){
   const me=USERS.find(u=>u.id===DB.currentUserId)||USERS[0];
   if(me)DB.currentUserId=me.id;
   DB.currentProjectId=null;
+  _histReady=false; // fresh session — first view replaces the base history entry
   showView('planner');
   setTimeout(maybeShowWelcome,700);
   setSyncStatus(_offline?'offline':'online');
@@ -3629,7 +3630,53 @@ function showView(name,extra){
   updatePlannerBadge();
   renderSidebar();save();
   if(typeof LANG!=='undefined'&&LANG==='en'&&typeof i18nApply==='function')i18nApply();
+  syncHistory(name,extra);
 }
+
+// ══════════════════════════════════════════════
+// Browser history / Back-button routing
+// Each in-app view becomes a real history entry so the browser Back/Forward
+// buttons move between views instead of leaving the app. An open modal or mobile
+// menu intercepts Back and closes itself first, like a native app.
+// ══════════════════════════════════════════════
+let _histReady=false;    // first view of a session replaces the entry; later views push
+let _histSuppress=false; // true while applying a Back/Forward navigation (don't re-push)
+let _curHist={v:'planner',x:null};
+function syncHistory(name,extra){
+  if(_histSuppress)return; // navigation originated from Back/Forward — don't stack a new entry
+  const x=(name==='project')?(extra||null):null;
+  _curHist={v:name,x:x};
+  const state={app:true,v:name,x:x};
+  try{
+    if(!_histReady){ history.replaceState(state,''); _histReady=true; }
+    else if(history.state&&history.state.app&&history.state.v===name&&history.state.x===x){ history.replaceState(state,''); } // same view — don't duplicate
+    else { history.pushState(state,''); }
+  }catch(e){}
+}
+function _backCloseOverlay(){
+  const ov=document.getElementById('modal-overlay');
+  if(ov&&ov.classList.contains('open')){ try{closeModal();}catch(e){} return true; }
+  const mm=document.getElementById('mobile-menu');
+  if(mm&&mm.style.display==='block'){ try{toggleMobileMenu();}catch(e){} return true; }
+  const map=[['wh-modal-bg','whCloseModal'],['wig-modal-bg','closeWIGModal'],['cmt-modal-bg','closeCommitmentModal'],['ws-modal-bg','closeWIGSessionModal']];
+  for(let k=0;k<map.length;k++){
+    const el=document.getElementById(map[k][0]);
+    if(el){ const fn=window[map[k][1]]; try{ if(typeof fn==='function')fn(); else el.remove(); }catch(e){ try{el.remove();}catch(_){} } return true; }
+  }
+  return false;
+}
+window.addEventListener('popstate',function(e){
+  // An open overlay swallows Back and just closes itself; the view stays put.
+  if(_backCloseOverlay()){
+    try{ history.pushState({app:true,v:_curHist.v,x:_curHist.x},''); }catch(err){}
+    return;
+  }
+  const st=e.state;
+  if(st&&st.app){
+    _histSuppress=true;
+    try{ showView(st.v,st.x); } finally { _histSuppress=false; }
+  }
+});
 
 // Sidebar group collapse state — projects expanded by default, archive collapsed by default
 let _sidebarCollapsed={projektas:false, paslauga:false, projektavimas:false};
