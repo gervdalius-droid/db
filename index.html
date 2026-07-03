@@ -1327,7 +1327,13 @@ function taskProgress(t){
 // where one step's qtyLines could be divided by the project-wide qtyOrdered
 // total, producing absurd numbers like 43% with zero tasks marked done.
 function projProgress(pid){
-  const t=projTasks(pid);
+  // Only count tasks for the project's CURRENT step set — after a design→production
+  // transition the finished design tasks stay in DB.tasks and would otherwise inflate
+  // production progress (e.g. show 38% with zero production steps done).
+  const p=getProject(pid);
+  const stepIds=new Set(projSteps(p).map(s=>s.id));
+  let t=projTasks(pid).filter(x=>stepIds.has(x.stepId));
+  if(!t.length) t=projTasks(pid); // fallback: never divide by zero if steps don't line up
   if(!t.length)return 0;
   const sum=t.reduce((s,x)=>s+taskProgress(x),0);
   return Math.round(sum/t.length);
@@ -2093,7 +2099,10 @@ async function enterApp(){
   const me=USERS.find(u=>u.id===DB.currentUserId)||USERS[0];
   if(me)DB.currentUserId=me.id;
   DB.currentProjectId=null;
-  _histReady=false; // fresh session — first view replaces the base history entry
+  // Seed a base history entry so the browser Back button always has something to absorb —
+  // even a modal opened on the very first view closes on Back instead of leaving the app.
+  try{ history.replaceState({app:true,base:true,v:'planner',x:null},''); }catch(e){}
+  _histReady=true; _curHist={v:'planner',x:null};
   showView('planner');
   setTimeout(maybeShowWelcome,700);
   setSyncStatus(_offline?'offline':'online');
@@ -2114,6 +2123,8 @@ async function logout(){
   clearTokens();
   try{localStorage.removeItem('fabflow_worker');}catch(e){}
   currentUserEmail='';currentUserRole='worker';WORKSPACE_CODE='';CURRENT_USER_NAME='';
+  _offline=false; // clear local-only mode so a later online login syncs with the cloud
+  try{ _syncMode=(localStorage.getItem('fab_syncMode')||'auto'); }catch(e){ _syncMode='auto'; } // restore saved pref (offlineLogin forced 'manual')
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('main-app').style.display='none';
   switchAuthTab('admin');
@@ -3583,7 +3594,6 @@ function showView(name,extra){
       <button class="btn btn-sm btn-primary" onclick="openOrderModal()">+ Naujas</button>
     `:'';
     renderOrders();
-    renderOrders();
   }
   else if(name==='team'){
     document.getElementById('topbar-title').textContent='Komanda';
@@ -3643,13 +3653,14 @@ let _histReady=false;    // first view of a session replaces the entry; later vi
 let _histSuppress=false; // true while applying a Back/Forward navigation (don't re-push)
 let _curHist={v:'planner',x:null};
 function syncHistory(name,extra){
-  if(_histSuppress)return; // navigation originated from Back/Forward — don't stack a new entry
   const x=(name==='project')?(extra||null):null;
-  _curHist={v:name,x:x};
+  _curHist={v:name,x:x}; // always track the actual current view — even on Back/Forward — so
+                         // the overlay-close re-push doesn't resurrect a stale view
+  if(_histSuppress)return; // navigation came from Back/Forward — don't stack a new entry
   const state={app:true,v:name,x:x};
   try{
     if(!_histReady){ history.replaceState(state,''); _histReady=true; }
-    else if(history.state&&history.state.app&&history.state.v===name&&history.state.x===x){ history.replaceState(state,''); } // same view — don't duplicate
+    else if(history.state&&history.state.app&&!history.state.base&&history.state.v===name&&history.state.x===x){ history.replaceState(state,''); } // same view — don't duplicate (but never collapse onto the base entry)
     else { history.pushState(state,''); }
   }catch(e){}
 }
@@ -3942,9 +3953,9 @@ function showWorkspaceCode(){
 // FLOOR VIEW
 // ══════════════════════════════════════════════
 function renderFloor(){
-  const visibleProjects=DB.projects.filter(p=>p.designStatus!=='design'&&canSeeProject(p));
+  const visibleProjects=DB.projects.filter(p=>p.designStatus!=='design'&&p.status!=='archived'&&canSeeProject(p));
   const visibleTaskIds=new Set();
-  DB.tasks.forEach(t=>{const p=getProject(t.projectId);if(p&&canSeeProject(p))visibleTaskIds.add(t.id);});
+  DB.tasks.forEach(t=>{const p=getProject(t.projectId);if(p&&p.status!=='archived'&&canSeeProject(p))visibleTaskIds.add(t.id);});
   const all=DB.tasks.filter(t=>visibleTaskIds.has(t.id)),done=all.filter(t=>t.status==='done').length,inp=all.filter(t=>t.status==='in-progress').length;
   document.getElementById('summary-grid').innerHTML=[
     {label:'Projektai',val:visibleProjects.length,c:'#2563eb'},{label:'Iš viso užduočių',val:all.length,c:'var(--text)'},
@@ -4034,7 +4045,7 @@ function renderFloor(){
   g.innerHTML=visProj.map(p=>{
     const tasks=projTasks(p.id),pct=projProgress(p.id),inp2=tasks.filter(t=>t.status==='in-progress');
     const curStep=inp2[0]?getStep(inp2[0].stepId):null;
-    const overdueTasks=tasks.filter(t=>t.deadline&&t.status!=='done'&&new Date(t.deadline)<now).length;
+    const overdueTasks=tasks.filter(t=>t.deadline&&t.status!=='done'&&daysUntilDeadline(t.deadline)<0).length;
     const blockedCount=tasks.filter(t=>t.blocker).length;
     // Schedule: days left vs total needed
     const sched=p.deadline?calcProjectSchedule(p):null;
@@ -4601,7 +4612,7 @@ function renderPlanningCalendar(){
         </div>
         <div style="font-size:11px;color:var(--muted)">📌 Spauskite žingsnį → atidaryti projektą · 🚀 = Montavimo data</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr)">${headerHtml}${cellsHtml}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr))">${headerHtml}${cellsHtml}</div>
     </div>`;
 }
 
@@ -6878,6 +6889,13 @@ function renderGlobalMaterials(){
     });
   });
 
+  // Preserve the search/filter state and caret across the innerHTML rebuild, otherwise
+  // every keystroke blanks the box and drops focus (you could never type more than 1 char).
+  const _prevStatus=document.getElementById('gmat-filter')?.value||'';
+  const _prevSearch=document.getElementById('gmat-search')?.value||'';
+  const _searchFocused=!!(document.activeElement&&document.activeElement.id==='gmat-search');
+  const _caret=_searchFocused?document.activeElement.selectionStart:null;
+  const _sel=v=>_prevStatus===v?' selected':'';
   const summaryHtml=`<div style="display:grid;grid-template-columns:repeat(${mgr?5:4},1fr);gap:10px;margin-bottom:18px">
     <div class="summary-card"><div class="summary-label">Plokštės iš viso</div><div class="summary-value" style="color:var(--blue)">${totalM2.toFixed(1)} m²</div><div style="font-size:10px;color:var(--hint);margin-top:2px">${projs.length} projektai</div></div>
     <div class="summary-card"><div class="summary-label">Briaunos</div><div class="summary-value" style="color:var(--purple-t)">${totalEdge.toFixed(0)} m</div></div>
@@ -6887,17 +6905,17 @@ function renderGlobalMaterials(){
   </div>
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <select id="gmat-filter" style="font-size:11px;padding:4px 8px;width:auto" onchange="renderGlobalMaterials()">
-      <option value="">Visi statusai</option>
-      <option value="reikia">🔴 Reikia užsakyti</option>
-      <option value="uzsakyta">🟡 Užsakyta</option>
-      <option value="sandely">🟢 Sandėlyje</option>
-      <option value="cech">🔵 Cechui išduota</option>
+      <option value=""${_sel('')}>Visi statusai</option>
+      <option value="reikia"${_sel('reikia')}>🔴 Reikia užsakyti</option>
+      <option value="uzsakyta"${_sel('uzsakyta')}>🟡 Užsakyta</option>
+      <option value="sandely"${_sel('sandely')}>🟢 Sandėlyje</option>
+      <option value="cech"${_sel('cech')}>🔵 Cechui išduota</option>
     </select>
-    <input id="gmat-search" placeholder="🔍 Ieškoti medžiagos..." style="font-size:11px;padding:4px 10px;max-width:220px" oninput="renderGlobalMaterials()">
+    <input id="gmat-search" value="${escHtml(_prevSearch)}" placeholder="🔍 Ieškoti medžiagos..." style="font-size:11px;padding:4px 10px;max-width:220px" oninput="renderGlobalMaterials()">
   </div>`;
 
-  const filterStatus=document.getElementById('gmat-filter')?.value||'';
-  const filterSearch=(document.getElementById('gmat-search')?.value||'').toLowerCase();
+  const filterStatus=_prevStatus;
+  const filterSearch=_prevSearch.toLowerCase();
 
   // ── Per-project sections ──
   const sectionsHtml=projs.map(p=>{
@@ -6969,6 +6987,7 @@ function renderGlobalMaterials(){
   }).filter(Boolean).join('');
 
   el.innerHTML=summaryHtml+(sectionsHtml||`<div class="empty-state" style="padding:28px">Nėra atitinkančių medžiagų</div>`);
+  if(_searchFocused){const _si=document.getElementById('gmat-search');if(_si){_si.focus();try{_si.setSelectionRange(_caret,_caret);}catch(e){}}}
 }
 
 function setMatStatusEta(pid,idx,eta){
@@ -7183,7 +7202,7 @@ function addWorkdays(date,days){
   return d;
 }
 
-function fmtDate(d){if(!d)return'—';const dd=new Date(d);return dd.toISOString().slice(0,10);}
+function fmtDate(d){if(!d)return'—';const dd=new Date(d);return `${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;} // local date (not UTC) so "today" & event bucketing match the local calendar
 function daysUntil(d){return d?Math.round((new Date(d)-Date.now())/86400000):null;}
 
 // ══════════════════════════════════════════════
@@ -7834,13 +7853,13 @@ function renderReport(){
 
   // ── Per-step average duration ──
   const stepStats={};
-  STEPS.forEach(s=>{stepStats[s.id]={planned:STEP_DAYS[s.id]||1,durations:[],count:0,overCount:0};});
+  STEPS.forEach(s=>{stepStats[s.id]={planned:stepDuration(s.id),durations:[],count:0,overCount:0};}); // honor calibrated DB.stepDays
   allDone.forEach(t=>{
     if(!stepStats[t.stepId])return;
     const d=taskDurationDays(t);if(d===null)return;
     stepStats[t.stepId].durations.push(d);
     stepStats[t.stepId].count++;
-    if(d>(STEP_DAYS[t.stepId]||1)*1.2)stepStats[t.stepId].overCount++;
+    if(d>stepDuration(t.stepId)*1.2)stepStats[t.stepId].overCount++;
   });
   const maxAvg=Math.max(1,...STEPS.map(s=>{const ds=stepStats[s.id].durations;return ds.length?ds.reduce((a,b)=>a+b,0)/ds.length:0;}));
 
@@ -7881,7 +7900,7 @@ function renderReport(){
     workerStats[t.assigneeId].totalHours+=h;
     if(!workerStats[t.assigneeId].steps[t.stepId])workerStats[t.assigneeId].steps[t.stepId]=0;
     workerStats[t.assigneeId].steps[t.stepId]++;
-    if(h>(STEP_DAYS[t.stepId]||1)*8*1.2)workerStats[t.assigneeId].over++;
+    if(h>stepDuration(t.stepId)*8*1.2)workerStats[t.assigneeId].over++;
   });
 
   const workerRows=USERS.map(u=>{
@@ -7971,6 +7990,49 @@ function getStepAssignees(stepId, fallback){
   }
   return fallback?[fallback]:[];
 }
+// Design→production: when the last DESIGN_STEP of a design-phase project is completed —
+// whether via the → button or the Status dropdown — flip it to production and create the
+// production tasks. Idempotent: safe to call on every design-step completion.
+function maybeTransitionToProduction(pid, stepId){
+  const proj=getProject(pid);
+  if(!(proj && proj.designStatus==='design' && DESIGN_STEPS.some(s=>s.id===stepId))) return;
+  const now=new Date().toISOString();
+  const remainingDesignSteps = DESIGN_STEPS.filter(s=>{
+    const dt = DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id);
+    return dt && dt.status!=='done';
+  });
+  if(remainingDesignSteps.length === 0){
+    proj.designStatus='production';
+    proj.designCompletedAt=now;
+    const shortName=proj.name.split('—')[0].trim();
+    const qtyLines2=(proj.lines||[]).map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
+    const totalQty2=qtyLines2.reduce((s,l)=>s+l.qty,0)||0;
+    const stepsToCreate=proj.serviceSteps?STEPS.filter(s=>proj.serviceSteps.includes(s.id)):STEPS;
+    let createdCount=0;
+    stepsToCreate.forEach(s=>{
+      if(!DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id)){
+        const defIds=getStepAssignees(s.id, proj.owner); // coerces legacy string/array shapes (was raw DB.stepDefaults)
+        const estHours=proj.timeEstimates?.[s.id]||0;
+        DB.tasks.push({
+          id:uid(),projectId:pid,stepId:s.id,
+          name:`${s.label} – ${shortName}`,
+          status:'pending',assigneeId:defIds[0]||proj.owner,assigneeIds:defIds,
+          qtyOrdered:totalQty2,qtyDone:0,
+          qtyLines:qtyLines2.length?qtyLines2.map(l=>({...l,done:0})):null,
+          estimatedHours:estHours,
+          materials:[],created:now,
+        });
+        createdCount++;
+      }
+    });
+    addNotif('step-move', `🚀 Naujas projektas gamyboje`, proj.name||'', pid);
+    toast(`🚀 Projektas perduotas į gamybą! Sukurta ${createdCount} užduočių.`, 'success');
+    try{ renderSidebar(); }catch(e){}
+  } else if(stepId==='perdavimas'){
+    const missingLabels = remainingDesignSteps.map(s=>s.label).join(', ');
+    toast(`⚠ Negalima perduoti į gamybą — dar neatlikti žingsniai: ${missingLabels}`, 'error');
+  }
+}
 function advanceTask(tid){
   const t=DB.tasks.find(x=>x.id===tid);if(!t)return;
   const now=new Date().toISOString();
@@ -7994,6 +8056,7 @@ function advanceTask(tid){
       if(DB.currentProjectId===pid)renderProjectView(pid,_projTab);
     }
     updateFloorCard(pid);
+    if(DB.currentView==='floor')renderFloor(); // refresh the step columns so the button/status isn't stale
     return;
   }
 
@@ -8006,9 +8069,9 @@ function advanceTask(tid){
 
     // All tasks are pre-created — just notify about next step
     const proj=getProject(pid);
-    const allowedSteps=proj?.serviceSteps?STEPS.filter(s=>proj.serviceSteps.includes(s.id)):STEPS;
+    const allowedSteps=projSteps(proj); // DESIGN_STEPS for design projects, subset for serviceSteps, else STEPS
     const curIdx=allowedSteps.findIndex(s=>s.id===stepId);
-    let nextStep=allowedSteps[curIdx+1]||null;
+    let nextStep=(curIdx>=0)?(allowedSteps[curIdx+1]||null):null; // guard: unknown step shouldn't point at step[0]
     if(!proj?.serviceSteps&&nextStep?.id==='apdaila'&&!needsApdaila(proj))nextStep=allowedSteps[curIdx+2]||null;
     if(nextStep) addNotif('step-move',`${nextStep.label} laukia`,proj?.name||'',pid);
 
@@ -8016,53 +8079,8 @@ function advanceTask(tid){
     const allDone=projTasks(pid).every(t2=>t2.status==='done');
     if(allDone)toast('🎉 Visi žingsniai atlikti!','success');
 
-    // DESIGN → PRODUCTION TRANSITION
-    // Fires whenever a project in 'design' phase has had all DESIGN_STEPS completed.
-    // We check on EVERY design-task completion (not only Perdavimas) so the order in
-    // which the engineer marks them done doesn't matter — the project transitions as
-    // soon as the last design task moves to 'done'.
-    if(proj?.designStatus==='design' && DESIGN_STEPS.some(s=>s.id===stepId)){
-      const remainingDesignSteps = DESIGN_STEPS.filter(s=>{
-        const dt = DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id);
-        return dt && dt.status!=='done';
-      });
-      if(remainingDesignSteps.length === 0){
-        proj.designStatus='production';
-        proj.designCompletedAt=now;
-        const shortName=proj.name.split('—')[0].trim();
-        const qtyLines2=(proj.lines||[]).map(l=>({art:l.art,desc:l.desc,qty:parseInt(l.qty)||0,done:0}));
-        const totalQty2=qtyLines2.reduce((s,l)=>s+l.qty,0)||0;
-        const stepsToCreate=proj.serviceSteps?STEPS.filter(s=>proj.serviceSteps.includes(s.id)):STEPS;
-        let createdCount=0;
-        stepsToCreate.forEach(s=>{
-          // Only create if not already exists
-          if(!DB.tasks.find(t2=>t2.projectId===pid&&t2.stepId===s.id)){
-            const defIds=DB.stepDefaults?.[s.id]||[proj.owner];
-            const estHours=proj.timeEstimates?.[s.id]||0;
-            DB.tasks.push({
-              id:uid(),projectId:pid,stepId:s.id,
-              name:`${s.label} – ${shortName}`,
-              status:'pending',assigneeId:defIds[0]||proj.owner,assigneeIds:defIds,
-              qtyOrdered:totalQty2,qtyDone:0,
-              qtyLines:qtyLines2.length?qtyLines2.map(l=>({...l,done:0})):null,
-              estimatedHours:estHours,
-              materials:[],created:now,
-            });
-            createdCount++;
-          }
-        });
-        // Notify production-side workers that a fresh batch landed in their queue
-        addNotif('step-move', `🚀 Naujas projektas gamyboje`, proj.name||'', pid);
-        toast(`🚀 Projektas perduotas į gamybą! Sukurta ${createdCount} užduočių.`, 'success');
-        // Refresh sidebar so the project moves from "Projektavimas" group to "Gamybos Projektai"
-        try{ renderSidebar(); }catch(e){}
-      } else if(stepId==='perdavimas'){
-        // Engineer marked the handover task done, but earlier design steps are still
-        // open — explain exactly what's missing so they don't wonder why nothing happened.
-        const missingLabels = remainingDesignSteps.map(s=>s.label).join(', ');
-        toast(`⚠ Negalima perduoti į gamybą — dar neatlikti žingsniai: ${missingLabels}`, 'error');
-      }
-    }
+    // Design→production transition — extracted so the Status-dropdown path can trigger it too.
+    maybeTransitionToProduction(pid, stepId);
     save();
     if(DB.currentProjectId===pid&&_projTab==='kanban'){
       patchKanbanColumn(pid, stepId);
@@ -8072,6 +8090,7 @@ function advanceTask(tid){
       if(DB.currentProjectId===pid)renderProjectView(pid,_projTab);
     }
     updateFloorCard(pid);
+    if(DB.currentView==='floor')renderFloor(); // refresh step columns after completion too
   }
 }
 function addNotif(type,title,sub,pid,userId){DB.notifications.unshift({id:uid(),type,title,sub,time:new Date().toISOString(),read:false,projectId:pid,userId:userId||null});renderSidebar()}
@@ -8279,8 +8298,11 @@ function updateFloorCard(pid){
   const pct=projProgress(pid);
   const bar=card.querySelector('div[style*="border-radius:2px"][style*="height:100%"]');
   if(bar)bar.style.width=pct+'%';
-  STEPS.forEach((s,i)=>{
-    const dot=card.querySelectorAll('.pp-step')[i];
+  const p=getProject(pid);
+  const shown=p?.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS; // match the dot subset rendered on the card
+  const dots=card.querySelectorAll('.pp-step');
+  shown.forEach((s,i)=>{
+    const dot=dots[i];
     if(!dot)return;
     const t=tasks.find(t2=>t2.stepId===s.id);
     dot.className='pp-step'+(t?t.status==='done'?' done':t.status==='in-progress'?' active':'':'');
@@ -8471,9 +8493,9 @@ function openNewProjectModal(fromOrder, presetType){
 
   openModal(`<div class="modal-title">Naujas projektas <button class="modal-close" onclick="closeModal()">✕</button></div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button id="npt-projektas" class="btn btn-primary" style="flex:1;justify-content:center" onclick="switchProjType('projektas')">🏗 Projektas</button>
-      <button id="npt-paslauga" class="btn" style="flex:1;justify-content:center" onclick="switchProjType('paslauga')">⚡ Paslauga</button>
-      ${(isManager()||isEngineer())?`<button id="npt-projektavimas" class="btn" style="flex:1;justify-content:center" onclick="switchProjType('projektavimas')">📐 Projektavimas</button>`:''}
+      ${!isEngineer()?`<button id="npt-projektas" class="btn btn-primary" style="flex:1;justify-content:center" onclick="switchProjType('projektas')">🏗 Projektas</button>
+      <button id="npt-paslauga" class="btn" style="flex:1;justify-content:center" onclick="switchProjType('paslauga')">⚡ Paslauga</button>`:''}
+      ${(isManager()||isEngineer())?`<button id="npt-projektavimas" class="btn${isEngineer()?' btn-primary':''}" style="flex:1;justify-content:center" onclick="switchProjType('projektavimas')">📐 Projektavimas</button>`:''}
     </div>
     <input type="hidden" id="np-type" value="${isEngineer()?'projektavimas':'projektas'}">
     <div class="form-field"><label class="form-label">Pavadinimas *</label><input id="np-name" placeholder="pvz. Virtuvė — Petrauskai" autofocus value="${escHtml(fo.name||'')}"></div>
@@ -8553,8 +8575,8 @@ function removeNpLine(i){const el=document.getElementById('np-line-'+i);if(el)el
 
 function switchProjType(type){
   document.getElementById('np-type').value=type;
-  document.getElementById('npt-projektas').className='btn'+(type==='projektas'?' btn-primary':'');
-  document.getElementById('npt-paslauga').className='btn'+(type==='paslauga'?' btn-primary':'');
+  const _pbP=document.getElementById('npt-projektas'); if(_pbP)_pbP.className='btn'+(type==='projektas'?' btn-primary':''); // may be hidden for engineers
+  const _pbS=document.getElementById('npt-paslauga'); if(_pbS)_pbS.className='btn'+(type==='paslauga'?' btn-primary':'');
   const npB=document.getElementById('npt-projektavimas');
   if(npB)npB.className='btn'+(type==='projektavimas'?' btn-primary':'');
   document.getElementById('np-steps-section').style.display=(type==='paslauga'||type==='projektas')?'block':'none';
@@ -8614,11 +8636,12 @@ async function createProject(fromOrderId){
   // Collect lines from modal (if manually entered)
   let lines=[];
   const lineRows=document.querySelectorAll('#np-lines > div');
-  lineRows.forEach((r,i)=>{
-    const art=(document.getElementById('npl-art-'+i)?.value||'').trim();
-    const desc=(document.getElementById('npl-desc-'+i)?.value||'').trim();
-    const qty=(document.getElementById('npl-qty-'+i)?.value||'').trim();
-    const date=(document.getElementById('npl-date-'+i)?.value||'');
+  lineRows.forEach((r)=>{
+    // Read relative to the row — ids don't renumber on removal (see removeNpLine).
+    const art=(r.querySelector('[id^="npl-art-"]')?.value||'').trim();
+    const desc=(r.querySelector('[id^="npl-desc-"]')?.value||'').trim();
+    const qty=(r.querySelector('[id^="npl-qty-"]')?.value||'').trim();
+    const date=(r.querySelector('[id^="npl-date-"]')?.value||'');
     if(art||desc)lines.push({art,desc,qty,date,qtyDone:0});
   });
   // If converting from order and lines already shown as preview, use order lines
@@ -8932,6 +8955,7 @@ function updateTask(id,f,v){
   const oldStep=t.stepId;
   t[f]=v;
   if(f==='status'&&v!==undefined) pushLog(t,{event:'status',to:v});
+  if(f==='status'&&v==='done'){ if(!t.completedAt)t.completedAt=new Date().toISOString(); maybeTransitionToProduction(t.projectId, t.stepId); }
   if(f==='stepId'&&v!==oldStep) pushLog(t,{event:'moved',from:oldStep,to:v});
   if(f==='deadline') pushLog(t,{event:'deadline',to:v});
   if(f==='assigneeId'&&v!==oldA){ pushLog(t,{event:'assign-add',who:v}); addNotif('assign',`Priskirta: ${t.name}`,`→ ${getUser(v).name}`,t.projectId); }
@@ -9547,17 +9571,20 @@ function setAreaView(area,mode){
 const PROJ_STATUS={todo:{l:'Nepradėta',c:'var(--muted)'},active:{l:'Vykdoma',c:'var(--blue-t)'},blocked:{l:'Blokuota',c:'var(--red-t)'},done:{l:'Baigta',c:'var(--green-t)'}};
 function projStat(p){
   const allT=projTasks(p.id);
-  const total=allT.length;
-  const done=allT.filter(t=>t.status==='done').length;
-  const pct=total?Math.round(done/total*100):0;
-  const blocked=allT.some(t=>t.blocker);
-  const inProg=allT.some(t=>t.status==='in-progress');
-  const stepsForP=p.serviceSteps?STEPS.filter(s=>p.serviceSteps.includes(s.id)):STEPS;
+  // Count only the project's CURRENT step set, so finished design tasks left in DB.tasks
+  // after a design→production transition don't inflate the production stats.
+  const stepsForP=projSteps(p);
   const stepOrder=stepsForP.map(s=>s.id);
-  const prodTasks=allT.filter(t=>stepOrder.includes(t.stepId));
+  let prodTasks=allT.filter(t=>stepOrder.includes(t.stepId));
+  if(!prodTasks.length) prodTasks=allT; // fallback so a mismatch never shows an empty project
+  const total=prodTasks.length;
+  const done=prodTasks.filter(t=>t.status==='done').length;
+  const pct=total?Math.round(done/total*100):0;
+  const blocked=prodTasks.some(t=>t.blocker);
+  const inProg=prodTasks.some(t=>t.status==='in-progress');
   const ordered=prodTasks.slice().sort((a,b)=>stepOrder.indexOf(a.stepId)-stepOrder.indexOf(b.stepId));
   const cur=ordered.find(t=>t.status==='in-progress')||ordered.find(t=>t.status!=='done');
-  const curStep=cur?(STEPS.find(s=>s.id===cur.stepId)||null):null;
+  const curStep=cur?(ALL_STEPS_BY_ID[cur.stepId]||STEPS.find(s=>s.id===cur.stepId)||null):null;
   const dl=p.deadline?daysUntilDeadline(p.deadline):null;
   let status; if(blocked)status='blocked'; else if(total>0&&done>=total)status='done'; else if(inProg||done>0)status='active'; else status='todo';
   return {total,done,pct,blocked,inProg,curStep,dl,status,owner:getUser(p.owner)};
@@ -11209,11 +11236,13 @@ function saveOrder(editId){
   // Collect lines
   const lines=[];
   const rows=document.querySelectorAll('#ord-lines > div');
-  rows.forEach((r,i)=>{
-    const art=(document.getElementById('ol-art-'+i)?.value||'').trim();
-    const desc=(document.getElementById('ol-desc-'+i)?.value||'').trim();
-    const qty=(document.getElementById('ol-qty-'+i)?.value||'').trim();
-    const date=(document.getElementById('ol-date-'+i)?.value||'');
+  rows.forEach((r)=>{
+    // Read inputs relative to their row — ids don't renumber on row removal, so a
+    // positional getElementById('ol-art-'+i) would read the wrong (or a deleted) row.
+    const art=(r.querySelector('[id^="ol-art-"]')?.value||'').trim();
+    const desc=(r.querySelector('[id^="ol-desc-"]')?.value||'').trim();
+    const qty=(r.querySelector('[id^="ol-qty-"]')?.value||'').trim();
+    const date=(r.querySelector('[id^="ol-date-"]')?.value||'');
     if(art||desc)lines.push({art,desc,qty,date});
   });
   const data={
@@ -16594,14 +16623,20 @@ function submitWhAdd(){
   // produce the SAME sku. If a live item already carries it, top that up instead of
   // spawning a near-duplicate position.
   const _candSku = data.sku || whGenSku(data.mpn||data.material, data.thickness, kind);
-  // Sheets/edges/countertops already normalise name+thickness into the sku, so an exact
-  // match catches "XX123" vs "xx_123". Fittings keep the raw code, so also compare a
-  // stripped form to catch "BL-RUN-50" vs "BL_RUN_50". MPN is checked too for fittings.
-  const _cn = whNormCode(_candSku);
-  const _dup = DB.warehouse.find(w=>!w.archived && (
-    w.sku===_candSku ||
-    (kind==='fitting' && (whNormCode(w.sku)===_cn || (data.mpn && whNormCode(w.mpn)===whNormCode(data.mpn))))
-  ));
+  // Match a TRUE duplicate. For fittings the sku is the code itself, so compare it (raw +
+  // stripped) and the MPN. For sheets/edges/countertops the generated sku keeps only the
+  // first 6 chars of the name ("Kronospan 8685" and "Kronospan 0171" both make KRONOS-18),
+  // so compare the FULL normalised name + thickness — this still collapses "XX123" vs
+  // "xx_123" but never merges genuinely different materials.
+  const _nm = whNormCode(data.material);
+  const _th = parseFloat(data.thickness)||0;
+  const _dup = DB.warehouse.find(w=>{
+    if(w.archived) return false;
+    if(kind==='fitting'){
+      return w.sku===_candSku || whNormCode(w.sku)===whNormCode(_candSku) || (data.mpn && w.mpn && whNormCode(w.mpn)===whNormCode(data.mpn));
+    }
+    return w.kind===kind && _nm && whNormCode(w.material)===_nm && (parseFloat(w.thickness)||0)===_th;
+  });
   if(_dup){
     const _u=whEntryUnit(_dup);
     const _ok=confirm('⚠ Panaši medžiaga jau yra sandėlyje:\n\n'+_dup.sku+' — '+_dup.material+'\nDabar: '+whStockDisplay(_dup)+'\n\n[OK]  Papildyti ESAMĄ (rekomenduojama — be dublikatų)\n[Atšaukti]  Vis tiek sukurti naują atskirą poziciją');
@@ -16670,7 +16705,7 @@ function openWhEditModal(itemId){
           ? `<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Subkategorija</label>
              <select id="we-subcat" style="margin-top:4px">${subcatOptions}</select>`
           : `<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Storis (mm)</label>
-             <input id="we-thick" type="number" step="1" min="0" value="${w.thickness||0}" style="margin-top:4px">`
+             <input id="we-thick" type="number" step="0.1" min="0" value="${w.thickness||0}" style="margin-top:4px">`
         }
       </div>
     </div>
@@ -16813,7 +16848,7 @@ function submitWhEdit(itemId){
     if(uperEl) w.unitsPerPack = parseInt(uperEl.value)||1;
   } else {
     const thEl = document.getElementById('we-thick');
-    if(thEl) w.thickness = parseInt(thEl.value)||w.thickness;
+    if(thEl){ const _t=parseFloat(thEl.value); if(!isNaN(_t)) w.thickness=_t; } // parseFloat: briauna/stalvirsis have sub-mm/fractional thickness
     if(w.kind==='sheet'){
       const swEl = document.getElementById('we-sw'), shEl = document.getElementById('we-sh');
       if(swEl) w.sheetW = parseInt(swEl.value)||w.sheetW||2800;
@@ -16855,7 +16890,7 @@ function submitWhEdit(itemId){
 
 function openWhCountModal(itemId){
   const w = DB.warehouse.find(x=>x.id===itemId); if(!w) return;
-  const area = _boardAreaM2(w);
+  const area = whBoardArea(w); // strict: 0 when dims unknown, so dimensionless sheets are counted in m² (matching the stock list), not a fabricated board area
   const useBoards = (w.kind==='sheet' && area>0);        // count full panels in boards
   const sysBoards = area>0 ? (w.qty/area) : w.qty;
   const html = `<div id="wh-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)whCloseModal()">
@@ -16872,7 +16907,7 @@ function openWhCountModal(itemId){
         </div>
         <div>
           <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Faktiškai suskaičiuota${useBoards?' (lakštai)':''} *</label>
-          <input id="cc-counted" type="number" step="${useBoards?'1':'0.01'}" value="${useBoards?whFmt(sysBoards,0):w.qty}" ${useBoards?`data-sheet="1" data-area="${area}" oninput="whCountHint(this)"`:''} style="margin-top:4px;font-size:18px;font-weight:600;text-align:center" autofocus>
+          <input id="cc-counted" type="number" step="${useBoards?'1':'0.01'}" value="${useBoards?whFmt(sysBoards,0):w.qty}" data-def="${useBoards?whFmt(sysBoards,0):w.qty}" ${useBoards?`data-sheet="1" data-area="${area}" oninput="whCountHint(this)"`:''} style="margin-top:4px;font-size:18px;font-weight:600;text-align:center" autofocus>
           ${useBoards?`<div id="cc-hint" style="font-size:11px;color:var(--green-t);text-align:center;margin-top:5px">= ${whFmt(sysBoards*area,1)} m²</div>`:''}
         </div>
         <div>
@@ -16902,7 +16937,12 @@ function submitWhCount(itemId){
   if(counted==='' || isNaN(parseFloat(counted))){ toast('Įveskite skaičių','error'); return; }
   // Panels are counted in boards → convert to the stored m² before recording.
   let countedQty = parseFloat(counted);
-  if(el.dataset.sheet){ countedQty = countedQty * (parseFloat(el.dataset.area) || _boardAreaM2(DB.warehouse.find(w=>w.id===itemId))); }
+  const _w0 = DB.warehouse.find(w=>w.id===itemId);
+  if(el.dataset.def!==undefined && counted===el.dataset.def && _w0){
+    countedQty = _w0.qty; // pre-filled default confirmed unchanged → keep exact stock, don't invent a rounding variance
+  } else if(el.dataset.sheet){
+    countedQty = countedQty * (parseFloat(el.dataset.area) || _boardAreaM2(_w0));
+  }
   const r = cycleCount(itemId, countedQty, note);
   whCloseModal();
   if(Math.abs(r.variance)<0.01) toast(`✓ Tikslu — be skirtumo`,'success');
