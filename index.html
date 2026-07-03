@@ -16343,6 +16343,37 @@ function whSubmitAddExisting(id){
   toast('✓ +'+addQty+' '+whEntryUnit(w)+' · '+w.material,'success');
 }
 
+// Live "did you mean this stock item?" suggestions while typing a new name/code.
+// Matches ANY word or code fragment (name, sku, mpn, aliases) — so "8685" finds
+// "Kronospan 8685 PE", which the sku-prefix duplicate guard alone would miss.
+function whSuggestExisting(q){
+  const kind=document.getElementById('wh-kind')?.value||'sheet';
+  const box=document.getElementById('wh-suggest'); if(!box)return;
+  q=String(q||'').trim();
+  const lq=q.toLowerCase(), nq=whNormCode(q);
+  if(q.length<2){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches=DB.warehouse.filter(w=>{
+    if(w.archived||w.kind!==kind)return false;
+    const parts=[w.material,w.sku,w.mpn,w.distCode].concat(w.aliases||[]).filter(Boolean);
+    if(parts.join(' ').toLowerCase().includes(lq))return true;
+    return nq.length>=2 && whNormCode(parts.join(' ')).includes(nq);
+  }).slice(0,6);
+  if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--amber-t);margin-bottom:4px">⚠ Jau turite panašių sandėlyje — spustelėkite, kad tik papildytumėte (be dublikato):</div>'+
+    matches.map(w=>`<div onclick="whPickSuggestion('${w.id}')" style="cursor:pointer;padding:7px 10px;border:1px solid var(--amber-t);border-radius:7px;margin-bottom:4px;background:var(--amber-bg);display:flex;align-items:center;gap:8px">`+
+      `<span style="font-family:var(--mono);font-weight:700;font-size:11px">${escHtml(w.sku||'')}</span>`+
+      `<span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(w.material||'')}</span>`+
+      `<span style="font-size:11px;color:var(--muted);white-space:nowrap">${whStockDisplay(w)}</span>`+
+      `<span style="font-size:11px;color:var(--blue-t);font-weight:700;white-space:nowrap">→ papildyti</span>`+
+    `</div>`).join('');
+}
+function whPickSuggestion(id){
+  const sel=document.getElementById('wh-existing');
+  if(sel){ sel.value=id; whAddModeChange(); }
+  const box=document.getElementById('wh-suggest'); if(box){ box.style.display='none'; box.innerHTML=''; }
+}
+
 function openWhAddModal(presetKind){
   if(!isManager()&&!isEngineer()){toast('Nėra teisių','error');return;}
   const kind = presetKind || 'sheet';
@@ -16359,12 +16390,12 @@ function openWhAddModal(presetKind){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">⭐ Vidinis kodas (Blulita) *</label>
-        <input id="wh-distcode" placeholder="pvz. BL-RUN-50-30" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase;background:var(--green-bg)">
+        <input id="wh-distcode" oninput="whSuggestExisting(this.value)" placeholder="pvz. BL-RUN-50-30" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase;background:var(--green-bg)">
         <div style="font-size:9px;color:var(--green-t);margin-top:3px">Tavo / tiekėjo kodas — bus pagrindinis SKU</div>
       </div>
       <div>
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Gamintojo nr. (MPN)</label>
-        <input id="wh-mpn" placeholder="pvz. 71B3690" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase">
+        <input id="wh-mpn" oninput="whSuggestExisting(this.value)" placeholder="pvz. 71B3690" style="margin-top:4px;font-family:var(--mono);text-transform:uppercase">
         <div style="font-size:9px;color:var(--hint);margin-top:3px">Originalus Blum/Hettich/Hafele</div>
       </div>
     </div>
@@ -16451,7 +16482,8 @@ function openWhAddModal(presetKind){
       <div id="wh-new-wrap">
       ${catalogOpts}
       <div style="display:grid;gap:10px;margin-top:10px">
-        <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pavadinimas *</label><input id="wh-mat" oninput="whSuggestExisting(this.value)" placeholder="${isFit?'pvz. CLIP top BLUMOTION 110° soft-close':'pvz. Egger U999 ST2'}" style="margin-top:4px"></div>
+        <div id="wh-suggest" style="display:none"></div>
         ${fittingFields}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${isFit?'Pradinis kiekis':isStal?'Kiekis (vnt)':isBriauna?'Kiekis (m)':'Kiekis (lakštai)'}</label><input id="wh-qty" type="number" step="1" value="0" oninput="whPriceSync()" style="margin-top:4px"></div>
