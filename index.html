@@ -797,22 +797,27 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
     </div>
     <div class="sidebar-scroll">
       <div class="sidebar-section">
-        <div class="sidebar-label">Rodiniai</div>
+        <div class="sidebar-label">Kasdienis darbas</div>
         <div class="nav-item active" id="nav-floor" onclick="showView('floor')"><span class="nav-icon">▦</span>Cecho rodinys</div>
         <div class="nav-item" id="nav-planner" onclick="showView('planner')"><span class="nav-icon">✅</span>Mano planas<span class="nav-badge" id="planner-badge" style="display:none">0</span></div>
+        <div class="sidebar-label" style="margin-top:14px">Projektai ir gamyba</div>
         <div class="nav-item" id="nav-projects" onclick="showView('projects')"><span class="nav-icon">📁</span>Visi projektai<span class="nav-badge" id="proj-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-production" onclick="showView('production')"><span class="nav-icon">⚙️</span>Gamybos Projektai<span class="nav-badge" id="prod-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-paslauga" onclick="showView('paslauga')"><span class="nav-icon">⚡</span>Paslauga<span class="nav-badge" id="paslauga-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-design" onclick="showView('design')"><span class="nav-icon">📐</span>Projektavimas<span class="nav-badge" id="design-badge" style="display:none">0</span></div>
         <div class="nav-item" id="nav-orders" onclick="showView('orders')"><span class="nav-icon">📬</span>Užsakymai<span class="nav-badge" id="orders-badge" style="display:none">0</span></div>
+        <div class="sidebar-label" style="margin-top:14px">Medžiagos ir sandėlis</div>
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge critical" id="mat-badge" style="display:none">!</span></div>
         <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge info" id="wh-badge" style="display:none">0</span></div>
-        <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span>Grafikas / Lean</div>
+        <div class="sidebar-label" style="margin-top:14px">Planavimas ir komanda</div>
+        <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span><span class="nav-lbl" data-lbl="Grafikas / Lean">Grafikas / Lean</span></div>
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
-        <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span>Disciplina (4DX)</div>
+        <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span><span class="nav-lbl" data-lbl="Disciplina (4DX)">Disciplina (4DX)</span></div>
+        <div class="sidebar-label" style="margin-top:14px">Ataskaitos</div>
         <div class="nav-item" id="nav-report" onclick="showView('report')"><span class="nav-icon">📊</span>Ataskaita</div>
         <div class="nav-item" id="nav-daily" onclick="showView('daily')"><span class="nav-icon">📈</span>Dienos ataskaita</div>
         <div class="nav-item" id="nav-notifs" onclick="showView('notifs')"><span class="nav-icon">🔔</span>Pranešimai<span class="nav-badge info" id="notif-badge" style="display:none">0</span></div>
+        <div class="sidebar-label" style="margin-top:14px">Įrankiai</div>
         <div class="nav-item" id="nav-import" onclick="showView('import')"><span class="nav-icon">📥</span>Importuoti Excel</div>
         <div class="nav-item" id="nav-backup" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" id="nav-nesting" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
@@ -1068,7 +1073,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
 .dr-table{width:100%;border-collapse:collapse;font-size:12px}
 .dr-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--border)}
 .dr-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
-@media(max-width:600px){.pl-actions{opacity:1}.pl-quickadd{flex-wrap:wrap}.pl-quickadd input[type=date]{width:100%}}
+@media(max-width:600px){.pl-actions{opacity:1}.pl-quickadd{flex-wrap:wrap;gap:8px}.pl-quickadd>#pl-new-title{flex:1 1 100%!important}.pl-quickadd>.pl-newprio{flex:1 1 auto!important;width:auto!important}.pl-quickadd>input[type=date]{flex:1 1 auto!important;width:auto!important;min-width:120px}.pl-quickadd>.btn{flex:1 1 100%!important;justify-content:center}}
 </style>
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal-body"></div></div>
 <div class="toast-container" id="toast-container"></div>
@@ -2089,6 +2094,7 @@ async function enterApp(){
   if(me)DB.currentUserId=me.id;
   DB.currentProjectId=null;
   showView('planner');
+  setTimeout(maybeShowWelcome,700);
   setSyncStatus(_offline?'offline':'online');
   setTimeout(checkDeadlines,800);setInterval(checkDeadlines,10*60*1000);
   // Daily backup check — once per browser session per workspace per day
@@ -3793,6 +3799,8 @@ function getNavVis(role,id){
   if(cfg&&cfg.hasOwnProperty(id))return cfg[id];
   return DEFAULT_NAV_VIS[role]?.[id]??true;
 }
+// Plainer nav labels for the least-technical roles (drop methodology jargon)
+const NAV_WORKER_LABELS={'nav-schedule':'Grafikas','nav-discipline':'Tikslai'};
 function applyNavVisibility(){
   if(isManager())return; // admin always sees everything
   const role=currentUserRole;
@@ -3800,6 +3808,38 @@ function applyNavVisibility(){
     const el=document.getElementById(item.id);
     if(el)el.style.display=getNavVis(role,item.id)?'':'none';
   });
+  // Show plain-language labels to floor/read-only users; keep full terms for engineers/admins
+  const plain=(role==='worker'||role==='view');
+  document.querySelectorAll('.sidebar .nav-lbl').forEach(el=>{
+    const id=el.parentElement?.id;
+    el.textContent=(plain&&NAV_WORKER_LABELS[id])?NAV_WORKER_LABELS[id]:(el.getAttribute('data-lbl')||el.textContent);
+  });
+}
+// First-run welcome — one-time, dismissible, role-aware orientation for new users
+function maybeShowWelcome(){
+  try{ if(localStorage.getItem('gvs_welcomed'))return; }catch(e){ return; }
+  if(document.getElementById('welcome-banner'))return;
+  const role=currentUserRole;
+  const plain=(role==='worker'||role==='view');
+  const first=((typeof CURRENT_USER_NAME==='string'&&CURRENT_USER_NAME)||'').split(' ')[0]||'';
+  const msg=plain
+    ? 'Meniu rasite pagrindinius rodinius. Pradėkite nuo <b>„Mano planas"</b> — ten matysite savo užduotis. <b>„Cecho rodinys"</b> rodo visą gamybą.'
+    : 'Meniu suskirstytas grupėmis. Pradėkite nuo <b>„Mano planas"</b> arba sukurkite pirmą projektą per <b>„Visi projektai"</b>. Ką kiekvienas vartotojas mato meniu – galite valdyti skiltyje <b>„Komanda"</b>.';
+  const el=document.createElement('div');
+  el.id='welcome-banner';
+  el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:72px;z-index:1400;max-width:560px;width:calc(100% - 28px);background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:var(--sh3);padding:15px 16px;display:flex;gap:12px;align-items:flex-start';
+  el.innerHTML='<div style="font-size:22px;line-height:1.1">👋</div>'
+    +'<div style="flex:1;font-size:13px;line-height:1.5">'
+      +'<div style="font-weight:700;margin-bottom:3px">Sveiki'+(first?', '+escHtml(first):'')+'!</div>'
+      +'<div style="color:var(--muted)">'+msg+'</div>'
+      +'<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="dismissWelcome()">Supratau 👍</button>'
+    +'</div>'
+    +'<button onclick="dismissWelcome()" title="Uždaryti" style="border:none;background:none;cursor:pointer;color:var(--hint);font-size:15px;line-height:1;padding:2px 4px">✕</button>';
+  document.body.appendChild(el);
+}
+function dismissWelcome(){
+  try{ localStorage.setItem('gvs_welcomed','1'); }catch(e){}
+  const el=document.getElementById('welcome-banner'); if(el)el.remove();
 }
 function toggleNavVisibility(role,id){
   if(!DB.navVisibility)DB.navVisibility={};
@@ -4030,7 +4070,7 @@ function renderProjectView(pid,tab){
         ${p.importData?'<span class="badge badge-purple">📊 Excel</span>':''}
         ${p.files?.length?`<span class="badge badge-gray">📎 ${p.files.length}</span>`:''}
         ${p.lines?.length?`<span class="badge badge-blue" style="cursor:pointer" onclick="toggleProjectLines('${p.id}')">📋 ${p.lines.length} poz.</span>`:''}
-        ${(p.lines?.length||p.type==='paslauga'||p.serviceSteps)?`<span class="badge badge-green" style="cursor:pointer" onclick="printPackingList('${p.id}')">🖨 Pakavimo lapas</span>`:''}
+        ${(p.lines?.length||p.type==='paslauga')?`<span class="badge badge-green" style="cursor:pointer" onclick="printPackingList('${p.id}')">🖨 Pakavimo lapas</span>`:''}
         ${combinedBadgeHtml(p)}
       </div>
       ${p.notes?`<div style="font-size:11px;color:var(--hint);margin-top:4px;font-style:italic">${escHtml(p.notes)}</div>`:''}
@@ -4054,8 +4094,8 @@ function renderProjectView(pid,tab){
   else if(_projTab==='collect')content=renderCollectionList(pid);
   else if(_projTab==='files')content=renderFilesTab(pid);
 
-  const packPanel=(p.type==='paslauga'||p.serviceSteps)?paslaugaPackPanel(pid):'';
-  const deliveryPanel=(p.type==='paslauga'||p.serviceSteps)?paslaugaDeliveryPanel(pid):'';
+  const packPanel=(p.type==='paslauga')?paslaugaPackPanel(pid):'';
+  const deliveryPanel=(p.type==='paslauga')?paslaugaDeliveryPanel(pid):'';
   document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+packPanel+deliveryPanel+renderProjectComments(pid);
 }
 
@@ -8158,7 +8198,7 @@ function taskCardHtml(t, pid, stepId){
   // Paslauga: show the parts/positions required to make, with per-part progress
   let partsHtml='';
   const projForCard=getProject(pid);
-  if((projForCard?.type==='paslauga'||projForCard?.serviceSteps)&&t.qtyLines&&t.qtyLines.length){
+  if((projForCard?.type==='paslauga')&&t.qtyLines&&t.qtyLines.length){
     const lineDateByArt={};
     (projForCard.lines||[]).forEach(l=>{ if(l.art) lineDateByArt[l.art]=l.date||''; });
     const rows=t.qtyLines.map(ql=>{
@@ -8345,7 +8385,7 @@ function openNewProjectModal(fromOrder, presetType){
   const userOpts=USERS.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
   const stepChecks=STEPS.map((s,i)=>`
     <label style="display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:11px;font-weight:500">
-      <input type="checkbox" id="ns-step-${s.id}" style="width:14px;height:14px" onchange="toggleServiceStep()" ${i===0?'checked':''}>
+      <input type="checkbox" id="ns-step-${s.id}" style="width:14px;height:14px" onchange="toggleServiceStep()" checked>
       <span style="background:${s.bg};color:${s.color};padding:2px 6px;border-radius:4px">${stepIco(s,12)} ${s.label}</span>
     </label>`).join('');
   // Show order lines if converting from order
@@ -8401,8 +8441,8 @@ function openNewProjectModal(fromOrder, presetType){
       <div class="form-field"><label class="form-label">Atsakingas</label><select id="np-owner">${userOpts}</select></div>
     </div>
     ${linesPreview}
-    <div id="np-steps-section" style="display:none;margin-bottom:12px">
-      <label class="form-label" style="margin-bottom:6px">Žingsniai (pasirinkite tik reikalingus)</label>
+    <div id="np-steps-section" style="display:${isEngineer()?'none':'block'};margin-bottom:12px">
+      <label class="form-label" style="margin-bottom:6px">Užduotys / žingsniai — atžymėkite tuos, kurių nereikia</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">${stepChecks}</div>
       <div id="np-steps-preview" style="font-size:10px;color:var(--blue-t);margin-top:6px;font-family:var(--mono)"></div>
     </div>
@@ -8470,8 +8510,8 @@ function switchProjType(type){
   document.getElementById('npt-paslauga').className='btn'+(type==='paslauga'?' btn-primary':'');
   const npB=document.getElementById('npt-projektavimas');
   if(npB)npB.className='btn'+(type==='projektavimas'?' btn-primary':'');
-  document.getElementById('np-steps-section').style.display=type==='paslauga'?'block':'none';
-  if(type==='paslauga') toggleServiceStep();
+  document.getElementById('np-steps-section').style.display=(type==='paslauga'||type==='projektas')?'block':'none';
+  if(type==='paslauga'||type==='projektas') npSetStepDefaults(type);
   // For projektavimas type, hint admin to assign engineer
   const owEl=document.getElementById('np-owner');
   const ownerLbl=owEl?.closest('.form-field')?.querySelector('.form-label');
@@ -8491,6 +8531,12 @@ function toggleServiceStep(){
   if(preview) preview.textContent=selected.length?selected.map(s=>s.short).join(' → '):'Pasirinkite bent vieną žingsnį';
 }
 
+// Default step selection per project type: production pre-checks all (untick what you don't need);
+// service starts minimal (just the first) since it's usually a small subset.
+function npSetStepDefaults(type){
+  STEPS.forEach((s,i)=>{const cb=document.getElementById('ns-step-'+s.id);if(cb)cb.checked=(type==='paslauga')?(i===0):true;});
+  toggleServiceStep();
+}
 function selCol(c){_selColor=c;PROJ_COLORS.forEach((col,i)=>{const el=document.getElementById('sw'+i);if(el)el.classList.toggle('selected',col===c)})}
 
 async function createProject(fromOrderId){
@@ -8601,7 +8647,12 @@ async function createProject(fromOrderId){
     p.serviceSteps=selectedSteps.map(s=>s.id);
     selectedSteps.forEach(s=>DB.tasks.push(makeTask(s.id,shortName,p.owner)));
   } else {
-    STEPS.forEach(s=>DB.tasks.push(makeTask(s.id,shortName,p.owner)));
+    const selectedSteps=STEPS.filter(s=>document.getElementById('ns-step-'+s.id)?.checked);
+    if(!selectedSteps.length){toast('Pasirinkite bent vieną žingsnį','error');return;}
+    // Store the subset only when the user actually deselected something — full-workflow
+    // projects stay clean (no serviceSteps) and behave exactly as before.
+    if(selectedSteps.length<STEPS.length) p.serviceSteps=selectedSteps.map(s=>s.id);
+    selectedSteps.forEach(s=>DB.tasks.push(makeTask(s.id,shortName,p.owner)));
   }
 
   DB.projects.push(p);
