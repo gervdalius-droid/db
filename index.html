@@ -820,6 +820,8 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="sidebar-label" style="margin-top:14px">Įrankiai</div>
         <div class="nav-item" id="nav-import" onclick="showView('import')"><span class="nav-icon">📥</span>Importuoti Excel</div>
         <div class="nav-item" id="nav-backup" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
+        <div class="nav-item" id="nav-restore" onclick="document.getElementById('backup-restore-input').click()"><span class="nav-icon">📥</span>Atkurti iš kopijos</div>
+        <input type="file" id="backup-restore-input" accept=".xlsx,.json" style="display:none" onchange="importBackup(this)">
         <div class="nav-item" id="nav-nesting" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
         <div class="nav-item" id="nav-billing" style="display:none" onclick="openBilling()"><span class="nav-icon">💳</span>Prenumerata ir atsiskaitymai</div>
       </div>
@@ -1841,6 +1843,10 @@ function load(){
     DB.todos=d.todos||[];
     if(d.users&&d.users.length)USERS=d.users;
     if(d.workspace)WORKSPACE_CODE=d.workspace;
+    // Future-proof: restore any other saved top-level keys the explicit list above doesn't
+    // cover (e.g. navVisibility, fittingAliases, fittingPairingRules) so nothing is dropped.
+    {const _handled={projects:1,tasks:1,comments:1,notifications:1,currentUserId:1,orders:1,stepDefaults:1,matStatus:1,matLog:1,stepDays:1,steps:1,warehouse:1,warehouseLog:1,pickStatus:1,kits:1,cycleCounts:1,folders:1,todos:1,users:1,workspace:1};
+     Object.keys(d).forEach(function(k){ if(!_handled[k]) DB[k]=d[k]; });}
     normalizeTaskQuantities();
     migrateDesignTaskNames();
     return true;
@@ -1933,7 +1939,7 @@ function offlineLogin(){
   const u=USERS.find(x=>x.id===DB.currentUserId)||USERS[0];
   CURRENT_USER_NAME=u?u.name:'Vietinis';
   enterApp();
-  if(!had) setTimeout(()=>toast('Lokalus režimas tuščias. Įkelkite duomenis per kairėje esantį „Atsarginė kopija" → importuoti.',''),900);
+  if(!had) setTimeout(()=>toast('Lokalus režimas tuščias. Įkelkite duomenis per kairėje esantį „📥 Atkurti iš kopijos".',''),900);
 }
 
 // ADMIN SETUP — first time
@@ -3828,6 +3834,7 @@ function renderSidebar(){
   if(wcBar&&wcDisp){wcBar.style.display=isManager()&&WORKSPACE_CODE?'block':'none';wcDisp.textContent=WORKSPACE_CODE;}
   const billNav=document.getElementById('nav-billing'); if(billNav) billNav.style.display=(isManager()&&PAYWALL_ENABLED)?'flex':'none';
   const dailyNav=document.getElementById('nav-daily'); if(dailyNav) dailyNav.style.display=isManager()?'flex':'none';
+  const restoreNav=document.getElementById('nav-restore'); if(restoreNav) restoreNav.style.display=isManager()?'flex':'none'; // restore is destructive — managers only
   // Apply nav visibility for non-admin roles
   applyNavVisibility();
 }
@@ -11124,6 +11131,19 @@ function buildBackupWorkbook(){
   styleSheet(wsInfo,[28,30]);
   XLSX.utils.book_append_sheet(wb,wsInfo,'ℹ Info');
 
+  // ── Complete machine-readable snapshot for lossless restore ("Atkurti iš kopijos") ──
+  // Spreads the WHOLE DB (+ users + workspace), so the backup automatically contains EVERY
+  // field, including any added in future updates. Chunked to respect Excel's ~32k cell limit.
+  try{
+    const _snap=JSON.stringify({...DB,users:USERS,workspace:WORKSPACE_CODE});
+    const _rows=[['__GVS_BACKUP_V4__'],['NEKEISKITE šio lapo — jis naudojamas atkuriant duomenis („Atkurti iš kopijos").'],['exportedAt',new Date().toISOString()],['bytes',_snap.length]];
+    const _CH=28000;
+    for(let i=0;i<_snap.length;i+=_CH){ _rows.push(['CHUNK',_snap.slice(i,i+_CH)]); }
+    const _wsR=XLSX.utils.aoa_to_sheet(_rows);
+    _wsR['!cols']=[{wch:14},{wch:100}];
+    XLSX.utils.book_append_sheet(wb,_wsR,'💾 ATKURIMAS');
+  }catch(_e){ console.warn('snapshot sheet failed:',_e); }
+
   return wb;
 }
 
@@ -11146,6 +11166,59 @@ function downloadBackup(silent){
   }
 }
 
+// Restore the full snapshot exactly as a normal load would hydrate it (same normalization/
+// migrations), then persist — in online mode save()→saveToCloud() uploads the whole DB.
+function applyBackupData(data){
+  // Assign EVERY key from the snapshot straight into DB so nothing is dropped (future-proof —
+  // unlike load(), which only re-hydrates a fixed subset). Then run the same normalizations
+  // and persist; online, save()→saveToCloud() uploads the whole restored DB.
+  Object.keys(data).forEach(function(k){ if(k==='users'||k==='workspace')return; DB[k]=data[k]; });
+  if(Array.isArray(data.users)&&data.users.length) USERS=data.users;
+  if(data.workspace) WORKSPACE_CODE=data.workspace;
+  if(Array.isArray(DB.steps)&&DB.steps.length){ STEPS=DB.steps; try{ rebuildStepsIndex(); }catch(e){} }
+  try{ normalizeTaskQuantities(); }catch(e){}
+  try{ migrateDesignTaskNames(); }catch(e){}
+  save();
+}
+// Restore from a backup file: our .xlsx (reads the "💾 ATKURIMAS" snapshot sheet) or a raw .json snapshot.
+function importBackup(inputEl){
+  if(!isManager()){ toast('Tik vadyba gali atkurti duomenis','error'); if(inputEl)inputEl.value=''; return; }
+  const file=inputEl&&inputEl.files&&inputEl.files[0]; if(!file) return;
+  const isJson=/\.json$/i.test(file.name);
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      let data;
+      if(isJson){
+        data=JSON.parse(ev.target.result);
+        if(data&&data.data&&!data.projects&&!data.tasks) data=data.data; // tolerate a {data:{…}} wrapper
+      } else {
+        const wb=XLSX.read(ev.target.result,{type:'array'});
+        let ws=null;
+        for(const nm of wb.SheetNames){ const s=wb.Sheets[nm]; if(s&&s['A1']&&s['A1'].v==='__GVS_BACKUP_V4__'){ ws=s; break; } }
+        if(!ws) throw new Error('Faile nėra atkūrimo duomenų. Naudokite atsarginę kopiją su „💾 ATKURIMAS" lapu (sukurtą naujesnėje versijoje).');
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+        const json=rows.filter(r=>r[0]==='CHUNK').map(r=>r[1]||'').join('');
+        if(!json) throw new Error('Atkūrimo duomenys tušti.');
+        data=JSON.parse(json);
+      }
+      if(!data||typeof data!=='object'||(!('projects' in data)&&!('tasks' in data)&&!('warehouse' in data))) throw new Error('Neatpažinta duomenų bazės struktūra.');
+      const nP=(data.projects||[]).length, nT=(data.tasks||[]).length, nW=(data.warehouse||[]).length, nU=(data.users||[]).length;
+      if(!confirm('⚠ ATKURTI IŠ ATSARGINĖS KOPIJOS?\n\nVISI dabartiniai duomenys bus PAKEISTI kopijos duomenimis:\n• Projektai: '+nP+'\n• Užduotys: '+nT+'\n• Sandėlio pozicijos: '+nW+'\n• Komandos nariai: '+nU+'\n\nPatarimas: pirma atsisiųskite dabartinę kopiją (💾).\n\nTęsti?')) return;
+      applyBackupData(data);
+      DB.currentProjectId=null;
+      toast('✅ Duomenys atkurti ('+nP+' proj. · '+nT+' užd. · '+nW+' sand.)','success');
+      showView('floor'); renderSidebar();
+    }catch(err){
+      console.error('Restore failed:',err);
+      toast('❌ Nepavyko atkurti: '+((err&&err.message)||err),'error');
+    }finally{
+      if(inputEl) inputEl.value=''; // allow re-selecting the same file
+    }
+  };
+  reader.onerror=function(){ toast('❌ Nepavyko perskaityti failo','error'); if(inputEl)inputEl.value=''; };
+  if(isJson) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+}
 function checkDailyBackup(){
   // Only admin auto-backs up
   if(!isManager()||!WORKSPACE_CODE)return;
