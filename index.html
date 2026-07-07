@@ -810,6 +810,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge critical" id="mat-badge" style="display:none">!</span></div>
         <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge info" id="wh-badge" style="display:none">0</span></div>
         <div class="sidebar-label" style="margin-top:14px">Planavimas ir komanda</div>
+        <div class="nav-item" id="nav-calendar" onclick="showView('calendar')"><span class="nav-icon">📆</span>Kalendorius</div>
         <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span><span class="nav-lbl" data-lbl="Grafikas / Lean">Grafikas / Lean</span></div>
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
         <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span><span class="nav-lbl" data-lbl="Disciplina (4DX)">Disciplina (4DX)</span></div>
@@ -935,6 +936,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
       </div>
       <div class="view" id="view-project"><div id="project-content"></div></div>
       <div class="view" id="view-schedule"><div id="schedule-content"></div></div>
+      <div class="view" id="view-calendar"><div id="calendar-content"></div></div>
       <div class="view" id="view-orders"><div id="orders-content"></div></div>
       <div class="view" id="view-projects"><div id="projects-content"></div></div>
       <div class="view" id="view-design"><div id="design-content"></div></div>
@@ -3585,6 +3587,7 @@ function showView(name,extra){
     renderProjectView(extra,'kanban');
   }
   else if(name==='notifs'){document.getElementById('topbar-title').textContent='Pranešimai';document.getElementById('topbar-sub').textContent='Komandos atnaujinimai';renderNotifs();}
+  else if(name==='calendar'){document.getElementById('topbar-title').textContent='📆 Kalendorius';document.getElementById('topbar-sub').textContent='Užduotys ir terminai · Gamyba ir Projektavimas';if(act)act.innerHTML=(isManager()||isEngineer())?'<button class="btn btn-sm btn-primary" onclick="openCalTaskModal(new Date().toISOString().slice(0,10))">+ Užduotis</button>':'';renderCalendarView();}
   else if(name==='schedule'){document.getElementById('topbar-title').textContent='Grafikas / Lean planas';document.getElementById('topbar-sub').textContent='Gamybos eilė · WIP limitai · Butelio kakleliai';renderSchedule();}
   else if(name==='orders'){
     document.getElementById('topbar-title').textContent='Užsakymai';
@@ -4708,6 +4711,164 @@ function renderPlanningSection(){
     ${body}`;
 }
 
+
+// ══════════════════════════════════════════════
+// CALENDAR VIEW — task scheduling (PM / Asana style)
+// A month grid where managers insert & assign tasks with due dates for Gamybos
+// projektai + Projektavimas. Click a day to add a task, drag a task to reschedule,
+// click a task to open it.
+// ══════════════════════════════════════════════
+let _calMonth=new Date().toISOString().slice(0,7); // YYYY-MM
+let _calFilter='all';    // all | gamyba | projektavimas
+let _calAssignee='';     // '' = everyone
+let _calDragTask=null;
+const _calYMD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function calChangeMonth(delta){ const [y,m]=_calMonth.split('-').map(Number); const d=new Date(y,m-1+delta,1); _calMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; renderCalendarView(); }
+function calSetFilter(f){ _calFilter=f; renderCalendarView(); }
+function calSetAssignee(a){ _calAssignee=a; renderCalendarView(); }
+function _calVisibleProjects(){ return DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p)); }
+function _calProjMatches(p){ const isDesign=p.designStatus==='design'; if(_calFilter==='gamyba')return !isDesign; if(_calFilter==='projektavimas')return isDesign; return true; }
+function _calTasks(){
+  const pById={}; _calVisibleProjects().forEach(p=>pById[p.id]=p);
+  return DB.tasks.filter(t=>{
+    if(!t.deadline) return false;
+    const p=pById[t.projectId]; if(!p||!_calProjMatches(p)) return false;
+    if(_calAssignee){ const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]); if(!ids.includes(_calAssignee)) return false; }
+    return true;
+  });
+}
+function calTaskChip(t,today){
+  const p=getProject(t.projectId);
+  const uid=t.assigneeId||(t.assigneeIds&&t.assigneeIds[0])||'';
+  const u=uid?getUser(uid):null;
+  const done=t.status==='done';
+  const overdue=!done&&t.deadline&&t.deadline<today;
+  const col=p?p.color:'#94a3b8';
+  const ini=u?String(u.initials||u.name||'?').slice(0,2):'';
+  return `<div draggable="true" ondragstart="calDragStart(event,'${t.id}')" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="${escHtml(t.name)}${p?' — '+escHtml(p.name):''}"`
+    +` style="background:${done?'var(--green-bg)':overdue?'var(--red-bg)':'var(--surface2)'};border-left:3px solid ${col};padding:2px 4px;border-radius:3px;margin-bottom:2px;font-size:10px;display:flex;align-items:center;gap:3px;cursor:pointer;${done?'text-decoration:line-through;opacity:.65':''}">`
+    +`<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.name)}</span>`
+    +(u?`<span style="width:15px;height:15px;border-radius:50%;background:${u.bg||'#e2e8f0'};color:${u.color||'#334155'};font-size:8px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${escHtml(ini)}</span>`:'')
+    +`</div>`;
+}
+function calDragStart(e,tid){ _calDragTask=tid; try{e.dataTransfer.setData('text/plain',tid);e.dataTransfer.effectAllowed='move';}catch(_){ } }
+function calDrop(e,dateKey){
+  e.preventDefault();
+  const tid=_calDragTask||(e.dataTransfer?e.dataTransfer.getData('text/plain'):''); _calDragTask=null;
+  if(!tid)return; const t=DB.tasks.find(x=>x.id===tid); if(!t||t.deadline===dateKey)return;
+  if(!isManager()&&!isEngineer()&&t.assigneeId!==DB.currentUserId&&!(t.assigneeIds||[]).includes(DB.currentUserId)){ toast('Galite perkelti tik savo užduotis','error'); return; }
+  t.deadline=dateKey; try{pushLog(t,{event:'deadline',to:dateKey});}catch(_){}
+  save(); renderCalendarView(); toast('📅 Terminas perkeltas → '+dateKey,'success');
+}
+function renderCalendarView(){
+  const el=document.getElementById('calendar-content'); if(!el)return;
+  const [y,m]=_calMonth.split('-').map(Number);
+  const firstDay=new Date(y,m-1,1), lastDay=new Date(y,m,0);
+  const monthName=firstDay.toLocaleDateString('lt-LT',{month:'long',year:'numeric'});
+  const startDow=(firstDay.getDay()+6)%7;
+  const startCell=new Date(firstDay); startCell.setDate(startCell.getDate()-startDow);
+  const totalCells=Math.ceil((startDow+lastDay.getDate())/7)*7;
+  const cells=[]; for(let i=0;i<totalCells;i++){ const d=new Date(startCell); d.setDate(d.getDate()+i); cells.push(d); }
+  const byDay={}; _calTasks().forEach(t=>{ (byDay[t.deadline]=byDay[t.deadline]||[]).push(t); });
+  const today=_calYMD(new Date());
+  const canAdd=isManager()||isEngineer();
+  const header=['Pir','Ant','Tre','Ket','Pen','Šeš','Sek'].map(d=>`<div style="padding:6px;font-size:11px;font-weight:700;color:var(--muted);text-align:center;background:var(--surface2);border-bottom:1px solid var(--border)">${d}</div>`).join('');
+  const cellsHtml=cells.map(d=>{
+    const k=_calYMD(d); const inMonth=d.getMonth()===m-1; const dow=d.getDay(); const isWeekend=dow===0||dow===6; const isToday=k===today;
+    const tasks=byDay[k]||[];
+    const chips=tasks.slice(0,5).map(t=>calTaskChip(t,today)).join('');
+    const more=tasks.length>5?`<div style="font-size:9px;color:var(--muted);font-weight:600;margin-top:1px">+${tasks.length-5} dar</div>`:'';
+    const clickAdd=canAdd?`onclick="openCalTaskModal('${k}')"`:'';
+    return `<div ondragover="event.preventDefault()" ondrop="calDrop(event,'${k}')" ${clickAdd} onmouseover="var a=this.querySelector('.cal-add');if(a)a.style.opacity=1" onmouseout="var a=this.querySelector('.cal-add');if(a)a.style.opacity=0"`
+      +` style="min-height:98px;padding:4px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:${isToday?'var(--blue-bg)':isWeekend?'var(--surface2)':'var(--surface)'};${inMonth?'':'opacity:.45;'}${canAdd?'cursor:pointer;':''}overflow:hidden">`
+      +`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">`
+        +`<span style="font-size:11px;font-weight:${isToday?'700':'500'};color:${isToday?'var(--blue-t)':isWeekend?'var(--hint)':'var(--text)'}">${d.getDate()}</span>`
+        +(canAdd?`<span class="cal-add" style="opacity:0;transition:opacity .12s;font-size:14px;color:var(--blue-t);font-weight:700;line-height:1">＋</span>`:'')
+      +`</div>${chips}${more}</div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="btn btn-sm" onclick="calChangeMonth(-1)">‹</button>
+        <div style="font-weight:600;font-size:15px;min-width:150px;text-align:center;text-transform:capitalize">${monthName}</div>
+        <button class="btn btn-sm" onclick="calChangeMonth(1)">›</button>
+        <button class="btn btn-sm" onclick="_calMonth=new Date().toISOString().slice(0,7);renderCalendarView()">Šiandien</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        ${['all','gamyba','projektavimas'].map(f=>`<button class="btn btn-sm${_calFilter===f?' btn-primary':''}" onclick="calSetFilter('${f}')">${f==='all'?'Visi':f==='gamyba'?'⚙️ Gamyba':'📐 Projektavimas'}</button>`).join('')}
+        <select class="btn btn-sm" style="padding:5px 8px" onchange="calSetAssignee(this.value)"><option value="">👤 Visi</option>${USERS.map(u=>`<option value="${u.id}"${_calAssignee===u.id?' selected':''}>${escHtml(u.name)}</option>`).join('')}</select>
+        ${canAdd?`<button class="btn btn-sm btn-primary" onclick="openCalTaskModal('${today}')">+ Užduotis</button>`:''}
+        ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="openNewProjectModal()">+ Projektas</button>`:''}
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr))">${header}${cellsHtml}</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">📌 Spauskite dieną — pridėti užduotį · vilkite užduotį — perkelti terminą · spauskite užduotį — atidaryti</div>`;
+}
+// New-task modal opened from the calendar (a specific day). Lets you pick/create a project.
+function openCalTaskModal(dateStr){
+  if(!isManager()&&!isEngineer()){ toast('Nėra teisių kurti užduotis','error'); return; }
+  const projs=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
+  const gam=projs.filter(p=>p.designStatus!=='design'), des=projs.filter(p=>p.designStatus==='design');
+  const grp=(label,arr)=>arr.length?`<optgroup label="${label}">${arr.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</optgroup>`:'';
+  openModal(`<div class="modal-title">📆 Nauja užduotis <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-field"><label class="form-label">Ką reikia padaryti? *</label><input id="ct-name" placeholder="pvz. Virtuvės brėžiniai — XXYY" autofocus></div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Projektas</label>
+        <select id="ct-proj" onchange="calTaskProjChange()">${grp('⚙️ Gamybos projektai',gam)}${grp('📐 Projektavimas',des)}<option value="__new__">➕ Naujas projektas…</option></select>
+      </div>
+      <div class="form-field"><label class="form-label">Žingsnis / etapas</label><select id="ct-step"></select></div>
+    </div>
+    <div id="ct-newproj" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div class="form-grid-2">
+        <div class="form-field" style="margin-bottom:0"><label class="form-label">Naujo projekto pavadinimas</label><input id="ct-newname" placeholder="pvz. Virtuvė — XXYY"></div>
+        <div class="form-field" style="margin-bottom:0"><label class="form-label">Tipas</label><select id="ct-newtype" onchange="calTaskProjChange()"><option value="projektas">⚙️ Gamyba</option><option value="projektavimas">📐 Projektavimas</option></select></div>
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Terminas *</label><input type="date" id="ct-deadline" value="${dateStr||''}"></div>
+      <div class="form-field"><label class="form-label">Prioritetas</label><select id="ct-prio"><option value="mid">🟡 Vidutinis</option><option value="high">🔴 Aukštas</option><option value="low">⚪ Žemas</option></select></div>
+    </div>
+    <div class="form-field"><label class="form-label">Atsakingas</label><select id="ct-assignee">${USERS.map(u=>`<option value="${u.id}"${u.id===DB.currentUserId?' selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
+    <div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button><button class="btn btn-primary" onclick="calCreateTask()">Sukurti užduotį</button></div>`);
+  setTimeout(calTaskProjChange,20);
+}
+function calTaskProjChange(){
+  const sel=document.getElementById('ct-proj'); if(!sel)return;
+  const isNew=sel.value==='__new__';
+  const np=document.getElementById('ct-newproj'); if(np)np.style.display=isNew?'block':'none';
+  let steps;
+  if(isNew){ const type=document.getElementById('ct-newtype')?.value||'projektas'; steps=(type==='projektavimas')?DESIGN_STEPS:STEPS; }
+  else { steps=projSteps(getProject(sel.value))||STEPS; }
+  const st=document.getElementById('ct-step');
+  if(st) st.innerHTML=steps.map(s=>`<option value="${s.id}">${escHtml(s.label)}</option>`).join('');
+}
+function calCreateTask(){
+  const name=(document.getElementById('ct-name').value||'').trim();
+  if(!name){ toast('Įveskite pavadinimą','error'); return; }
+  const deadline=document.getElementById('ct-deadline').value;
+  if(!deadline){ toast('Pasirinkite terminą','error'); return; }
+  let pid=document.getElementById('ct-proj').value;
+  let stepId=document.getElementById('ct-step').value;
+  if(!stepId){ // dropdown not yet populated — derive a sensible default so the task always has a valid step
+    const st=(pid==='__new__') ? ((document.getElementById('ct-newtype').value==='projektavimas')?DESIGN_STEPS:STEPS) : (projSteps(getProject(pid))||STEPS);
+    stepId=(st[0]&&st[0].id)||'pjovimas';
+  }
+  const prio=document.getElementById('ct-prio').value;
+  const assignee=document.getElementById('ct-assignee').value;
+  if(pid==='__new__'){
+    const pname=(document.getElementById('ct-newname').value||'').trim();
+    if(!pname){ toast('Įveskite naujo projekto pavadinimą','error'); return; }
+    const isDesign=(document.getElementById('ct-newtype').value==='projektavimas');
+    const np={id:uid(),name:pname,type:isDesign?'projektavimas':'projektas',client:'—',color:PROJ_COLORS[DB.projects.length%PROJ_COLORS.length],status:'active',priority:'mid',deadline:'',owner:assignee||DB.currentUserId,notes:'',lines:[],designStatus:isDesign?'design':'production',timeEstimates:{},materials:[],created:new Date().toISOString()};
+    DB.projects.push(np); pid=np.id;
+  }
+  DB.tasks.push({id:uid(),projectId:pid,stepId,name,status:'pending',assigneeId:assignee,assigneeIds:assignee?[assignee]:[],priority:prio,deadline,qtyOrdered:0,qtyDone:0,materials:[],created:new Date().toISOString()});
+  closeModal(); save(); renderSidebar();
+  if(DB.currentView==='calendar') renderCalendarView(); else showView('calendar');
+  toast('✅ Užduotis sukurta','success');
+}
 
 function renderSchedule(){
   const el=document.getElementById('schedule-content');
