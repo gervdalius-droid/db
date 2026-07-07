@@ -1183,7 +1183,7 @@ function ICO(key,size,sw){
 }
 // ── Blueprint icon theming: swap nav + view-title emoji for thin line icons ──
 const ICO_ACCENT='#2563eb';
-const NAV_ICO={'nav-floor':'grid','nav-projects':'folder','nav-production':'cpu','nav-paslauga':'zap','nav-design':'compass','nav-orders':'mail','nav-materials':'plank','nav-warehouse':'factory','nav-schedule':'calendar','nav-team':'users','nav-discipline':'target','nav-report':'chart','nav-notifs':'bell','nav-import':'download','nav-backup':'save','nav-nesting':'cut'};
+const NAV_ICO={'nav-floor':'grid','nav-projects':'folder','nav-production':'cpu','nav-paslauga':'zap','nav-design':'compass','nav-orders':'mail','nav-materials':'plank','nav-warehouse':'factory','nav-schedule':'calendar','nav-team':'users','nav-discipline':'target','nav-report':'chart','nav-notifs':'bell','nav-import':'download','nav-backup':'save','nav-nesting':'cut','nav-calendar':'calendar','nav-restore':'download','nav-planner':'clipboard','nav-daily':'chart'};
 function applyNavIcons(){
   try{
     Object.keys(NAV_ICO).forEach(function(id){
@@ -1207,7 +1207,8 @@ const EMOJI_ICON_MAP={
   '🔔':'bell','💾':'save','📎':'paperclip','🔗':'link','♻️':'recycle','♻':'recycle','🔄':'refresh','↻':'refresh',
   '⏸️':'pause','⏸':'pause','▶️':'play','▶':'play','↩️':'undo','↩':'undo','➕':'plus','＋':'plus',
   '✕':'x','✖':'x','❌':'x','📋':'clipboard','🚛':'truck','🚚':'truck','🔍':'search','🔎':'search',
-  '⭐':'star','🏷️':'tag','🏷':'tag','⚡':'zap','💰':'coin','🪙':'coin','📍':'pin','⚠️':'warn','⚠':'warn'
+  '⭐':'star','🏷️':'tag','🏷':'tag','⚡':'zap','💰':'coin','🪙':'coin','📍':'pin','📌':'pin','⚠️':'warn','⚠':'warn',
+  '📆':'calendar','🗓️':'calendar','🗓':'calendar'
 };
 const _EMOJI_KEYS=Object.keys(EMOJI_ICON_MAP).sort((a,b)=>b.length-a.length);
 const _EMOJI_RE=new RegExp('('+_EMOJI_KEYS.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','g');
@@ -3587,7 +3588,7 @@ function showView(name,extra){
     renderProjectView(extra,'kanban');
   }
   else if(name==='notifs'){document.getElementById('topbar-title').textContent='Pranešimai';document.getElementById('topbar-sub').textContent='Komandos atnaujinimai';renderNotifs();}
-  else if(name==='calendar'){document.getElementById('topbar-title').textContent='📆 Kalendorius';document.getElementById('topbar-sub').textContent='Užduotys ir terminai · Gamyba ir Projektavimas';if(act)act.innerHTML=(isManager()||isEngineer())?'<button class="btn btn-sm btn-primary" onclick="openCalTaskModal(new Date().toISOString().slice(0,10))">+ Užduotis</button>':'';renderCalendarView();}
+  else if(name==='calendar'){document.getElementById('topbar-title').innerHTML=titleIco('calendar','Kalendorius');document.getElementById('topbar-sub').textContent='Užduotys ir terminai · Gamyba ir Projektavimas';if(act)act.innerHTML=(isManager()||isEngineer())?'<button class="btn btn-sm btn-primary" onclick="openCalTaskModal(new Date().toISOString().slice(0,10))">+ Užduotis</button>':'';renderCalendarView();}
   else if(name==='schedule'){document.getElementById('topbar-title').textContent='Grafikas / Lean planas';document.getElementById('topbar-sub').textContent='Gamybos eilė · WIP limitai · Butelio kakleliai';renderSchedule();}
   else if(name==='orders'){
     document.getElementById('topbar-title').textContent='Užsakymai';
