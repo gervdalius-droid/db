@@ -4737,12 +4737,14 @@ function _calTasks(){
   const projs=_calVisibleProjects().filter(_calProjMatches);
   const out=[];
   projs.forEach(p=>{
-    const planByStep={};
-    try{ (planProjectSteps(p)||[]).forEach(pl=>{ if(pl&&pl.stepId&&pl.end) planByStep[pl.stepId]=pl.end; }); }catch(e){}
     projTasks(p.id).forEach(t=>{
       if(_calAssignee){ const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]); if(!ids.includes(_calAssignee)) return; }
       const pinned=!!t.deadline;
-      const date=t.deadline || planByStep[t.stepId] || p.deadline || '';
+      // Undated tasks sit on the PROJECT deadline (its finish) — matching the project's
+      // "N days left" countdown — rather than an intermediate planned step-date, which
+      // read as "due today" even when the project still has slack. Drag to pin a task
+      // to a specific day.
+      const date=t.deadline || p.deadline || '';
       if(!date) return;
       out.push({t:t,p:p,date:date,pinned:pinned});
     });
