@@ -810,6 +810,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="nav-item" id="nav-materials" onclick="showView('materials')"><span class="nav-icon">🪵</span>Medžiagų poreikis<span class="nav-badge critical" id="mat-badge" style="display:none">!</span></div>
         <div class="nav-item" id="nav-warehouse" onclick="showView('warehouse')"><span class="nav-icon">🏭</span>Sandėlis<span class="nav-badge info" id="wh-badge" style="display:none">0</span></div>
         <div class="sidebar-label" style="margin-top:14px">Planavimas ir komanda</div>
+        <div class="nav-item" id="nav-calendar" onclick="showView('calendar')"><span class="nav-icon">📆</span>Kalendorius</div>
         <div class="nav-item" id="nav-schedule" onclick="showView('schedule')"><span class="nav-icon">📅</span><span class="nav-lbl" data-lbl="Grafikas / Lean">Grafikas / Lean</span></div>
         <div class="nav-item" id="nav-team" onclick="showView('team')"><span class="nav-icon">👥</span>Komanda</div>
         <div class="nav-item" id="nav-discipline" onclick="showView('discipline')"><span class="nav-icon">🎯</span><span class="nav-lbl" data-lbl="Disciplina (4DX)">Disciplina (4DX)</span></div>
@@ -935,6 +936,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
       </div>
       <div class="view" id="view-project"><div id="project-content"></div></div>
       <div class="view" id="view-schedule"><div id="schedule-content"></div></div>
+      <div class="view" id="view-calendar"><div id="calendar-content"></div></div>
       <div class="view" id="view-orders"><div id="orders-content"></div></div>
       <div class="view" id="view-projects"><div id="projects-content"></div></div>
       <div class="view" id="view-design"><div id="design-content"></div></div>
@@ -1181,7 +1183,7 @@ function ICO(key,size,sw){
 }
 // ── Blueprint icon theming: swap nav + view-title emoji for thin line icons ──
 const ICO_ACCENT='#2563eb';
-const NAV_ICO={'nav-floor':'grid','nav-projects':'folder','nav-production':'cpu','nav-paslauga':'zap','nav-design':'compass','nav-orders':'mail','nav-materials':'plank','nav-warehouse':'factory','nav-schedule':'calendar','nav-team':'users','nav-discipline':'target','nav-report':'chart','nav-notifs':'bell','nav-import':'download','nav-backup':'save','nav-nesting':'cut'};
+const NAV_ICO={'nav-floor':'grid','nav-projects':'folder','nav-production':'cpu','nav-paslauga':'zap','nav-design':'compass','nav-orders':'mail','nav-materials':'plank','nav-warehouse':'factory','nav-schedule':'calendar','nav-team':'users','nav-discipline':'target','nav-report':'chart','nav-notifs':'bell','nav-import':'download','nav-backup':'save','nav-nesting':'cut','nav-calendar':'calendar','nav-restore':'download','nav-planner':'clipboard','nav-daily':'chart'};
 function applyNavIcons(){
   try{
     Object.keys(NAV_ICO).forEach(function(id){
@@ -1205,7 +1207,8 @@ const EMOJI_ICON_MAP={
   '🔔':'bell','💾':'save','📎':'paperclip','🔗':'link','♻️':'recycle','♻':'recycle','🔄':'refresh','↻':'refresh',
   '⏸️':'pause','⏸':'pause','▶️':'play','▶':'play','↩️':'undo','↩':'undo','➕':'plus','＋':'plus',
   '✕':'x','✖':'x','❌':'x','📋':'clipboard','🚛':'truck','🚚':'truck','🔍':'search','🔎':'search',
-  '⭐':'star','🏷️':'tag','🏷':'tag','⚡':'zap','💰':'coin','🪙':'coin','📍':'pin','⚠️':'warn','⚠':'warn'
+  '⭐':'star','🏷️':'tag','🏷':'tag','⚡':'zap','💰':'coin','🪙':'coin','📍':'pin','📌':'pin','⚠️':'warn','⚠':'warn',
+  '📆':'calendar','🗓️':'calendar','🗓':'calendar'
 };
 const _EMOJI_KEYS=Object.keys(EMOJI_ICON_MAP).sort((a,b)=>b.length-a.length);
 const _EMOJI_RE=new RegExp('('+_EMOJI_KEYS.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','g');
@@ -1407,6 +1410,15 @@ function migrateDesignTaskNames(){
 function formatAge(iso){const d=Date.now()-new Date(iso).getTime();if(d<60000)return'ką tik';if(d<3600000)return Math.floor(d/60000)+' min.';if(d<86400000)return Math.floor(d/3600000)+' val.';if(d<604800000)return Math.floor(d/86400000)+' d.';return Math.floor(d/604800000)+' sav.'}
 function ava(uid2,sz=22){const u=getUser(uid2);return'<div class="avatar" style="width:'+sz+'px;height:'+sz+'px;font-size:'+Math.floor(sz*.38)+'px;background:'+u.bg+';color:'+u.color+'">'+u.initials+'</div>';}
 function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'}
+// Paused ("on hold") project indicators — a small badge for cards and a full banner for the detail view.
+function pausedBadge(p){ return (p&&p.paused)?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:1px 6px;border-radius:4px;white-space:nowrap">⏸ PRISTABDYTA</span>':''; }
+function pausedBanner(p){ if(!p||!p.paused)return '';
+  return '<div style="background:var(--amber-bg);border:1px solid var(--amber-t);border-left:4px solid var(--amber-t);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+    +'<span style="font-size:18px">⏸</span>'
+    +'<div style="flex:1"><div style="font-weight:700;color:var(--amber-t);font-size:13px">Projektas pristabdytas — laukia (on hold)</div>'
+    +(p.pausedAt?'<div style="font-size:11px;color:var(--muted)">Pristabdyta '+formatAge(p.pausedAt)+' atgal</div>':'')+'</div>'
+    +(isManager()?'<button class="btn btn-sm btn-primary" onclick="togglePauseProject(\''+p.id+'\')">▶ Tęsti</button>':'')
+    +'</div>'; }
 
 // Project name duplicate detection. Names are normalized (trim + lowercase) so
 // "GO_JU_VONIA" and " go_ju_vonia " collide. Archived projects are NOT counted —
@@ -3585,6 +3597,7 @@ function showView(name,extra){
     renderProjectView(extra,'kanban');
   }
   else if(name==='notifs'){document.getElementById('topbar-title').textContent='Pranešimai';document.getElementById('topbar-sub').textContent='Komandos atnaujinimai';renderNotifs();}
+  else if(name==='calendar'){document.getElementById('topbar-title').innerHTML=titleIco('calendar','Kalendorius');document.getElementById('topbar-sub').textContent='Užduotys ir terminai · Gamyba ir Projektavimas';if(act)act.innerHTML=(isManager()||isEngineer())?'<button class="btn btn-sm btn-primary" onclick="openCalTaskModal(new Date().toISOString().slice(0,10))">+ Užduotis</button>':'';renderCalendarView();}
   else if(name==='schedule'){document.getElementById('topbar-title').textContent='Grafikas / Lean planas';document.getElementById('topbar-sub').textContent='Gamybos eilė · WIP limitai · Butelio kakleliai';renderSchedule();}
   else if(name==='orders'){
     document.getElementById('topbar-title').textContent='Užsakymai';
@@ -4058,7 +4071,7 @@ function renderFloor(){
     const sched=p.deadline?calcProjectSchedule(p):null;
     const daysLeft=p.deadline?daysUntilDeadline(p.deadline):null;
     const canFinish=sched&&daysLeft!==null?daysLeft>=sched._totalDays:null;
-    const cardStyle=(overdueTasks?'border-color:var(--red-t);':'')+(p.type==='paslauga'?'border-left:3px solid var(--amber-t);':'')+(blockedCount?'background:var(--red-bg);border-color:var(--red-t);border-left:3px solid var(--red-t);':'');
+    const cardStyle=(overdueTasks?'border-color:var(--red-t);':'')+(p.type==='paslauga'?'border-left:3px solid var(--amber-t);':'')+(blockedCount?'background:var(--red-bg);border-color:var(--red-t);border-left:3px solid var(--red-t);':'')+(p.paused?'border-left:4px solid var(--amber-t);background:var(--amber-bg);opacity:.9;':'');
     const iconContent=p.type==='paslauga'?'⚡':initials(p.name);
     const paslaugaBadge=p.type==='paslauga'?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:1px 5px;border-radius:4px">⚡ Paslauga</span>':'';
     const designBadge=p.designStatus==='design'?'<span style="font-size:9px;font-weight:700;color:#4338ca;background:#eef2ff;padding:1px 5px;border-radius:4px">📐 Projektavimas</span>':'';
@@ -4084,7 +4097,7 @@ function renderFloor(){
       +'<div style="flex:1;min-width:0">'
       +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:1px">'
       +'<div style="font-size:12px;font-weight:600;line-height:1.3">'+escHtml(p.name)+'</div>'
-      +paslaugaBadge+designBadge+prioHtml(p.priority||'mid')+overdueBadge+blockBadge
+      +paslaugaBadge+designBadge+prioHtml(p.priority||'mid')+overdueBadge+blockBadge+pausedBadge(p)
       +'</div>'
       +'<div style="font-size:10px;color:var(--muted)">'+escHtml(p.client)+'</div>'
       +deadlineLine+routeLine
@@ -4161,7 +4174,7 @@ function renderProjectView(pid,tab){
 
   const packPanel=(p.type==='paslauga')?paslaugaPackPanel(pid):'';
   const deliveryPanel=(p.type==='paslauga')?paslaugaDeliveryPanel(pid):'';
-  document.getElementById('project-content').innerHTML=header+`<div class="tab-bar">${tabBar}</div>`+content+packPanel+deliveryPanel+renderProjectComments(pid);
+  document.getElementById('project-content').innerHTML=pausedBanner(p)+header+`<div class="tab-bar">${tabBar}</div>`+content+packPanel+deliveryPanel+renderProjectComments(pid);
 }
 
 // ── PROJECT COMMENTS PANEL (visible under each project tab) ──
@@ -4708,6 +4721,179 @@ function renderPlanningSection(){
     ${body}`;
 }
 
+
+// ══════════════════════════════════════════════
+// CALENDAR VIEW — task scheduling (PM / Asana style)
+// A month grid where managers insert & assign tasks with due dates for Gamybos
+// projektai + Projektavimas. Click a day to add a task, drag a task to reschedule,
+// click a task to open it.
+// ══════════════════════════════════════════════
+let _calMonth=new Date().toISOString().slice(0,7); // YYYY-MM
+let _calFilter='all';    // all | gamyba | projektavimas
+let _calAssignee='';     // '' = everyone
+let _calDragTask=null;
+const _calYMD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function calChangeMonth(delta){ const [y,m]=_calMonth.split('-').map(Number); const d=new Date(y,m-1+delta,1); _calMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; renderCalendarView(); }
+function calSetFilter(f){ _calFilter=f; renderCalendarView(); }
+function calSetAssignee(a){ _calAssignee=a; renderCalendarView(); }
+function _calVisibleProjects(){ return DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p)); }
+function _calProjMatches(p){ const isDesign=p.designStatus==='design'; if(_calFilter==='gamyba')return !isDesign; if(_calFilter==='projektavimas')return isDesign; return true; }
+// Mirror EVERY task of every visible Gamyba/Projektavimas project onto the calendar.
+// A task's date is its explicit deadline if set (pinned), otherwise the planned end date
+// of its step (from planProjectSteps), otherwise the project deadline. Returns entries
+// {t, p, date, pinned} so the calendar reflects existing projects, not just dated tasks.
+function _calTasks(){
+  const projs=_calVisibleProjects().filter(_calProjMatches);
+  const out=[];
+  projs.forEach(p=>{
+    projTasks(p.id).forEach(t=>{
+      if(_calAssignee){ const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]); if(!ids.includes(_calAssignee)) return; }
+      const pinned=!!t.deadline;
+      // Undated tasks sit on the PROJECT deadline (its finish) — matching the project's
+      // "N days left" countdown — rather than an intermediate planned step-date, which
+      // read as "due today" even when the project still has slack. Drag to pin a task
+      // to a specific day.
+      const date=t.deadline || p.deadline || '';
+      if(!date) return;
+      out.push({t:t,p:p,date:date,pinned:pinned});
+    });
+  });
+  return out;
+}
+function calTaskChip(e,today){
+  const t=e.t, p=e.p||getProject(t.projectId);
+  const uid=t.assigneeId||(t.assigneeIds&&t.assigneeIds[0])||'';
+  const u=uid?getUser(uid):null;
+  const done=t.status==='done';
+  const overdue=!done&&e.date&&e.date<today;
+  const col=p?p.color:'#94a3b8';
+  const ini=u?String(u.initials||u.name||'?').slice(0,2):'';
+  const bl=e.pinned?`border-left:3px solid ${col}`:`border-left:3px dashed ${col}`; // dashed = auto-scheduled from plan
+  return `<div draggable="true" ondragstart="calDragStart(event,'${t.id}')" ondragend="calDragEnd(event)" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="${escHtml(t.name)}${p?' — '+escHtml(p.name):''}${e.pinned?'':' · pagal planą (vilkite, kad pritvirtintumėte terminą)'}"`
+    +` style="background:${done?'var(--green-bg)':overdue?'var(--red-bg)':'var(--surface2)'};${bl};padding:2px 4px;border-radius:3px;margin-bottom:2px;font-size:10px;display:flex;align-items:center;gap:3px;cursor:grab;${done?'text-decoration:line-through;opacity:.6':(e.pinned?'':'opacity:.82')}">`
+    +`<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.name)}</span>`
+    +(u?`<span style="width:15px;height:15px;border-radius:50%;background:${u.bg||'#e2e8f0'};color:${u.color||'#334155'};font-size:8px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${escHtml(ini)}</span>`:'')
+    +`</div>`;
+}
+function calDragEnd(){ _calDragTask=null; }
+function calDragStart(e,tid){ _calDragTask=tid; try{e.dataTransfer.setData('text/plain',tid);e.dataTransfer.effectAllowed='move';}catch(_){ } }
+function calDrop(e,dateKey){
+  e.preventDefault();
+  const tid=_calDragTask||(e.dataTransfer?e.dataTransfer.getData('text/plain'):''); _calDragTask=null;
+  if(!tid)return; const t=DB.tasks.find(x=>x.id===tid); if(!t||t.deadline===dateKey)return;
+  if(!isManager()&&!isEngineer()&&t.assigneeId!==DB.currentUserId&&!(t.assigneeIds||[]).includes(DB.currentUserId)){ toast('Galite perkelti tik savo užduotis','error'); return; }
+  t.deadline=dateKey; try{pushLog(t,{event:'deadline',to:dateKey});}catch(_){}
+  save(); renderCalendarView(); toast('📅 Terminas perkeltas → '+dateKey,'success');
+}
+function renderCalendarView(){
+  const el=document.getElementById('calendar-content'); if(!el)return;
+  const [y,m]=_calMonth.split('-').map(Number);
+  const firstDay=new Date(y,m-1,1), lastDay=new Date(y,m,0);
+  const monthName=firstDay.toLocaleDateString('lt-LT',{month:'long',year:'numeric'});
+  const startDow=(firstDay.getDay()+6)%7;
+  const startCell=new Date(firstDay); startCell.setDate(startCell.getDate()-startDow);
+  const totalCells=Math.ceil((startDow+lastDay.getDate())/7)*7;
+  const cells=[]; for(let i=0;i<totalCells;i++){ const d=new Date(startCell); d.setDate(d.getDate()+i); cells.push(d); }
+  const byDay={}; _calTasks().forEach(e=>{ (byDay[e.date]=byDay[e.date]||[]).push(e); });
+  const today=_calYMD(new Date());
+  const canAdd=isManager()||isEngineer();
+  const header=['Pir','Ant','Tre','Ket','Pen','Šeš','Sek'].map(d=>`<div style="padding:6px;font-size:11px;font-weight:700;color:var(--muted);text-align:center;background:var(--surface2);border-bottom:1px solid var(--border)">${d}</div>`).join('');
+  const cellsHtml=cells.map(d=>{
+    const k=_calYMD(d); const inMonth=d.getMonth()===m-1; const dow=d.getDay(); const isWeekend=dow===0||dow===6; const isToday=k===today;
+    const entries=byDay[k]||[];
+    const chips=entries.slice(0,5).map(e=>calTaskChip(e,today)).join('');
+    const more=entries.length>5?`<div style="font-size:9px;color:var(--muted);font-weight:600;margin-top:1px">+${entries.length-5} dar</div>`:'';
+    const clickAdd=canAdd?`onclick="openCalTaskModal('${k}')"`:'';
+    return `<div ondragover="event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect='move'" ondrop="calDrop(event,'${k}')" ${clickAdd} onmouseover="var a=this.querySelector('.cal-add');if(a)a.style.opacity=1" onmouseout="var a=this.querySelector('.cal-add');if(a)a.style.opacity=0"`
+      +` style="min-height:98px;padding:4px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:${isToday?'var(--blue-bg)':isWeekend?'var(--surface2)':'var(--surface)'};${inMonth?'':'opacity:.45;'}${canAdd?'cursor:pointer;':''}overflow:hidden">`
+      +`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">`
+        +`<span style="font-size:11px;font-weight:${isToday?'700':'500'};color:${isToday?'var(--blue-t)':isWeekend?'var(--hint)':'var(--text)'}">${d.getDate()}</span>`
+        +(canAdd?`<span class="cal-add" style="opacity:0;transition:opacity .12s;font-size:14px;color:var(--blue-t);font-weight:700;line-height:1">＋</span>`:'')
+      +`</div>${chips}${more}</div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="btn btn-sm" onclick="calChangeMonth(-1)">‹</button>
+        <div style="font-weight:600;font-size:15px;min-width:150px;text-align:center;text-transform:capitalize">${monthName}</div>
+        <button class="btn btn-sm" onclick="calChangeMonth(1)">›</button>
+        <button class="btn btn-sm" onclick="_calMonth=new Date().toISOString().slice(0,7);renderCalendarView()">Šiandien</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        ${['all','gamyba','projektavimas'].map(f=>`<button class="btn btn-sm${_calFilter===f?' btn-primary':''}" onclick="calSetFilter('${f}')">${f==='all'?'Visi':f==='gamyba'?'⚙️ Gamyba':'📐 Projektavimas'}</button>`).join('')}
+        <select class="btn btn-sm" style="padding:5px 8px" onchange="calSetAssignee(this.value)"><option value="">👤 Visi</option>${USERS.map(u=>`<option value="${u.id}"${_calAssignee===u.id?' selected':''}>${escHtml(u.name)}</option>`).join('')}</select>
+        ${canAdd?`<button class="btn btn-sm btn-primary" onclick="openCalTaskModal('${today}')">+ Užduotis</button>`:''}
+        ${(isManager()||isEngineer())?`<button class="btn btn-sm" onclick="openNewProjectModal()">+ Projektas</button>`:''}
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr))">${header}${cellsHtml}</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">📌 Spauskite dieną — pridėti užduotį · vilkite užduotį — perkelti terminą · spauskite užduotį — atidaryti</div>`;
+}
+// New-task modal opened from the calendar (a specific day). Lets you pick/create a project.
+function openCalTaskModal(dateStr){
+  if(!isManager()&&!isEngineer()){ toast('Nėra teisių kurti užduotis','error'); return; }
+  const projs=DB.projects.filter(p=>p.status!=='archived'&&canSeeProject(p));
+  const gam=projs.filter(p=>p.designStatus!=='design'), des=projs.filter(p=>p.designStatus==='design');
+  const grp=(label,arr)=>arr.length?`<optgroup label="${label}">${arr.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</optgroup>`:'';
+  openModal(`<div class="modal-title">📆 Nauja užduotis <button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-field"><label class="form-label">Ką reikia padaryti? *</label><input id="ct-name" placeholder="pvz. Virtuvės brėžiniai — XXYY" autofocus></div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Projektas</label>
+        <select id="ct-proj" onchange="calTaskProjChange()">${grp('⚙️ Gamybos projektai',gam)}${grp('📐 Projektavimas',des)}<option value="__new__">➕ Naujas projektas…</option></select>
+      </div>
+      <div class="form-field"><label class="form-label">Žingsnis / etapas</label><select id="ct-step"></select></div>
+    </div>
+    <div id="ct-newproj" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div class="form-grid-2">
+        <div class="form-field" style="margin-bottom:0"><label class="form-label">Naujo projekto pavadinimas</label><input id="ct-newname" placeholder="pvz. Virtuvė — XXYY"></div>
+        <div class="form-field" style="margin-bottom:0"><label class="form-label">Tipas</label><select id="ct-newtype" onchange="calTaskProjChange()"><option value="projektas">⚙️ Gamyba</option><option value="projektavimas">📐 Projektavimas</option></select></div>
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-field"><label class="form-label">Terminas *</label><input type="date" id="ct-deadline" value="${dateStr||''}"></div>
+      <div class="form-field"><label class="form-label">Prioritetas</label><select id="ct-prio"><option value="mid">🟡 Vidutinis</option><option value="high">🔴 Aukštas</option><option value="low">⚪ Žemas</option></select></div>
+    </div>
+    <div class="form-field"><label class="form-label">Atsakingas</label><select id="ct-assignee">${USERS.map(u=>`<option value="${u.id}"${u.id===DB.currentUserId?' selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
+    <div class="form-actions"><button class="btn" onclick="closeModal()">Atšaukti</button><button class="btn btn-primary" onclick="calCreateTask()">Sukurti užduotį</button></div>`);
+  setTimeout(calTaskProjChange,20);
+}
+function calTaskProjChange(){
+  const sel=document.getElementById('ct-proj'); if(!sel)return;
+  const isNew=sel.value==='__new__';
+  const np=document.getElementById('ct-newproj'); if(np)np.style.display=isNew?'block':'none';
+  let steps;
+  if(isNew){ const type=document.getElementById('ct-newtype')?.value||'projektas'; steps=(type==='projektavimas')?DESIGN_STEPS:STEPS; }
+  else { steps=projSteps(getProject(sel.value))||STEPS; }
+  const st=document.getElementById('ct-step');
+  if(st) st.innerHTML=steps.map(s=>`<option value="${s.id}">${escHtml(s.label)}</option>`).join('');
+}
+function calCreateTask(){
+  const name=(document.getElementById('ct-name').value||'').trim();
+  if(!name){ toast('Įveskite pavadinimą','error'); return; }
+  const deadline=document.getElementById('ct-deadline').value;
+  if(!deadline){ toast('Pasirinkite terminą','error'); return; }
+  let pid=document.getElementById('ct-proj').value;
+  let stepId=document.getElementById('ct-step').value;
+  if(!stepId){ // dropdown not yet populated — derive a sensible default so the task always has a valid step
+    const st=(pid==='__new__') ? ((document.getElementById('ct-newtype').value==='projektavimas')?DESIGN_STEPS:STEPS) : (projSteps(getProject(pid))||STEPS);
+    stepId=(st[0]&&st[0].id)||'pjovimas';
+  }
+  const prio=document.getElementById('ct-prio').value;
+  const assignee=document.getElementById('ct-assignee').value;
+  if(pid==='__new__'){
+    const pname=(document.getElementById('ct-newname').value||'').trim();
+    if(!pname){ toast('Įveskite naujo projekto pavadinimą','error'); return; }
+    const isDesign=(document.getElementById('ct-newtype').value==='projektavimas');
+    const np={id:uid(),name:pname,type:isDesign?'projektavimas':'projektas',client:'—',color:PROJ_COLORS[DB.projects.length%PROJ_COLORS.length],status:'active',priority:'mid',deadline:'',owner:assignee||DB.currentUserId,notes:'',lines:[],designStatus:isDesign?'design':'production',timeEstimates:{},materials:[],created:new Date().toISOString()};
+    DB.projects.push(np); pid=np.id;
+  }
+  DB.tasks.push({id:uid(),projectId:pid,stepId,name,status:'pending',assigneeId:assignee,assigneeIds:assignee?[assignee]:[],priority:prio,deadline,qtyOrdered:0,qtyDone:0,materials:[],created:new Date().toISOString()});
+  closeModal(); save(); renderSidebar();
+  if(DB.currentView==='calendar') renderCalendarView(); else showView('calendar');
+  toast('✅ Užduotis sukurta','success');
+}
 
 function renderSchedule(){
   const el=document.getElementById('schedule-content');
@@ -8516,6 +8702,12 @@ function openNewProjectModal(fromOrder, presetType){
       <div class="form-field"><label class="form-label">Terminas</label><input type="date" id="np-deadline" value="${fo.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas</label><select id="np-owner">${userOpts}</select></div>
     </div>
+    <div id="np-design-est" style="display:${isEngineer()?'block':'none'};background:#eef2ff;border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-field" style="margin-bottom:0;flex:0 0 160px"><label class="form-label">Preliminarus plotas (m²)</label><input type="number" step="0.1" min="0" id="np-area" placeholder="pvz. 20" oninput="npUpdateDesignEst()"></div>
+        <div id="np-est-out" style="font-size:12px;color:#4338ca;padding-bottom:8px;flex:1;min-width:180px">Įveskite plotą — apskaičiuosiu projektavimo dienas</div>
+      </div>
+    </div>
     ${linesPreview}
     <div id="np-steps-section" style="display:${isEngineer()?'none':'block'};margin-bottom:12px">
       <label class="form-label" style="margin-bottom:6px">Užduotys / žingsniai — atžymėkite tuos, kurių nereikia</label>
@@ -8588,6 +8780,7 @@ function switchProjType(type){
   if(npB)npB.className='btn'+(type==='projektavimas'?' btn-primary':'');
   document.getElementById('np-steps-section').style.display=(type==='paslauga'||type==='projektas')?'block':'none';
   if(type==='paslauga'||type==='projektas') npSetStepDefaults(type);
+  const estBlk=document.getElementById('np-design-est'); if(estBlk){ estBlk.style.display=(type==='projektavimas')?'block':'none'; if(type==='projektavimas')npUpdateDesignEst(); }
   // For projektavimas type, hint admin to assign engineer
   const owEl=document.getElementById('np-owner');
   const ownerLbl=owEl?.closest('.form-field')?.querySelector('.form-label');
@@ -8693,6 +8886,7 @@ async function createProject(fromOrderId){
     notes:document.getElementById('np-notes')?.value.trim()||'',
     lines, // save order lines/positions to project
     designStatus:isDesign?'design':'production',
+    designArea:(isDesign?(parseFloat(document.getElementById('np-area')?.value)||0):0), // preliminary m² → engineering-days estimate
     timeEstimates:{}, // per-step time estimates {stepId: hours}
     materials:[], // BOM list
     created:new Date().toISOString(),
@@ -9163,6 +9357,7 @@ function openEditProjectModal(pid){
       <div class="form-field"><label class="form-label">Terminas (montavimas)</label><input type="date" id="ep-deadline" value="${p.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas vadovas</label><select id="ep-owner">${userOpts}</select></div>
     </div>
+    ${p.designStatus==='design'?`<div class="form-field"><label class="form-label">Preliminarus plotas (m²) — reikiamoms projektavimo dienoms</label><input type="number" step="0.1" min="0" id="ep-area" value="${p.designArea||''}" oninput="epUpdateDesignEst()"><div id="ep-est-out" style="font-size:11px;color:#4338ca;margin-top:4px">${p.designArea>0?'≈ <b>'+engDaysForArea(p.designArea)+' darbo d.</b> ('+engRate()+' m²/d. + '+engBuffer()+'%)':''}</div></div>`:''}
     <div style="background:var(--blue-bg);border:1px solid rgba(37,99,235,.15);border-radius:8px;padding:10px 12px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:13px;font-weight:600">📋 Planavimas</span>
@@ -9232,6 +9427,7 @@ async function saveEditProject(pid){
   p.planMode=document.getElementById('ep-planmode')?.value||p.planMode||'backward';
   p.startDate=document.getElementById('ep-startdate')?.value||p.startDate||'';
   p.owner=document.getElementById('ep-owner').value;
+  { const areaEl=document.getElementById('ep-area'); if(areaEl) p.designArea=parseFloat(areaEl.value)||0; }
   p.notes=document.getElementById('ep-notes').value.trim();
   p.color=_selColor;
   // Save lines
@@ -9399,6 +9595,30 @@ function setOrdFilter(v){_ordFilter=v;renderOrders();}
 // ── Projects state filter/sort ──
 let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'asc',category:'projektas'};
 
+// ── Engineering effort estimate ──────────────────────────────────────────────
+// From a project's preliminary area (m²), a break-even throughput (default 25 m²/day)
+// and a rework buffer (default 20%), estimate the design days needed:
+//   days = ceil( area / rate * (1 + buffer/100) )
+function engRate(){ const r=parseFloat(DB.engRate); return r>0?r:25; }
+function engBuffer(){ const b=parseFloat(DB.engBuffer); return (!isNaN(b)&&b>=0)?b:20; }
+function engDaysForArea(area){ const a=parseFloat(area)||0; if(a<=0)return 0; return Math.ceil(a/engRate()*(1+engBuffer()/100)); }
+function engDeadlineForArea(area){ const d=engDaysForArea(area); if(!d)return ''; try{ return addWorkDays(new Date().toISOString().slice(0,10), d); }catch(e){ return ''; } }
+function setEngRate(v){ const r=parseFloat(v); DB.engRate=(r>0?r:25); save(); if(DB.currentView==='design')renderDesignProjects(); toast('✓ Norma: '+engRate()+' m²/d.','success'); }
+function setEngBuffer(v){ const b=parseFloat(v); DB.engBuffer=(!isNaN(b)&&b>=0?b:20); save(); if(DB.currentView==='design')renderDesignProjects(); toast('✓ Atsarga: '+engBuffer()+'%','success'); }
+// Live estimate readout in the new-project modal (Projektavimas type).
+function npUpdateDesignEst(){
+  const out=document.getElementById('np-est-out'); if(!out)return;
+  const area=parseFloat(document.getElementById('np-area')?.value)||0;
+  if(area<=0){ out.innerHTML='Įveskite plotą — apskaičiuosiu projektavimo dienas'; return; }
+  const days=engDaysForArea(area), dl=engDeadlineForArea(area);
+  out.innerHTML=`≈ <b>${days} darbo d.</b> projektavimo <span style="color:var(--hint)">(${engRate()} m²/d. + ${engBuffer()}% atsargai)</span>`+(dl?` · siūlomas terminas <b>${dl}</b>`:'');
+  const dlEl=document.getElementById('np-deadline'); if(dlEl && !dlEl.value && dl) dlEl.value=dl; // prefill deadline if still empty
+}
+function epUpdateDesignEst(){
+  const out=document.getElementById('ep-est-out'); if(!out)return;
+  const area=parseFloat(document.getElementById('ep-area')?.value)||0;
+  out.innerHTML=area>0?`≈ <b>${engDaysForArea(area)} darbo d.</b> (${engRate()} m²/d. + ${engBuffer()}%)`:'';
+}
 function renderDesignProjects(){
   const el=document.getElementById('design-content');
   if(!el)return;
@@ -9435,18 +9655,19 @@ function renderDesignProjects(){
     const dl=p.deadline?daysUntilDeadline(p.deadline):null;
     const dlText=p.deadline?(dl<0?'⚠ Vėluoja '+(-dl)+' d.':dl===0?'🔴 Šiandien':dl===1?'🟠 Rytoj':dl+' d.'):'—';
     const dlColor=dl===null?'var(--hint)':dl<0?'var(--red-t)':dl<3?'var(--amber-t)':'var(--text)';
-    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
+    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};${p.paused?'border-left:4px solid var(--amber-t);background:var(--amber-bg);':''}border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
       <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
           <div style="font-size:11px;color:var(--muted)">${escHtml(p.client||'')}</div>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#4338ca;background:#eef2ff;padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">📐 Dizainas</span>
+        <span style="font-size:9px;font-weight:700;color:#4338ca;background:#eef2ff;padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">📐 Dizainas</span>${pausedBadge(p)}
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px">
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
@@ -9465,6 +9686,14 @@ function renderDesignProjects(){
     <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:16px">
       🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.
     </div>
+    ${isManager()?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:16px">
+      <span style="font-weight:600">⚙ Projektavimo norma:</span>
+      <input type="number" step="0.5" min="1" value="${engRate()}" onchange="setEngRate(this.value)" style="width:72px;padding:3px 6px;font-size:12px"><span>m²/dieną</span>
+      <span style="color:var(--hint)">·</span>
+      <span style="font-weight:600">Atsarga klaidoms/perdarymui:</span>
+      <input type="number" step="5" min="0" value="${engBuffer()}" onchange="setEngBuffer(this.value)" style="width:60px;padding:3px 6px;font-size:12px"><span>%</span>
+      <span style="color:var(--hint);font-size:11px;flex:1;min-width:180px">— reikiamos projektavimo dienos skaičiuojamos pagal projekto plotą (m²)</span>
+    </div>`:`<div style="font-size:11px;color:var(--muted);margin-bottom:16px">Projektavimo norma: <b>${engRate()} m²/d.</b> · atsarga <b>${engBuffer()}%</b> klaidoms</div>`}
     ${viewSwitcher('design')}
     ${renderAreaProjects(sorted, card, 'design')}
   `;
@@ -9744,7 +9973,7 @@ function renderPaslaugaProjects(){
         <span style="font-family:var(--mono);font-weight:700;color:${col};white-space:nowrap">${r.packed}/${r.ordered}</span>
       </div>`;
     }).join('');
-    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':'var(--amber-t)'};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
+    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};${p.paused?'border-left:4px solid var(--amber-t);background:var(--amber-bg);':''}border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':'var(--amber-t)'};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
       <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
@@ -9756,6 +9985,7 @@ function renderPaslaugaProjects(){
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
@@ -9824,7 +10054,7 @@ function renderProductionProjects(){
     const typeBadge=p.type==='paslauga'
       ?'<span style="font-size:9px;font-weight:700;color:var(--amber-t);background:var(--amber-bg);padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">⚡ Paslauga</span>'
       :'<span style="font-size:9px;font-weight:700;color:var(--green-t);background:var(--green-bg);padding:2px 6px;border-radius:4px;height:fit-content;white-space:nowrap">⚙️ Gamyba</span>';
-    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
+    return `<div onclick="showView('project','${p.id}')" style="background:${blockedCount?'var(--red-bg)':'var(--surface)'};border:1px solid ${blockedCount?'var(--red-t)':'var(--border)'};${p.paused?'border-left:4px solid var(--amber-t);background:var(--amber-bg);':''}border-radius:var(--rl);padding:14px 16px;cursor:pointer;transition:all .15s;border-left:4px solid ${blockedCount?'var(--red-t)':p.color};box-shadow:var(--sh)" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseout="this.style.transform='';this.style.boxShadow='var(--sh)'">
       <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</div>
@@ -9836,6 +10066,7 @@ function renderProductionProjects(){
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
