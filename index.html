@@ -8677,6 +8677,12 @@ function openNewProjectModal(fromOrder, presetType){
       <div class="form-field"><label class="form-label">Terminas</label><input type="date" id="np-deadline" value="${fo.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas</label><select id="np-owner">${userOpts}</select></div>
     </div>
+    <div id="np-design-est" style="display:${isEngineer()?'block':'none'};background:#eef2ff;border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-field" style="margin-bottom:0;flex:0 0 160px"><label class="form-label">Preliminarus plotas (m²)</label><input type="number" step="0.1" min="0" id="np-area" placeholder="pvz. 20" oninput="npUpdateDesignEst()"></div>
+        <div id="np-est-out" style="font-size:12px;color:#4338ca;padding-bottom:8px;flex:1;min-width:180px">Įveskite plotą — apskaičiuosiu projektavimo dienas</div>
+      </div>
+    </div>
     ${linesPreview}
     <div id="np-steps-section" style="display:${isEngineer()?'none':'block'};margin-bottom:12px">
       <label class="form-label" style="margin-bottom:6px">Užduotys / žingsniai — atžymėkite tuos, kurių nereikia</label>
@@ -8749,6 +8755,7 @@ function switchProjType(type){
   if(npB)npB.className='btn'+(type==='projektavimas'?' btn-primary':'');
   document.getElementById('np-steps-section').style.display=(type==='paslauga'||type==='projektas')?'block':'none';
   if(type==='paslauga'||type==='projektas') npSetStepDefaults(type);
+  const estBlk=document.getElementById('np-design-est'); if(estBlk){ estBlk.style.display=(type==='projektavimas')?'block':'none'; if(type==='projektavimas')npUpdateDesignEst(); }
   // For projektavimas type, hint admin to assign engineer
   const owEl=document.getElementById('np-owner');
   const ownerLbl=owEl?.closest('.form-field')?.querySelector('.form-label');
@@ -8854,6 +8861,7 @@ async function createProject(fromOrderId){
     notes:document.getElementById('np-notes')?.value.trim()||'',
     lines, // save order lines/positions to project
     designStatus:isDesign?'design':'production',
+    designArea:(isDesign?(parseFloat(document.getElementById('np-area')?.value)||0):0), // preliminary m² → engineering-days estimate
     timeEstimates:{}, // per-step time estimates {stepId: hours}
     materials:[], // BOM list
     created:new Date().toISOString(),
@@ -9324,6 +9332,7 @@ function openEditProjectModal(pid){
       <div class="form-field"><label class="form-label">Terminas (montavimas)</label><input type="date" id="ep-deadline" value="${p.deadline||''}"></div>
       <div class="form-field"><label class="form-label">Atsakingas vadovas</label><select id="ep-owner">${userOpts}</select></div>
     </div>
+    ${p.designStatus==='design'?`<div class="form-field"><label class="form-label">Preliminarus plotas (m²) — reikiamoms projektavimo dienoms</label><input type="number" step="0.1" min="0" id="ep-area" value="${p.designArea||''}" oninput="epUpdateDesignEst()"><div id="ep-est-out" style="font-size:11px;color:#4338ca;margin-top:4px">${p.designArea>0?'≈ <b>'+engDaysForArea(p.designArea)+' darbo d.</b> ('+engRate()+' m²/d. + '+engBuffer()+'%)':''}</div></div>`:''}
     <div style="background:var(--blue-bg);border:1px solid rgba(37,99,235,.15);border-radius:8px;padding:10px 12px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:13px;font-weight:600">📋 Planavimas</span>
@@ -9393,6 +9402,7 @@ async function saveEditProject(pid){
   p.planMode=document.getElementById('ep-planmode')?.value||p.planMode||'backward';
   p.startDate=document.getElementById('ep-startdate')?.value||p.startDate||'';
   p.owner=document.getElementById('ep-owner').value;
+  { const areaEl=document.getElementById('ep-area'); if(areaEl) p.designArea=parseFloat(areaEl.value)||0; }
   p.notes=document.getElementById('ep-notes').value.trim();
   p.color=_selColor;
   // Save lines
@@ -9560,6 +9570,30 @@ function setOrdFilter(v){_ordFilter=v;renderOrders();}
 // ── Projects state filter/sort ──
 let _projFilter={search:'',status:'all',type:'all',sortBy:'deadline',sortDir:'asc',category:'projektas'};
 
+// ── Engineering effort estimate ──────────────────────────────────────────────
+// From a project's preliminary area (m²), a break-even throughput (default 25 m²/day)
+// and a rework buffer (default 20%), estimate the design days needed:
+//   days = ceil( area / rate * (1 + buffer/100) )
+function engRate(){ const r=parseFloat(DB.engRate); return r>0?r:25; }
+function engBuffer(){ const b=parseFloat(DB.engBuffer); return (!isNaN(b)&&b>=0)?b:20; }
+function engDaysForArea(area){ const a=parseFloat(area)||0; if(a<=0)return 0; return Math.ceil(a/engRate()*(1+engBuffer()/100)); }
+function engDeadlineForArea(area){ const d=engDaysForArea(area); if(!d)return ''; try{ return addWorkDays(new Date().toISOString().slice(0,10), d); }catch(e){ return ''; } }
+function setEngRate(v){ const r=parseFloat(v); DB.engRate=(r>0?r:25); save(); if(DB.currentView==='design')renderDesignProjects(); toast('✓ Norma: '+engRate()+' m²/d.','success'); }
+function setEngBuffer(v){ const b=parseFloat(v); DB.engBuffer=(!isNaN(b)&&b>=0?b:20); save(); if(DB.currentView==='design')renderDesignProjects(); toast('✓ Atsarga: '+engBuffer()+'%','success'); }
+// Live estimate readout in the new-project modal (Projektavimas type).
+function npUpdateDesignEst(){
+  const out=document.getElementById('np-est-out'); if(!out)return;
+  const area=parseFloat(document.getElementById('np-area')?.value)||0;
+  if(area<=0){ out.innerHTML='Įveskite plotą — apskaičiuosiu projektavimo dienas'; return; }
+  const days=engDaysForArea(area), dl=engDeadlineForArea(area);
+  out.innerHTML=`≈ <b>${days} darbo d.</b> projektavimo <span style="color:var(--hint)">(${engRate()} m²/d. + ${engBuffer()}% atsargai)</span>`+(dl?` · siūlomas terminas <b>${dl}</b>`:'');
+  const dlEl=document.getElementById('np-deadline'); if(dlEl && !dlEl.value && dl) dlEl.value=dl; // prefill deadline if still empty
+}
+function epUpdateDesignEst(){
+  const out=document.getElementById('ep-est-out'); if(!out)return;
+  const area=parseFloat(document.getElementById('ep-area')?.value)||0;
+  out.innerHTML=area>0?`≈ <b>${engDaysForArea(area)} darbo d.</b> (${engRate()} m²/d. + ${engBuffer()}%)`:'';
+}
 function renderDesignProjects(){
   const el=document.getElementById('design-content');
   if(!el)return;
@@ -9608,6 +9642,7 @@ function renderDesignProjects(){
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
@@ -9626,6 +9661,14 @@ function renderDesignProjects(){
     <div style="background:#eef2ff;border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:#4338ca;margin-bottom:16px">
       🔒 Šie projektai matomi tik <strong>Vadybai</strong> ir <strong>priskirtam Inžinieriui</strong>. Gamybos darbuotojai jų nemato.
     </div>
+    ${isManager()?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:16px">
+      <span style="font-weight:600">⚙ Projektavimo norma:</span>
+      <input type="number" step="0.5" min="1" value="${engRate()}" onchange="setEngRate(this.value)" style="width:72px;padding:3px 6px;font-size:12px"><span>m²/dieną</span>
+      <span style="color:var(--hint)">·</span>
+      <span style="font-weight:600">Atsarga klaidoms/perdarymui:</span>
+      <input type="number" step="5" min="0" value="${engBuffer()}" onchange="setEngBuffer(this.value)" style="width:60px;padding:3px 6px;font-size:12px"><span>%</span>
+      <span style="color:var(--hint);font-size:11px;flex:1;min-width:180px">— reikiamos projektavimo dienos skaičiuojamos pagal projekto plotą (m²)</span>
+    </div>`:`<div style="font-size:11px;color:var(--muted);margin-bottom:16px">Projektavimo norma: <b>${engRate()} m²/d.</b> · atsarga <b>${engBuffer()}%</b> klaidoms</div>`}
     ${viewSwitcher('design')}
     ${renderAreaProjects(sorted, card, 'design')}
   `;
@@ -9917,6 +9960,7 @@ function renderPaslaugaProjects(){
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
@@ -9997,6 +10041,7 @@ function renderProductionProjects(){
         <span>${owner?ava(owner.id,16)+' '+escHtml(owner.name):'—'}</span>
         <span style="color:${dlColor};font-weight:600">${dlText}</span>
       </div>
+      ${p.designArea>0?`<div style="font-size:11px;color:#4338ca;margin-bottom:2px">📐 ${p.designArea} m² · ≈ ${engDaysForArea(p.designArea)} d. projektavimo</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${p.color};transition:width .3s"></div>
