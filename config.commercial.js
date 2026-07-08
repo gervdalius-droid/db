@@ -10,8 +10,8 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 window.FAB_CONFIG = {
   // Backend — the NEW customer-only Supabase project (NOT your private one).
-  SUPABASE_URL: "https://TODO-COMMERCIAL-REF.supabase.co",
-  SUPABASE_ANON_KEY: "TODO_PASTE_COMMERCIAL_ANON_KEY",
+  SUPABASE_URL: "https://yyamcwkbwptvrdbylqji.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_ODSJnx1sWO1KUjQEl0IRZQ_2_Iyz596",
 
   // Branding
   BRAND_NAME: "FabFlow",

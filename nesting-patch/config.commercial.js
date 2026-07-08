@@ -4,14 +4,14 @@
  * Fill the TODO values after creating the commercial projects.
  * ════════════════════════════════════════════════════════════════════════════ */
 window.FAB_CONFIG = {
-  // Nesting's OWN data project for customers (a new project, or reuse one).
-  DATA_URL: "https://TODO-COMMERCIAL-NESTING-REF.supabase.co",
-  DATA_ANON_KEY: "TODO_PASTE_COMMERCIAL_NESTING_ANON_KEY",
+  // One commercial project holds everything for customers (nesting jobs +
+  // warehouse + auth + fab_orgs), scoped per workspace. Both point at it.
+  DATA_URL: "https://yyamcwkbwptvrdbylqji.supabase.co",
+  DATA_ANON_KEY: "sb_publishable_ODSJnx1sWO1KUjQEl0IRZQ_2_Iyz596",
 
-  // The warehouse/auth project = the SAME commercial DB project the DB product
-  // uses (this is where fab_orgs + the subscription gate live).
-  WAREHOUSE_URL: "https://TODO-COMMERCIAL-REF.supabase.co",
-  WAREHOUSE_ANON_KEY: "TODO_PASTE_COMMERCIAL_ANON_KEY",
+  // The warehouse/auth project = the SAME commercial project (fab_orgs + gate).
+  WAREHOUSE_URL: "https://yyamcwkbwptvrdbylqji.supabase.co",
+  WAREHOUSE_ANON_KEY: "sb_publishable_ODSJnx1sWO1KUjQEl0IRZQ_2_Iyz596",
 
   APP_TITLE: "FabFlow — Nesting",
 
