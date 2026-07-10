@@ -1114,6 +1114,7 @@ const DESIGN_STEPS = [
   {id:'koncepcija',   label:'Idėja + Projekto info', short:'IDJ', color:'#a855f7', bg:'#faf5ff', icon:'💡', ico:'bulb', desc:'Idėja, projekto informacija, matmenys, medžiagos, terminas', defaultRole:'manager'},
   {id:'breziniai',    label:'Eskizas',          short:'ESK', color:'#0891b2', bg:'#ecfeff', icon:'✏️', ico:'pencil', desc:'Pradinis eskizas, klientui peržiūrai'},
   {id:'modelis3d',    label:'Gamybinis modelis ir brėžiniai', short:'GMB', color:'#6366f1', bg:'#eef2ff', icon:'📐', ico:'cube', desc:'Detalus parametrinis modelis ir 2D brėžiniai'},
+  {id:'klientui',     label:'Išsiųsta klientui', short:'KLI', color:'#db2777', bg:'#fdf2f8', icon:'📤', ico:'upload', desc:'Išsiųsta klientui — vadyba pažymi: patvirtinta ar reikia pataisymų', defaultRole:'manager'},
   {id:'cam',          label:'CAM / Nesting',    short:'CAM', color:'#0284c7', bg:'#e0f2fe', icon:'⚙️', ico:'cpu', desc:'CNC kodai, nesting, pjovimo planas'},
   {id:'perdavimas',   label:'Perdavimas į gamybą', short:'PRD', color:'#16a34a', bg:'#f0fdf4', icon:'🚀', ico:'rocket', desc:'Failai perduoti į gamybą'},
 ];
@@ -8413,7 +8414,57 @@ function patchKanbanColumn(pid, stepId){
 }
 
 // Shared task card renderer used by both renderKanban and patchKanbanColumn
+// ── Client-approval gate for the "Išsiųsta klientui" design step ──
+// The manager records the client's response; the engineer then knows what to do next.
+function clientGateState(t){
+  if(t.clientDecision==='approved') return '<div style="font-size:9px;color:var(--green-t);font-weight:700;margin-top:2px">✅ Klientas patvirtino</div>';
+  if(t.clientDecision==='revision') return '<div style="font-size:9px;color:var(--red-t);font-weight:700;margin-top:2px;white-space:normal">🔁 Reikia pataisymų'+(t.clientNote?': '+escHtml(t.clientNote):'')+'</div>';
+  return '<div style="font-size:9px;color:var(--muted);margin-top:2px">⏳ Laukiama kliento atsakymo</div>';
+}
+function clientGateButtons(t){
+  if(!isManager()) return '';
+  if(t.status==='done'&&t.clientDecision==='approved') return '';
+  return '<div style="display:flex;flex-direction:column;gap:3px" onclick="event.stopPropagation()">'
+    +'<button class="btn btn-xs" style="font-size:10px;padding:2px 6px;background:var(--green-bg);color:var(--green-t);font-weight:700;white-space:nowrap" onclick="event.stopPropagation();clientApprove(\''+t.id+'\')" title="Klientas patvirtino — tęsti">✅ OK</button>'
+    +'<button class="btn btn-xs" style="font-size:10px;padding:2px 6px;background:var(--red-bg);color:var(--red-t);font-weight:700;white-space:nowrap" onclick="event.stopPropagation();clientReject(\''+t.id+'\')" title="Reikia pataisymų — grąžinti inžinieriui">🔁 Taisyti</button>'
+    +'</div>';
+}
+function _clientGateRefresh(pid){
+  try{ if(DB.currentProjectId===pid) renderProjectView(pid,_projTab); }catch(e){}
+  try{ if(DB.currentView==='design') renderDesignProjects(); }catch(e){}
+  try{ if(DB.currentView==='calendar') renderCalendarView(); }catch(e){}
+  try{ renderSidebar(); }catch(e){}
+}
+function clientApprove(tid){
+  if(!isManager()){ toast('Tik vadyba gali tvirtinti','error'); return; }
+  const t=DB.tasks.find(x=>x.id===tid); if(!t) return;
+  t.clientDecision='approved'; t.clientNote=''; t.clientDecidedAt=new Date().toISOString(); t.clientDecidedBy=DB.currentUserId;
+  if(t.status!=='done'){ t.status='done'; t.completedAt=new Date().toISOString(); }
+  try{ pushLog(t,{event:'client-approved'}); }catch(e){}
+  const p=getProject(t.projectId);
+  addNotif('step-move','✅ Klientas patvirtino — galima tęsti', p?p.name:'', t.projectId, p?p.owner:null);
+  save(); toast('✅ Klientas patvirtino — inžinierius gali tęsti','success');
+  _clientGateRefresh(t.projectId);
+}
+function clientReject(tid){
+  if(!isManager()){ toast('Tik vadyba','error'); return; }
+  const t=DB.tasks.find(x=>x.id===tid); if(!t) return;
+  const note=prompt('Ką reikia pataisyti? (bus perduota inžinieriui)', t.clientNote||'');
+  if(note===null) return;
+  t.clientDecision='revision'; t.clientNote=(note||'').trim(); t.clientDecidedAt=new Date().toISOString(); t.clientDecidedBy=DB.currentUserId;
+  if(t.status==='done') t.status='in-progress';
+  try{ pushLog(t,{event:'client-revision',text:t.clientNote}); }catch(e){}
+  // Reopen the previous design step so the engineer revises it.
+  const gi=DESIGN_STEPS.findIndex(s=>s.id==='klientui');
+  const prev=gi>0?DESIGN_STEPS[gi-1]:null;
+  if(prev){ const pt=DB.tasks.find(x=>x.projectId===t.projectId&&x.stepId===prev.id); if(pt&&pt.status==='done'){ pt.status='in-progress'; try{pushLog(pt,{event:'reopened',text:'Kliento pataisymai'});}catch(e){} } }
+  const p=getProject(t.projectId);
+  addNotif('step-move','🔁 Reikia pataisymų'+(t.clientNote?': '+t.clientNote:''), p?p.name:'', t.projectId, p?p.owner:null);
+  save(); toast('🔁 Perduota inžinieriui — reikia pataisymų','');
+  _clientGateRefresh(t.projectId);
+}
 function taskCardHtml(t, pid, stepId){
+  const isGate=(stepId==='klientui');
   const now=Date.now();
   const hasDl=t.deadline&&t.status!=='done';
   const dlDays=hasDl?daysUntilDeadline(t.deadline):999;
@@ -8451,7 +8502,8 @@ function taskCardHtml(t, pid, stepId){
       +'</div></div>';
   }
 
-  const matsHtml=t.materials.length?'<div class="sg-task-mats">'+t.materials[0]+(t.materials.length>1?' +'+(t.materials.length-1):'')+'</div>':'';
+  const _mats=t.materials||[];
+  const matsHtml=_mats.length?'<div class="sg-task-mats">'+_mats[0]+(_mats.length>1?' +'+(_mats.length-1):'')+'</div>':'';
   const commentHtml=commentCount?'<div style="font-size:9px;color:var(--blue-t);margin-top:2px">💬 '+commentCount+' koment.</div>':'';
 
   // Paslauga: show the parts/positions required to make, with per-part progress
@@ -8477,9 +8529,9 @@ function taskCardHtml(t, pid, stepId){
     +'<div class="sg-status"></div>'
     +'<div style="flex:1;min-width:0">'
     +'<div class="sg-task-name'+(isDone?' done-text':'')+'">'+escHtml(t.name)+'</div>'
-    +blockerHtml+qtyHtml+partsHtml+matsHtml+dlBadge+commentHtml
+    +blockerHtml+qtyHtml+partsHtml+matsHtml+dlBadge+commentHtml+(isGate?clientGateState(t):'')
     +'</div>'
-    +'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'+avatars+advBtn+'</div>'
+    +'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'+avatars+(isGate?clientGateButtons(t):advBtn)+'</div>'
     +'</div>';
 }
 
