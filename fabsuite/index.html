@@ -1,216 +1,495 @@
 <!DOCTYPE html>
-<html lang="lt">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fabsuite — gamybos programinė įranga baldų cechams</title>
-<meta name="description" content="Nesting ir DB — pjovimo optimizacija ir gamybos valdymas baldų gamybai. Prenumeruok ir pradėk per kelias minutes.">
+<title data-i18n-title="meta.title.home">FabFlow</title>
+<meta name="description" data-i18n-content="meta.desc" content="Nesting & production management for furniture makers.">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 </head>
 <body>
 
 <nav class="nav">
   <div class="wrap">
-    <a class="brand" href="index.html"><span class="logo">F</span> Fabsuite</a>
+    <a class="brand" href="index.html"><span class="logo">F</span> <span data-brand>FabFlow</span></a>
     <div class="links">
-      <a href="#features" class="hide-sm">Galimybės</a>
-      <a href="#screenshots" class="hide-sm">Ekranai</a>
-      <a href="#pricing" class="hide-sm">Kainos</a>
-      <a href="account.html" class="hide-sm">Mano paskyra</a>
-      <a class="btn btn-primary" href="#pricing" style="padding:8px 16px">Pradėti</a>
+      <a href="#features" class="hide-sm" data-i18n="nav.features">Features</a>
+      <a href="#demo" class="hide-sm" data-i18n="nav.demo">Live demo</a>
+      <a href="#pricing" class="hide-sm" data-i18n="nav.pricing">Pricing</a>
+      <a href="account.html" class="hide-sm" data-i18n="nav.account">My account</a>
+      <span class="lang-switch" data-lang-switch></span>
+      <a class="btn btn-primary" href="#pricing" style="padding:8px 16px" data-i18n="nav.start">Get started</a>
     </div>
   </div>
 </nav>
 
 <header class="hero">
   <div class="wrap">
-    <span class="eyebrow">Baldų gamybos programinė įranga</span>
-    <h1>Nuo pjovimo plano<br>iki išsiųsto užsakymo.</h1>
-    <p class="lead">Fabsuite jungia dvi įrankius, sukurtus realiam baldų cechui: <b>Nesting</b> optimizuoja
-      pjovimą ir likučius, <b>DB</b> valdo visą gamybos eigą — projektus, žingsnius ir komandą.</p>
+    <span class="eyebrow" data-i18n="hero.eyebrow">Furniture manufacturing software</span>
+    <h1 data-i18n-html="hero.h1">From cutting plan<br>to delivered order.</h1>
+    <p class="lead" data-i18n-html="hero.lead">FabFlow joins two tools built for a real workshop.</p>
     <div class="cta-row">
-      <a class="btn btn-primary btn-lg" href="#pricing">Išbandyti nemokamai →</a>
-      <a class="btn btn-lg" href="#features">Kaip tai veikia</a>
+      <a class="btn btn-primary btn-lg" href="#pricing" data-i18n="hero.cta1">Start free trial →</a>
+      <a class="btn btn-lg" href="#demo" data-i18n="hero.cta2">See it work</a>
     </div>
-    <div class="note">14 dienų nemokamas bandymas · atšauk bet kada · be įdiegimo</div>
+    <div class="note" data-i18n="hero.note">14-day free trial · cancel anytime · no installation</div>
   </div>
 </header>
+
+<!-- stats -->
+<section style="padding:8px 0 40px">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><div class="stat-n">3 min</div><div class="stat-l" data-i18n="stats.setup">to set up</div></div>
+      <div class="stat"><div class="stat-n">99.9%</div><div class="stat-l" data-i18n="stats.uptime">uptime</div></div>
+      <div class="stat"><div class="stat-n">≈15%</div><div class="stat-l" data-i18n="stats.waste">less offcut waste</div></div>
+      <div class="stat"><div class="stat-n">€0</div><div class="stat-l" data-i18n="pricing.trial_short">14 days free</div></div>
+    </div>
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Du įrankiai. Viena darbo vieta.</h2>
-      <p>Tie patys prisijungimai, tas pats sandėlis, ta pati komanda — abiejose programose.</p>
+      <h2 data-i18n="features.h2">Two tools. One workspace.</h2>
+      <p data-i18n="features.sub">Same logins, same warehouse, same team — across both apps.</p>
     </div>
     <div class="grid grid-2">
       <div class="card">
         <div class="ico">📐</div>
-        <h3>Nesting — pjovimo optimizacija</h3>
-        <p>Automatinis detalių išdėstymas lakštuose, likučių sandėlis ir medžiagų sąnaudų skaičiavimas.
-          Mažiau atliekų, daugiau panaudotų likučių.</p>
+        <h3 data-i18n="features.nesting.h3">Nesting — cutting optimization</h3>
+        <p data-i18n="features.nesting.p">Automatic part layout on sheets, an offcut warehouse and material-cost reporting.</p>
       </div>
       <div class="card">
         <div class="ico">🏭</div>
-        <h3>DB — gamybos valdymas</h3>
-        <p>Cecho rodinys, gamybos žingsniai, projektai ir užsakymai, komandos vaidmenys su PIN
-          prisijungimu, terminų sekimas ir ataskaitos.</p>
+        <h3 data-i18n="features.db.h3">DB — production management</h3>
+        <p data-i18n="features.db.p">Shop-floor view, production steps, projects and orders, team roles.</p>
       </div>
     </div>
     <div class="grid grid-3" style="margin-top:18px">
-      <div class="card"><div class="ico">🔐</div><h3>Vieni prisijungimai</h3><p>Darbuotojas prisijungia vardu ir PIN — veikia abiejose programose iš karto.</p></div>
-      <div class="card"><div class="ico">📦</div><h3>Bendras sandėlis</h3><p>Pjovimo likučiai ir lakštai matomi tiek Nesting, tiek DB programoje realiu laiku.</p></div>
-      <div class="card"><div class="ico">☁️</div><h3>Debesyje</h3><p>Nieko įdiegti nereikia. Atsidaryk naršyklėje, duomenys sinchronizuojami automatiškai.</p></div>
+      <div class="card"><div class="ico">🔐</div><h3 data-i18n="features.logins.h3">One set of logins</h3><p data-i18n="features.logins.p">A worker signs in with a name and PIN.</p></div>
+      <div class="card"><div class="ico">📦</div><h3 data-i18n="features.warehouse.h3">Shared warehouse</h3><p data-i18n="features.warehouse.p">Offcuts and sheets visible in both apps in real time.</p></div>
+      <div class="card"><div class="ico">☁️</div><h3 data-i18n="features.cloud.h3">In the cloud</h3><p data-i18n="features.cloud.p">Nothing to install. Open it in a browser.</p></div>
     </div>
   </div>
 </section>
 
-<section id="screenshots" class="showcase">
+<!-- ══════════════ INTERACTIVE DEMOS ══════════════ -->
+<section id="demo" class="showcase">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Pažiūrėkite, kaip tai atrodo</h2>
-      <p>Tikri programų vaizdai — ne piešinukai. Viskas paruošta darbui iš karto.</p>
+      <h2 data-i18n="demo.h2">See how it looks</h2>
+      <p data-i18n="demo.sub">Live, in your browser — no screenshots. Sample projects, real behavior.</p>
     </div>
 
+    <!-- 1) NESTING -->
     <div class="shot-row">
       <div class="shot-txt">
-        <span class="tag">Nesting</span>
-        <h3>Pjovimo optimizacija, kuri taupo medžiagą</h3>
-        <p>Įkelkite detales — programa automatiškai išdėsto jas lakštuose su mažiausiai atliekų, paskaičiuoja kainą ir paruošia failus staklėms.</p>
+        <span class="tag" data-i18n="demo.nesting.tag">Nesting</span>
+        <h3 data-i18n="demo.nesting.h3">Cutting optimization that saves material</h3>
+        <p data-i18n="demo.nesting.p">Drop in your parts — the app lays them out with the least waste.</p>
         <ul>
-          <li>Automatinis išdėstymas · efektyvumas ir likučiai realiu laiku</li>
-          <li>DXF / pjovimo failai CNC ir formatinėms staklėms</li>
-          <li>Kainodara ir pasiūlymas klientui vienu paspaudimu</li>
+          <li data-i18n="demo.nesting.b1">Automatic layout · efficiency & offcuts in real time</li>
+          <li data-i18n="demo.nesting.b2">DXF / cut files for CNC and beam saws</li>
+          <li data-i18n="demo.nesting.b3">Pricing and a customer quote in one click</li>
         </ul>
       </div>
-      <div class="shot-frame"><div class="bar"><i></i><i></i><i></i></div><img src="assets/shot-nesting.png" alt="Nesting — pjovimo optimizacija" loading="lazy"></div>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">nesting · sheet 2800×2070</span></div>
+        <div class="demo-body">
+          <div class="nest-wrap">
+            <svg id="nest-svg" viewBox="0 0 280 207" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+          </div>
+          <div class="nest-stats">
+            <div class="ns"><div class="ns-n"><span id="nest-eff">0</span>%</div><div class="ns-l" data-i18n="demo.nesting.eff">Sheet efficiency</div></div>
+            <div class="ns"><div class="ns-n" id="nest-parts">0</div><div class="ns-l" data-i18n="demo.nesting.parts">Parts nested</div></div>
+            <div class="ns"><div class="ns-n" id="nest-off">0.00 m²</div><div class="ns-l" data-i18n="demo.nesting.offcuts">Offcuts saved</div></div>
+            <button class="btn nest-replay" id="nest-replay" type="button"><span data-i18n="demo.nesting.replay">Replay</span> ↻</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="shot-row rev">
+    <!-- 2) PRODUCTION BOARD -->
+    <div class="shot-row rev demo-lg">
       <div class="shot-txt">
-        <span class="tag">DB · Gamyba</span>
-        <h3>Visa gamyba viename ekrane</h3>
-        <p>Cecho rodinys parodo kiekvieną projektą ir gamybos žingsnį — kas vyksta, kas užstrigo, kas atlikta.</p>
+        <span class="tag" data-i18n="demo.board.tag">DB · Production</span>
+        <h3 data-i18n="demo.board.h3">The whole shop floor on one screen</h3>
+        <p data-i18n="demo.board.p">The floor view shows every project and production step.</p>
         <ul>
-          <li>Gyvos būsenos: vykdoma · atlikta · vėluoja</li>
-          <li>Projektai suskirstyti pagal etapą ir terminą</li>
-          <li>Pastebėkite butelio kaklelį anksčiau nei jis sustabdo cechą</li>
+          <li data-i18n="demo.board.b1">Live status: in progress · done · delayed</li>
+          <li data-i18n="demo.board.b2">Projects grouped by step and deadline</li>
+          <li data-i18n="demo.board.b3">Spot the bottleneck before it stops the shop</li>
         </ul>
       </div>
-      <div class="shot-frame"><div class="bar"><i></i><i></i><i></i></div><img src="assets/shot-db-floor.png" alt="DB — cecho rodinys" loading="lazy"></div>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">db · floor</span><span class="live"><span class="dot"></span><span data-i18n="demo.board.live">Live</span></span></div>
+        <div class="demo-body">
+          <div class="board" id="board"></div>
+        </div>
+      </div>
     </div>
 
+    <!-- 3) DAILY REPORT -->
     <div class="shot-row">
       <div class="shot-txt">
-        <span class="tag">DB · Projektai</span>
-        <h3>Kiekvienas projektas — žingsnis po žingsnio</h3>
-        <p>Nuo pjovimo iki montavimo: medžiagos, darbuotojai, terminai ir eiga vienoje kortelėje.</p>
+        <span class="tag" data-i18n="demo.report.tag">DB · Daily report</span>
+        <h3 data-i18n="demo.report.h3">Know today's output at a glance</h3>
+        <p data-i18n="demo.report.p">Square meters cut, edgeband meters, pieces finished.</p>
         <ul>
-          <li>Gamybos žingsniai su atsakingais darbuotojais</li>
-          <li>Medžiagos, stalčiai, furnitūra, failai</li>
-          <li>Progresas procentais — matote iš karto</li>
+          <li data-i18n="demo.report.b1">m² cut is the headline for the saw</li>
+          <li data-i18n="demo.report.b2">By-worker breakdown and a 14-day chart</li>
+          <li data-i18n="demo.report.b3">Export or share with one tap</li>
         </ul>
       </div>
-      <div class="shot-frame"><div class="bar"><i></i><i></i><i></i></div><img src="assets/shot-db-project.png" alt="DB — projekto žingsniai" loading="lazy"></div>
-    </div>
-
-    <div class="shot-row rev">
-      <div class="shot-txt">
-        <span class="tag">DB · Planavimas</span>
-        <h3>Grafikas ir Lean valdymas</h3>
-        <p>Planuokite darbus pagal montavimo datas, sekite WIP limitus ir gaukite patarimus, kur perskirstyti komandą.</p>
-        <ul>
-          <li>Kalendorius ir Gantt vaizdas</li>
-          <li>WIP limitai ir lygiagretumo lygis</li>
-          <li>Lean patarimai realiu laiku</li>
-        </ul>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">db · report</span></div>
+        <div class="demo-body">
+          <div class="rep-tiles">
+            <div class="rep-tile"><div class="rt-n"><span id="rep-cut">0</span> m²</div><div class="rt-l" data-i18n="demo.report.cut">Cut today</div></div>
+            <div class="rep-tile"><div class="rt-n"><span id="rep-edge">0</span> m</div><div class="rt-l" data-i18n="demo.report.edge">Edgebanded</div></div>
+            <div class="rep-tile"><div class="rt-n" id="rep-pcs">0</div><div class="rt-l" data-i18n="demo.report.pieces">Pieces done</div></div>
+          </div>
+          <div class="rep-chart-head mono" data-i18n="demo.report.trend">14-day trend</div>
+          <div class="rep-chart" id="rep-chart"></div>
+        </div>
       </div>
-      <div class="shot-frame"><div class="bar"><i></i><i></i><i></i></div><img src="assets/shot-db-schedule.png" alt="DB — grafikas ir Lean" loading="lazy"></div>
     </div>
   </div>
 </section>
 
+<!-- HOW IT WORKS / ORDERING -->
+<section style="background:var(--surface2)">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 data-i18n="how.h2">Ordering takes three minutes</h2>
+      <p data-i18n="how.sub">No sales call, no installation.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><h3 data-i18n="how.s1.t">Pick a plan</h3><p data-i18n="how.s1.p">Nesting, DB, or the full suite.</p></div>
+      <div class="step"><div class="step-n">2</div><h3 data-i18n="how.s2.t">Create your workspace</h3><p data-i18n="how.s2.p">Company, email, password.</p></div>
+      <div class="step"><div class="step-n">3</div><h3 data-i18n="how.s3.t">Invite your team</h3><p data-i18n="how.s3.p">Workers log in with a name and PIN.</p></div>
+      <div class="step"><div class="step-n">4</div><h3 data-i18n="how.s4.t">Pay only after the trial</h3><p data-i18n="how.s4.p">Cancel before and you pay nothing.</p></div>
+    </div>
+    <div class="center" style="margin-top:34px">
+      <a class="btn btn-lg" id="try-flow" href="signup.html?plan=suite&interval=month&demo=1" data-i18n="how.cta">Try the ordering flow →</a>
+    </div>
+  </div>
+</section>
+
+<!-- QUOTE -->
+<section>
+  <div class="wrap">
+    <figure class="quote">
+      <blockquote data-i18n="quote.text">“It feels like software we couldn't afford — at a price we didn't expect.”</blockquote>
+      <figcaption><span class="q-name" data-i18n="quote.name">Workshop owner</span> · <span class="q-role" data-i18n="quote.role">12-person cabinet shop</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section id="compare">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 data-i18n="compare.h2">Why workshops switch to FabFlow</h2>
+      <p data-i18n="compare.sub">How FabFlow stacks up against the usual alternatives.</p>
+    </div>
+    <div class="cmp-scroll"><table class="cmp" id="cmp-table"></table></div>
+    <div class="cmp-legend" data-i18n="compare.legend">✓ Full · ~ Partial · ✕ None</div>
+    <p class="center note" style="margin-top:10px" data-i18n="compare.foot">Compared as market categories, not specific products.</p>
+  </div>
+</section>
+
+<!-- PRICING -->
 <section id="pricing" style="background:var(--surface2)">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Paprasta kaina pagal poreikį</h2>
-      <p>Pirk vieną įrankį arba abu su nuolaida. Visi planai — 14 dienų nemokamai.</p>
+      <h2 data-i18n="pricing.h2">Simple pricing for your needs</h2>
+      <p data-i18n="pricing.sub">Buy one tool or both at a discount.</p>
     </div>
     <div class="center">
       <div class="toggle" id="billing-toggle">
-        <button data-int="month" class="on" onclick="setInterval2('month')">Mėnesinis</button>
-        <button data-int="year" onclick="setInterval2('year')">Metinis <span class="save">–2 mėn.</span></button>
+        <button data-int="month" class="on" onclick="setBilling('month')" data-i18n="pricing.monthly">Monthly</button>
+        <button data-int="year" onclick="setBilling('year')"><span data-i18n="pricing.yearly">Yearly</span> <span class="save" data-i18n="pricing.save">–2 months</span></button>
       </div>
     </div>
     <div class="plans" id="plans"></div>
-    <p class="center note" style="margin-top:26px">Kainos be PVM. Mokėjimai saugiai apdorojami per Stripe.</p>
+    <p class="center note" style="margin-top:26px" data-i18n="pricing.vat">Prices exclude VAT. Payments securely processed by Stripe.</p>
   </div>
 </section>
 
 <section>
   <div class="wrap center">
     <div class="sec-head" style="margin-bottom:18px">
-      <h2>Pasiruošę pradėti?</h2>
-      <p>Susikurk darbo vietą per kelias minutes ir pakviesk komandą.</p>
+      <h2 data-i18n="final.h2">Ready to start?</h2>
+      <p data-i18n="final.sub">Set up a workspace in minutes and invite your team.</p>
     </div>
-    <a class="btn btn-primary btn-lg" href="#pricing">Pasirinkti planą →</a>
+    <a class="btn btn-primary btn-lg" href="#pricing" data-i18n="final.cta">Choose a plan →</a>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <div>© <span id="yr"></span> Fabsuite · Gamybos programinė įranga</div>
+    <div>© <span id="yr"></span> <span data-brand>FabFlow</span> · <span data-i18n="footer.tagline">Production software for furniture workshops</span></div>
     <div>
-      <a href="account.html">Mano paskyra</a>
-      <a href="#pricing">Kainos</a>
-      <a id="supafoot" href="#">Pagalba</a>
+      <a href="account.html" data-i18n="footer.account">My account</a>
+      <a href="#pricing" data-i18n="footer.pricing">Pricing</a>
+      <a id="supafoot" href="#" data-i18n="footer.help">Help</a>
     </div>
   </div>
 </footer>
 
 <script>
-var INTERVAL = "month";
+/* ── brand + year + support ─────────────────────────────────────────────── */
+var BRAND = (window.FABSUITE && FABSUITE.BRAND) || "FabFlow";
+document.querySelectorAll("[data-brand]").forEach(function(el){ el.textContent = BRAND; });
 document.getElementById("yr").textContent = new Date().getFullYear();
-(function(){ var s=document.getElementById("supafoot"); s.href="mailto:"+FABSUITE.SUPPORT_EMAIL; })();
+(function(){ var s=document.getElementById("supafoot"); if(FABSUITE.SUPPORT_EMAIL) s.href="mailto:"+FABSUITE.SUPPORT_EMAIL; })();
 
-function setInterval2(i){
-  INTERVAL = i;
-  document.querySelectorAll("#billing-toggle button").forEach(function(b){
-    b.classList.toggle("on", b.getAttribute("data-int")===i);
-  });
-  renderPlans();
-}
-
+/* ── pricing ────────────────────────────────────────────────────────────── */
+var INTERVAL = "month";
 function planUrl(code){
   var ws = (new RegExp("[?&]ws=([^&#]*)").exec(location.search)||[])[1] || "";
   var u = "signup.html?plan="+code+"&interval="+INTERVAL;
   if(ws) u += "&ws="+ws;
   return u;
 }
-
+function setBilling(i){
+  INTERVAL = i;
+  document.querySelectorAll("#billing-toggle button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-int")===i);
+  });
+  renderPlans();
+}
 function renderPlans(){
-  var order = ["nesting","suite","db"]; // suite in the middle, highlighted
+  var T = window.I18N ? I18N.t : function(k){return k;};
+  var L = window.I18N ? I18N.tList : function(){return [];};
+  var order = ["nesting","suite","db"];
   var html = order.map(function(code){
-    var p = FABSUITE.PLANS[code];
-    var price = INTERVAL==="year" ? p.year : p.month;
-    var per = INTERVAL==="year" ? "per metus" : "per mėnesį";
-    var feats = (p.features||[]).map(function(f){return "<li>"+f+"</li>";}).join("");
-    var miss = (p.missing||[]).map(function(f){return '<li class="muted">'+f+"</li>";}).join("");
+    var cfg = FABSUITE.PLANS[code] || {};
+    var price = INTERVAL==="year" ? cfg.year : cfg.month;
+    var per = INTERVAL==="year" ? T("pricing.per_year") : T("pricing.per_month");
+    var unit = INTERVAL==="year" ? T("pricing.yr") : T("pricing.mo");
+    var feats = L("plan."+code+".f").map(function(f){return "<li>"+f+"</li>";}).join("");
+    var miss  = L("plan."+code+".miss").map(function(f){return '<li class="muted">'+f+"</li>";}).join("");
+    var featured = !!cfg.featured;
     return ''
-      + '<div class="plan'+(p.featured?' featured':'')+'">'
-      +   (p.featured?'<div class="badge">Populiariausia</div>':'')
-      +   '<div class="pname">'+p.name+'</div>'
-      +   '<div class="ptag">'+p.tagline+'</div>'
-      +   '<div class="price">'+FABSUITE.CURRENCY+price+' <small>/'+(INTERVAL==="year"?"m.":"mėn.")+'</small></div>'
-      +   '<div class="per">'+per+' · 14 d. nemokamai</div>'
+      + '<div class="plan'+(featured?' featured':'')+'">'
+      +   (featured?'<div class="badge">'+T("pricing.popular")+'</div>':'')
+      +   '<div class="pname">'+T("plan."+code+".name")+'</div>'
+      +   '<div class="ptag">'+T("plan."+code+".tag")+'</div>'
+      +   '<div class="price">'+FABSUITE.CURRENCY+price+' <small>/'+unit+'</small></div>'
+      +   '<div class="per">'+per+' · '+T("pricing.trial_short")+'</div>'
       +   '<ul>'+feats+miss+'</ul>'
-      +   '<a class="btn '+(p.featured?'btn-primary':'')+' btn-block" href="'+planUrl(code)+'">Pradėti →</a>'
+      +   '<a class="btn '+(featured?'btn-primary':'')+' btn-block" href="'+planUrl(code)+'">'+T("pricing.start")+'</a>'
       + '</div>';
   }).join("");
   document.getElementById("plans").innerHTML = html;
 }
-renderPlans();
+
+/* ══ DEMO 1 — NESTING ═════════════════════════════════════════════════════ */
+var NEST_PARTS = [
+  {x:3,y:3,w:66,h:60},{x:71,y:3,w:66,h:60},{x:139,y:3,w:40,h:60},{x:181,y:3,w:40,h:60},{x:223,y:3,w:54,h:60},
+  {x:3,y:65,w:88,h:48},{x:93,y:65,w:88,h:48},{x:183,y:65,w:94,h:48},
+  {x:3,y:115,w:52,h:44},{x:57,y:115,w:52,h:44},{x:111,y:115,w:52,h:44},{x:165,y:115,w:52,h:44},{x:219,y:115,w:58,h:44},
+  {x:3,y:161,w:120,h:40},{x:125,y:161,w:80,h:40}
+];
+var NEST_OFFCUT = {x:207,y:161,w:70,h:40};
+var nestTimers = [];
+function clearNest(){ nestTimers.forEach(clearTimeout); nestTimers=[]; }
+function runNesting(){
+  var svg = document.getElementById("nest-svg"); if(!svg) return;
+  clearNest();
+  var boardArea = 280*207, used=0, NS="http://www.w3.org/2000/svg";
+  svg.innerHTML = '<rect x="0" y="0" width="280" height="207" rx="4" class="nest-board"/>';
+  var effEl=document.getElementById("nest-eff"), pEl=document.getElementById("nest-parts"), oEl=document.getElementById("nest-off");
+  effEl.textContent="0"; pEl.textContent="0"; oEl.textContent="0.00 m²";
+  NEST_PARTS.forEach(function(p,i){
+    nestTimers.push(setTimeout(function(){
+      var r=document.createElementNS(NS,"rect");
+      r.setAttribute("x",p.x);r.setAttribute("y",p.y);r.setAttribute("width",p.w);r.setAttribute("height",p.h);
+      r.setAttribute("rx","2");r.setAttribute("class","nest-part");
+      svg.appendChild(r);
+      if(p.w>60){ var t=document.createElementNS(NS,"text"); t.setAttribute("x",p.x+p.w/2); t.setAttribute("y",p.y+p.h/2+3);
+        t.setAttribute("class","nest-dim"); t.setAttribute("text-anchor","middle");
+        t.textContent=(p.w*10)+"×"+(p.h*10); svg.appendChild(t); }
+      used += p.w*p.h;
+      var eff = Math.round(used/boardArea*1000)/10;
+      effEl.textContent = eff.toFixed(1);
+      pEl.textContent = (i+1);
+      var offM2 = (NEST_OFFCUT.w*NEST_OFFCUT.h*100)/1e6; // scaled mm² → m² (×10 each dim)
+    }, 140*i + 120));
+  });
+  nestTimers.push(setTimeout(function(){
+    var o=document.createElementNS(NS,"rect");
+    o.setAttribute("x",NEST_OFFCUT.x);o.setAttribute("y",NEST_OFFCUT.y);
+    o.setAttribute("width",NEST_OFFCUT.w);o.setAttribute("height",NEST_OFFCUT.h);
+    o.setAttribute("rx","2");o.setAttribute("class","nest-offcut");
+    svg.appendChild(o);
+    var ot=document.createElementNS(NS,"text"); ot.setAttribute("x",NEST_OFFCUT.x+NEST_OFFCUT.w/2);
+    ot.setAttribute("y",NEST_OFFCUT.y+NEST_OFFCUT.h/2+3); ot.setAttribute("class","nest-offlabel");
+    ot.setAttribute("text-anchor","middle"); ot.textContent="↺"; svg.appendChild(ot);
+    document.getElementById("nest-off").textContent = "0.28 m²";
+  }, 140*NEST_PARTS.length + 260));
+}
+
+/* ══ DEMO 2 — PRODUCTION BOARD ════════════════════════════════════════════ */
+/* Fictional projects (invented names, not real clients). */
+var BOARD_COLS = ["cutting","edging","assembly","delivery"];
+var BOARD_DATA = [
+  { col:0, name:"Villa Aurora",   pcs:42, due:"3d", st:"progress", prog:60 },
+  { col:0, name:"Loft No. 7",     pcs:18, due:"5d", st:"queued",   prog:8  },
+  { col:1, name:"Café Botanica",  pcs:64, due:"2d", st:"progress", prog:45 },
+  { col:1, name:"Nordvik House",  pcs:30, due:"6d", st:"queued",   prog:12 },
+  { col:2, name:"Hôtel Marenda",  pcs:88, due:"1d", st:"delayed",  prog:72 },
+  { col:2, name:"Studio Marané",  pcs:24, due:"4d", st:"progress", prog:55 },
+  { col:3, name:"Atelier Voss",   pcs:36, due:"0d", st:"done",     prog:100 }
+];
+var NAME_POOL = ["Maison Solene","Clairwood Co.","Bureau No. 4","Casa Ferro","Lindqvist Loft","Verre & Chêne","Kestrel House"];
+var namePtr = 0;
+function stClass(st){ return st==="done"?"green":st==="delayed"?"amber":st==="progress"?"blue":"grey"; }
+function initials(n){ var p=n.replace(/[^\p{L}0-9 ]/gu,"").trim().split(/\s+/); return (((p[0]||" ")[0]||"")+((p[1]||"")[0]||"")).toUpperCase(); }
+var AV_COLORS = ["#2563eb","#7c3aed","#16a34a","#d97706","#0891b2","#db2777","#4f46e5"];
+function avColor(n){ var h=0; for(var i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+function cardHTML(c,idx){
+  var T = window.I18N ? I18N.t : function(k){return k.split(".").pop();};
+  return '<div class="bcard" data-st="'+c.st+'" data-k="'+idx+'">'
+    + '<div class="bc-top"><span class="bc-av" style="background:'+avColor(c.name)+'">'+initials(c.name)+'</span>'
+    +   '<span class="bc-name">'+c.name+'</span></div>'
+    + '<div class="bc-row"><span class="pill '+stClass(c.st)+'">'+T("demo.board.st."+c.st)+'</span>'
+    +   '<span class="bc-meta mono">'+c.pcs+' pcs · ⏱'+c.due+'</span></div>'
+    + '<div class="bc-bar"><i style="width:'+c.prog+'%"></i></div>'
+    + '</div>';
+}
+function renderBoard(){
+  var board=document.getElementById("board"); if(!board) return;
+  var T = window.I18N ? I18N.t : function(k){return k.split(".").pop();};
+  board.innerHTML = BOARD_COLS.map(function(col,ci){
+    var cards = BOARD_DATA.map(function(c,idx){ return c.col===ci ? cardHTML(c,idx) : ""; }).join("");
+    var count = BOARD_DATA.filter(function(c){return c.col===ci;}).length;
+    return '<div class="bcol"><div class="bcol-h"><span class="bcol-t">'+T("demo.board.col."+col)+'</span>'
+      + '<span class="bcol-c">'+count+'</span></div>'+cards+'</div>';
+  }).join("");
+}
+/* Live feel WITHOUT re-rendering the board (no blink): mutate the model, then
+   update only the affected card's existing DOM nodes in place. */
+function paintCard(idx){
+  var c=BOARD_DATA[idx], el=document.querySelector('#board [data-k="'+idx+'"]'); if(!el) return;
+  var T = window.I18N ? I18N.t : function(k){return k.split(".").pop();};
+  el.setAttribute("data-st",c.st);
+  var bar=el.querySelector(".bc-bar i"); if(bar) bar.style.width=c.prog+"%";
+  var pill=el.querySelector(".pill"); if(pill){ pill.className="pill "+stClass(c.st); pill.textContent=T("demo.board.st."+c.st); }
+  var nm=el.querySelector(".bc-name"); if(nm) nm.textContent=c.name;
+  var av=el.querySelector(".bc-av"); if(av){ av.style.background=avColor(c.name); av.textContent=initials(c.name); }
+  var meta=el.querySelector(".bc-meta"); if(meta) meta.textContent=c.pcs+" pcs · ⏱"+c.due;
+}
+var boardTick=null, bTick=0;
+function startBoard(){
+  renderBoard();
+  if(boardTick) clearInterval(boardTick);
+  boardTick=setInterval(function(){
+    if(document.hidden) return;
+    bTick++;
+    var ip=[]; BOARD_DATA.forEach(function(c,i){ if(c.st==="progress") ip.push(i); });
+    if(ip.length){
+      var idx=ip[bTick%ip.length], c=BOARD_DATA[idx];
+      c.prog=Math.min(100,c.prog+12);
+      if(c.prog>=100){ c.st="done"; }
+      paintCard(idx);
+      if(c.st==="done"){
+        (function(i){ setTimeout(function(){
+          var cc=BOARD_DATA[i]; cc.name=NAME_POOL[namePtr++%NAME_POOL.length];
+          cc.pcs=12+((namePtr*7)%80); cc.due=(1+(namePtr%6))+"d"; cc.st="progress"; cc.prog=8;
+          paintCard(i);
+        }, 1500); })(idx);
+      }
+    }
+    if(bTick%3===0){
+      var q=[]; BOARD_DATA.forEach(function(c,i){ if(c.st==="queued") q.push(i); });
+      if(q.length){ BOARD_DATA[q[0]].st="progress"; BOARD_DATA[q[0]].prog=15; paintCard(q[0]); }
+    }
+  }, 2600);
+}
+
+/* ══ COMPETITOR COMPARISON ════════════════════════════════════════════════ */
+var COMPARE = { cols:["you","sheets","nesting","erp"], rows:[
+  {k:"nesting",   m:["yes","no","yes","part"]},
+  {k:"floor",     m:["yes","part","no","yes"]},
+  {k:"pin",       m:["yes","no","no","part"]},
+  {k:"furniture", m:["yes","part","yes","no"]},
+  {k:"cloud",     m:["yes","yes","no","part"]},
+  {k:"setup", txt:["setup.you","setup.sheets","setup.nesting","setup.erp"]},
+  {k:"price", txt:["price.you","price.sheets","price.nesting","price.erp"]}
+]};
+function markHTML(m){
+  if(m==="yes")  return '<span class="cmark yes" aria-label="yes">✓</span>';
+  if(m==="part") return '<span class="cmark part" aria-label="partial">~</span>';
+  return '<span class="cmark no" aria-label="no">✕</span>';
+}
+function renderCompare(){
+  var table=document.getElementById("cmp-table"); if(!table) return;
+  var T = window.I18N ? I18N.t : function(k){return k;};
+  var head='<thead><tr><th class="crow-h"></th>'+COMPARE.cols.map(function(c,i){
+    return '<th class="'+(i===0?"cyou":"")+'">'+T("compare.col."+c)+'</th>';
+  }).join("")+'</tr></thead>';
+  var body='<tbody>'+COMPARE.rows.map(function(r){
+    var cells=COMPARE.cols.map(function(c,i){
+      var cls=(i===0?"cyou":"");
+      if(r.txt) return '<td class="'+cls+(i===0?" cval":"")+'">'+T("compare.v."+r.txt[i])+'</td>';
+      return '<td class="'+cls+'">'+markHTML(r.m[i])+'</td>';
+    }).join("");
+    return '<tr><th scope="row" class="crow-h">'+T("compare.r."+r.k)+'</th>'+cells+'</tr>';
+  }).join("")+'</tbody>';
+  table.innerHTML=head+body;
+}
+
+/* ══ DEMO 3 — DAILY REPORT ════════════════════════════════════════════════ */
+var REP_BARS = [54,60,57,66,63,68,72,70,78,74,82,80,90,96];
+function countTo(el, target, unit, dur){
+  if(!el) return; var start=0, t0=null;
+  function step(ts){ if(!t0)t0=ts; var k=Math.min(1,(ts-t0)/dur);
+    var v=Math.round(start+(target-start)*(k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2));
+    el.textContent = v + (unit||""); if(k<1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
+function runReport(){
+  countTo(document.getElementById("rep-cut"), 148, "", 1100);
+  countTo(document.getElementById("rep-edge"), 512, "", 1100);
+  countTo(document.getElementById("rep-pcs"), 233, "", 1100);
+  var chart=document.getElementById("rep-chart"); if(!chart) return;
+  chart.innerHTML = REP_BARS.map(function(v,i){
+    return '<span class="rbar'+(i===REP_BARS.length-1?' hot':'')+'" style="--h:'+v+'%;--d:'+(i*55)+'ms"></span>';
+  }).join("");
+}
+
+/* ── run demos when scrolled into view ──────────────────────────────────── */
+function whenVisible(el, cb, once){
+  if(!el) return;
+  if(!("IntersectionObserver" in window)){ cb(); return; }
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ cb(); if(once) io.unobserve(e.target); } });
+  }, { threshold:0.35 });
+  io.observe(el);
+}
+
+/* ── wire everything after i18n is applied ──────────────────────────────── */
+function boot(){
+  renderPlans();
+  renderBoard();
+  renderCompare();
+  whenVisible(document.getElementById("nest-svg"), runNesting, false);
+  whenVisible(document.getElementById("board"), startBoard, true);
+  whenVisible(document.getElementById("rep-chart"), runReport, false);
+}
+document.addEventListener("i18n:changed", function(){
+  // re-render language-dependent widgets
+  renderPlans(); renderBoard(); renderCompare();
+});
+var _rb = document.getElementById("nest-replay"); if(_rb) _rb.addEventListener("click", runNesting);
+if(document.readyState!=="loading") boot(); else document.addEventListener("DOMContentLoaded", boot);
 </script>
 </body>
 </html>

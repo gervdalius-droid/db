@@ -89,6 +89,12 @@
     }
     if (!reg) throw new Error("Nepavyko sukurti darbo vietos");
 
+    // TEST / no-payment mode: register-org already activated the workspace (free),
+    // so skip Stripe and go straight to the success page.
+    if (C.FREE_SIGNUP) {
+      return { url: "success.html?ws=" + code, code: code };
+    }
+
     // Start checkout for the chosen plan.
     var co = await callFn("create-checkout-session", {
       plan: opts.plan, interval: opts.interval, workspace_code: code, email: opts.email,

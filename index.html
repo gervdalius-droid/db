@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dėdės Baldai — Gamybos Valdymas</title>
+<title>Gamybos valdymas</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="shared/i18n-langs.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <script src="config.js"></script>
@@ -823,7 +824,7 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="nav-item" id="nav-backup" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" id="nav-restore" onclick="document.getElementById('backup-restore-input').click()"><span class="nav-icon">📥</span>Atkurti iš kopijos</div>
         <input type="file" id="backup-restore-input" accept=".xlsx,.json" style="display:none" onchange="importBackup(this)">
-        <div class="nav-item" id="nav-nesting" onclick="window.open('https://gervdalius-droid.github.io/nesting/','_blank')"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
+        <div class="nav-item" id="nav-nesting" onclick="openNestingHome()"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
         <div class="nav-item" id="nav-billing" style="display:none" onclick="openBilling()"><span class="nav-icon">💳</span>Prenumerata ir atsiskaitymai</div>
       </div>
       <div class="sidebar-section" style="border-top:3px solid var(--border2);margin-top:4px;padding-top:10px">
@@ -914,8 +915,10 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
       <div class="topbar-actions" id="topbar-actions"></div>
       <div style="display:flex;align-items:center;gap:6px;margin-left:8px;flex-shrink:0">
         <div id="lang-toggle" style="display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden;flex-shrink:0">
-          <button data-lang="lt" onclick="setLang('lt')" style="font-size:10px;padding:3px 7px;border:none;cursor:pointer;background:var(--surface);color:var(--muted)" title="Lietuvių">🇱🇹 LT</button>
-          <button data-lang="en" onclick="setLang('en')" style="font-size:10px;padding:3px 7px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted)" title="English">🇬🇧 EN</button>
+          <button data-lang="lt" onclick="setLang('lt')" style="font-size:10px;padding:3px 6px;border:none;cursor:pointer;background:var(--surface);color:var(--muted)" title="Lietuvių">🇱🇹 LT</button>
+          <button data-lang="en" onclick="setLang('en')" style="font-size:10px;padding:3px 6px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted)" title="English">🇬🇧 EN</button>
+          <button data-lang="de" onclick="setLang('de')" style="font-size:10px;padding:3px 6px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted)" title="Deutsch">🇩🇪 DE</button>
+          <button data-lang="es" onclick="setLang('es')" style="font-size:10px;padding:3px 6px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted)" title="Español">🇪🇸 ES</button>
         </div>
         <button id="sync-mode-btn" onclick="toggleSyncMode()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizavimo režimas">Auto</button>
         <button onclick="manualSyncNow()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted)" title="Sinchronizuoti dabar (siųsti ir gauti)">⟳ Sync</button>
@@ -1461,6 +1464,28 @@ const _CFG = (typeof window!=='undefined' && window.FAB_CONFIG) || {};
 const SB_URL = _CFG.SUPABASE_URL || 'https://byvtqycdgboqbmpoysyt.supabase.co';
 // Fabsuite/FabFlow storefront (landing + pricing + Stripe checkout).
 const FABSUITE_URL = _CFG.FABSUITE_URL || 'https://gervdalius-droid.github.io/db/fabsuite';
+const NESTING_URL = _CFG.NESTING_URL || 'https://gervdalius-droid.github.io/nesting/';
+window.openNestingHome = function(){ window.open(NESTING_URL,'_blank'); };
+/* Brand: on the commercial build (BRAND_NAME set) swap the hardcoded Dėdės Baldai
+   logo for a FabFlow wordmark (or _CFG.LOGO_URL). Private app keeps its logo. */
+(function(){
+  var brand=_CFG.BRAND_NAME;
+  if(!brand || /D[ėe]d[ėe]s/i.test(brand)) return;
+  function applyBrand(){
+    document.querySelectorAll('img.logo-img').forEach(function(img){
+      if(_CFG.LOGO_URL){ img.src=_CFG.LOGO_URL; img.alt=brand; return; }
+      var big=(parseInt(img.style.height,10)||32)>=60;
+      var w=document.createElement('span');
+      w.style.cssText='display:inline-flex;align-items:center;gap:.4em;font-weight:700;letter-spacing:-.02em;font-size:'+(big?'26px':'17px')+';color:var(--text)';
+      var b=document.createElement('span');
+      b.textContent=(brand[0]||'F').toUpperCase();
+      b.style.cssText='width:1.45em;height:1.45em;border-radius:.38em;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.72em';
+      w.appendChild(b); w.appendChild(document.createTextNode(brand));
+      img.replaceWith(w);
+    });
+  }
+  if(document.readyState!=='loading') applyBrand(); else document.addEventListener('DOMContentLoaded',applyBrand);
+})();
 const PAYWALL_ENABLED = !!_CFG.PAYWALL_ENABLED;
 const APP_CODE = _CFG.APP_CODE || 'db';
 // How worker name+PIN logins are namespaced into a hidden email:
@@ -3308,13 +3333,15 @@ const I18N_EN={
 };
 const I18N_ATTRS=['placeholder','title'];
 let _i18nObserver=null,_i18nBusy=false;
+const I18N_DICT={en:I18N_EN,de:(window.I18N_DE||{}),es:(window.I18N_ES||{})};
 function i18nTranslate(raw){
-  if(LANG!=='en'||raw==null) return null;
+  if(LANG==='lt'||raw==null) return null;
+  const D=I18N_DICT[LANG]; if(!D) return null;
   const lead=(raw.match(/^\s*/)||[''])[0], trail=(raw.match(/\s*$/)||[''])[0], core=raw.trim();
   if(!core) return null;
-  if(I18N_EN[core]!==undefined) return lead+I18N_EN[core]+trail;
+  if(D[core]!==undefined) return lead+D[core]+trail;
   const m=core.match(/^([^\p{L}\d]+\s*)([\p{L}].*)$/u);
-  if(m&&I18N_EN[m[2]]!==undefined) return lead+m[1]+I18N_EN[m[2]]+trail;
+  if(m&&D[m[2]]!==undefined) return lead+m[1]+D[m[2]]+trail;
   return null;
 }
 function i18nWalk(root,mode){
@@ -3340,11 +3367,11 @@ function i18nWalk(root,mode){
   });});
 }
 function i18nApply(){
-  if(LANG!=='en'||typeof document==='undefined')return;
+  if(LANG==='lt'||typeof document==='undefined')return;
   _i18nBusy=true; try{ i18nWalk(document.body,'en'); }catch(e){} _i18nBusy=false;
   if(!_i18nObserver&&typeof MutationObserver!=='undefined'){
     _i18nObserver=new MutationObserver(muts=>{
-      if(LANG!=='en'||_i18nBusy)return;
+      if(LANG==='lt'||_i18nBusy)return;
       _i18nBusy=true;
       try{ muts.forEach(m=>{ if(m.type==='childList'){ m.addedNodes.forEach(nd=>{
         if(nd.nodeType===1) i18nWalk(nd,'en');
@@ -3356,13 +3383,16 @@ function i18nApply(){
   }
 }
 function setLang(lang){
+  // when switching between two non-LT languages, restore LT first so re-translation
+  // works from the original text (nodes store their LT original in __i18n).
+  if(lang!=='lt' && LANG!=='lt' && LANG!==lang){ try{ i18nWalk(document.body,'lt'); }catch(e){} }
   LANG=lang; try{localStorage.setItem('fab_lang',lang);}catch(e){}
-  if(lang==='en') i18nApply(); else { try{ i18nWalk(document.body,'lt'); }catch(e){} }
+  if(lang!=='lt') i18nApply(); else { try{ i18nWalk(document.body,'lt'); }catch(e){} }
   updateLangBtn();
 }
 function toggleLang(){ setLang(LANG==='en'?'lt':'en'); }
 function updateLangBtn(){
-  ['lt','en'].forEach(l=>{
+  ['lt','en','de','es'].forEach(l=>{
     const b=document.querySelector?document.querySelector('#lang-toggle button[data-lang="'+l+'"]'):null;
     if(!b)return;
     const active=(LANG===l);
@@ -7256,7 +7286,7 @@ function togglePauseProject(pid){
 // ── Open the project's linked Nesting (cutting) file ──
 function openNesting(pid){
   const p=getProject(pid); if(!p)return;
-  const url='https://gervdalius-droid.github.io/nesting/?project='+encodeURIComponent(p.name||'')+'&gvs='+encodeURIComponent(p.id);
+  const url=NESTING_URL+'?project='+encodeURIComponent(p.name||'')+'&gvs='+encodeURIComponent(p.id);
   window.open(url,'_blank');
 }
 
@@ -9341,7 +9371,7 @@ function exportNestingCSV(pid, openNesting=false){
   a.href=url;a.download=(p.name||'project').replace(/[^a-z0-9]/gi,'_')+'_parts.csv';
   a.click();URL.revokeObjectURL(url);
   toast('CSV parsisiųstas! Įkelkite į Nesting programą.','success');
-  if(openNesting) setTimeout(()=>window.open('https://gervdalius-droid.github.io/nesting/','_blank'),500);
+  if(openNesting) setTimeout(()=>window.open(NESTING_URL,'_blank'),500);
 }
 // Planning modal helpers
 function togglePlanModeFields(){

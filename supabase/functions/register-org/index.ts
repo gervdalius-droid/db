@@ -41,13 +41,21 @@ Deno.serve(async (req) => {
     return json({ error: "Workspace code already taken", code: "taken" }, 409);
   }
 
-  // 1) Billing registry row — owned by this user, no plan yet (status 'none').
-  const { error: orgErr } = await sb.from("fab_orgs").upsert({
-    workspace_code: code,
-    name,
-    owner_user_id: user.id,
-    owner_email: email,
-  }, { onConflict: "workspace_code" });
+  // 1) Billing registry row — owned by this user.
+  //    Normally status 'none' (no plan) until they pay. But in no-payment/TEST
+  //    mode (secret FABSUITE_FREE_SIGNUP=true) the workspace is granted free
+  //    (comp) access immediately, so the whole system works without Stripe.
+  const freeSignup = (Deno.env.get("FABSUITE_FREE_SIGNUP") || "").toLowerCase() === "true";
+  const orgRow: Record<string, unknown> = {
+    workspace_code: code, name, owner_user_id: user.id, owner_email: email,
+  };
+  if (freeSignup) {
+    orgRow.comp = true;
+    orgRow.status = "active";
+    orgRow.plan = "suite";
+    orgRow.apps = ["nesting", "db"];
+  }
+  const { error: orgErr } = await sb.from("fab_orgs").upsert(orgRow, { onConflict: "workspace_code" });
   if (orgErr) return json({ error: "Could not create workspace: " + orgErr.message }, 500);
 
   // 2) Owner membership.

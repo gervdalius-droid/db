@@ -10,12 +10,16 @@ window.FABSUITE = {
 
   // Where the apps live (Launch buttons + post-signup redirect).
   APP_URLS: {
-    db: "https://gervdalius-droid.github.io/fabflow/",
-    nesting: "https://gervdalius-droid.github.io/fabflow-nesting/",
+    db: "https://dbxfabflow.github.io/fabflow/",
+    nesting: "https://dbxfabflow.github.io/fabflow-nesting/",
   },
 
+  BRAND: "FabFlow",
   CURRENCY: "€",
   TRIAL_DAYS: 14,
+  // ⚠ TEST MODE: every new signup is activated free (comp) and Stripe is skipped.
+  // To require payment at go-live: set false AND remove the FABSUITE_FREE_SIGNUP secret.
+  FREE_SIGNUP: true,
   SUPPORT_EMAIL: "pagalba@fabflow.app",
 
   PLANS: {

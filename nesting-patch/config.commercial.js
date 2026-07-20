@@ -17,7 +17,7 @@ window.FAB_CONFIG = {
 
   PAYWALL_ENABLED: true,
   APP_CODE: "nesting",
-  FABSUITE_URL: "https://gervdalius-droid.github.io/fabflow/fabsuite",
+  FABSUITE_URL: "https://dbxfabflow.github.io/fabflow/fabsuite",
 
   // No fixed WORKSPACE_CODE — the worker types their company code at login.
   AUTH_DOMAIN: "fabflow.app",

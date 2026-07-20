@@ -21,7 +21,9 @@ window.FAB_CONFIG = {
   PAYWALL_ENABLED: true,
   APP_CODE: "db",
   // Where the FabFlow storefront is hosted (update when it gets a custom domain).
-  FABSUITE_URL: "https://gervdalius-droid.github.io/fabflow/fabsuite",
+  FABSUITE_URL: "https://dbxfabflow.github.io/fabflow/fabsuite",
+  // The commercial Nesting app (cross-links from inside the DB app).
+  NESTING_URL: "https://dbxfabflow.github.io/fabflow-nesting/",
 
   // Worker name+PIN synthetic-email scheme. MUST match the set-worker-pin edge
   // function deployed in the commercial project (set FABSUITE_AUTH_DOMAIN there).
