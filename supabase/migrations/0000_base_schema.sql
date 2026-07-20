@@ -80,3 +80,13 @@ grant all on public.fabflow_stock     to anon, authenticated;
 grant all on public.fabflow_offcuts   to anon, authenticated;
 grant all on public.fabflow_cut_jobs  to anon, authenticated;
 grant all on public.fabflow_projects  to anon, authenticated;
+
+-- Explicitly keep RLS OFF. The Supabase dashboard nags you to "Enable RLS" on
+-- public tables; if enabled without policies it blocks the apps with
+-- "42501: new row violates row-level security policy". The apps isolate tenants
+-- by workspace code in app logic. Re-run this block to undo an accidental enable.
+alter table public.fabflow           disable row level security;
+alter table public.fabflow_stock     disable row level security;
+alter table public.fabflow_offcuts   disable row level security;
+alter table public.fabflow_cut_jobs  disable row level security;
+alter table public.fabflow_projects  disable row level security;
