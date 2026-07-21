@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- FabFlow — base app tables (run FIRST on a fresh commercial project)
+-- CraftOS — base app tables (run FIRST on a fresh commercial project)
 -- ────────────────────────────────────────────────────────────────────────────
 -- Creates the tables the DB app and the Nesting app read/write. Column shapes
 -- match exactly how the apps use them. Kept permissive (like your working

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FabFlow — Administravimas (peržiūra)</title>
+<title>CraftOS — Administravimas (peržiūra)</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* — self-contained: light theme tokens + only the bits the console uses — */
@@ -96,7 +96,7 @@ h3{font-size:18px}
 <div class="drawer" id="drawer"></div>
 
 <script>
-function planName(p){ return p==="suite"?"FabFlow (abu)":p==="nesting"?"Nesting":p==="db"?"DB":"—"; }
+function planName(p){ return p==="suite"?"CraftOS (abu)":p==="nesting"?"Nesting":p==="db"?"DB":"—"; }
 var STATUS={active:["green","Aktyvi"],trialing:["green","Bandymas"],past_due:["amber","Vėluoja"],unpaid:["red","Neapmokėta"],canceled:["red","Atšaukta"],none:["grey","Be plano"]};
 function pill(o){ if(o.comp) return '<span class="pill green">Nemokama</span>'; var m=STATUS[o.status]||["grey",o.status]; return '<span class="pill '+m[0]+'">'+m[1]+'</span>'; }
 function d(s){ return new Date(s).toLocaleDateString("lt-LT"); }

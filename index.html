@@ -1462,12 +1462,12 @@ function prioHtml(prio){const p=PRIO_LABELS[prio]||PRIO_LABELS.mid;return'<span 
 // keep the app working if config.js is missing.
 const _CFG = (typeof window!=='undefined' && window.FAB_CONFIG) || {};
 const SB_URL = _CFG.SUPABASE_URL || 'https://byvtqycdgboqbmpoysyt.supabase.co';
-// Fabsuite/FabFlow storefront (landing + pricing + Stripe checkout).
+// Fabsuite/CraftOS storefront (landing + pricing + Stripe checkout).
 const FABSUITE_URL = _CFG.FABSUITE_URL || 'https://gervdalius-droid.github.io/db/fabsuite';
 const NESTING_URL = _CFG.NESTING_URL || 'https://gervdalius-droid.github.io/nesting/';
 window.openNestingHome = function(){ window.open(NESTING_URL,'_blank'); };
 /* Brand: on the commercial build (BRAND_NAME set) swap the hardcoded Dėdės Baldai
-   logo for a FabFlow wordmark (or _CFG.LOGO_URL). Private app keeps its logo. */
+   logo for a CraftOS wordmark (or _CFG.LOGO_URL). Private app keeps its logo. */
 (function(){
   var brand=_CFG.BRAND_NAME;
   if(!brand || /D[ėe]d[ėe]s/i.test(brand)) return;

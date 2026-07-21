@@ -11,7 +11,7 @@
 <script src="fab.js"></script>
 </head>
 <body>
-<nav class="nav"><div class="wrap"><a class="brand" href="index.html"><span class="logo">F</span> <span data-brand>FabFlow</span></a>
+<nav class="nav"><div class="wrap"><a class="brand" href="index.html"><span class="logo">F</span> <span data-brand>CraftOS</span></a>
   <div class="links"><span class="lang-switch" data-lang-switch></span><a href="index.html#pricing" class="hide-sm" data-i18n="nav.pricing">Pricing</a><a id="logout" href="#" style="display:none" data-i18n="account.logout">Log out</a></div></div></nav>
 
 <!-- SIGN IN -->
@@ -42,7 +42,7 @@
 
 <script>
 var T = function(k,v){ return window.I18N ? I18N.t(k,v) : k; };
-document.querySelectorAll("[data-brand]").forEach(function(el){ el.textContent = (window.FABSUITE&&FABSUITE.BRAND)||"FabFlow"; });
+document.querySelectorAll("[data-brand]").forEach(function(el){ el.textContent = (window.FABSUITE&&FABSUITE.BRAND)||"CraftOS"; });
 var SESSION = Fab.loadSession();
 var LOCALE = { en:"en-GB", lt:"lt-LT", de:"de-DE", es:"es-ES" };
 

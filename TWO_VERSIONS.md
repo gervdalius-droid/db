@@ -1,4 +1,4 @@
-# Two versions: your private app + the FabFlow product
+# Two versions: your private app + the CraftOS product
 
 You run **one codebase**, deployed **twice**. The only thing that differs is a
 small `config.js`. Never fork the code — edit here, rebuild the product.
@@ -7,7 +7,7 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
    THIS repo  (db)  ───────────────►  private app   ·  your Supabase  ·  paywall OFF  ·  "Dėdės Baldai"
         │  bash scripts/build-product.sh
         ▼
-   build/fabflow/   ──push──►  fabflow repo  ───────►  the product  ·  NEW Supabase  ·  paywall ON  ·  "FabFlow"
+   build/fabflow/   ──push──►  fabflow repo  ───────►  the product  ·  NEW Supabase  ·  paywall ON  ·  "CraftOS"
                                                                          every customer = one workspace
 ```
 
@@ -24,7 +24,7 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
 |---|---|---|
 | Supabase | your project | new customer-only project |
 | `PAYWALL_ENABLED` | `false` | `true` |
-| Brand / title | Dėdės Baldai | FabFlow |
+| Brand / title | Dėdės Baldai | CraftOS |
 | Worker-email domain | `dedesbaldai.lt` / `gvs` | `fabflow.app` / `ff` |
 
 `index.html` reads all of these from `window.FAB_CONFIG` (with safe fallbacks),

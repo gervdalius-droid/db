@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════════
- * COMMERCIAL config for the FabFlow Nesting product (rename to config.js in the
+ * COMMERCIAL config for the CraftOS Nesting product (rename to config.js in the
  * fabflow-nesting repo). Paywall ON; worker logins scoped per company.
  * Fill the TODO values after creating the commercial projects.
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -13,7 +13,7 @@ window.FAB_CONFIG = {
   WAREHOUSE_URL: "https://yyamcwkbwptvrdbylqji.supabase.co",
   WAREHOUSE_ANON_KEY: "sb_publishable_ODSJnx1sWO1KUjQEl0IRZQ_2_Iyz596",
 
-  APP_TITLE: "FabFlow — Nesting",
+  APP_TITLE: "CraftOS — Nesting",
 
   PAYWALL_ENABLED: true,
   APP_CODE: "nesting",

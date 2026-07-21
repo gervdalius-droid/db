@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FabFlow — Administravimas</title>
+<title>CraftOS — Administravimas</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../fabsuite/styles.css">
 <script src="../config.js"></script>
@@ -58,7 +58,7 @@
 <!-- LOGIN -->
 <div class="shell" id="login">
   <div class="panel">
-    <h2>FabFlow administravimas</h2>
+    <h2>CraftOS administravimas</h2>
     <div class="sub">Prisijunkite administratoriaus paskyra.</div>
     <label>El. paštas</label>
     <input id="le" type="email" autocomplete="username" placeholder="jus@pastas.lt">
@@ -129,7 +129,7 @@ function pill(o){
   var m = STATUS[o.status] || ["grey", o.status||"—"];
   return '<span class="pill '+m[0]+'">'+m[1]+'</span>';
 }
-function planName(p){ return p==="suite"?"FabFlow (abu)":p==="nesting"?"Nesting":p==="db"?"DB":"—"; }
+function planName(p){ return p==="suite"?"CraftOS (abu)":p==="nesting"?"Nesting":p==="db"?"DB":"—"; }
 
 // ── auth + api ──
 async function signIn(email, pw){

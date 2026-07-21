@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * COMMERCIAL storefront config (becomes fabsuite/config.js in the fabflow repo).
- * Points at the customer-only Supabase project and the FabFlow app URLs.
+ * Points at the customer-only Supabase project and the CraftOS app URLs.
  * Keep prices in sync with scripts/stripe-seed.mjs.
  * ════════════════════════════════════════════════════════════════════════════ */
 window.FABSUITE = {
@@ -14,13 +14,13 @@ window.FABSUITE = {
     nesting: "https://dbxfabflow.github.io/fabflow-nesting/",
   },
 
-  BRAND: "FabFlow",
+  BRAND: "CraftOS",
   CURRENCY: "€",
   TRIAL_DAYS: 14,
   // ⚠ TEST MODE: every new signup is activated free (comp) and Stripe is skipped.
   // To require payment at go-live: set false AND remove the FABSUITE_FREE_SIGNUP secret.
   FREE_SIGNUP: true,
-  SUPPORT_EMAIL: "pagalba@fabflow.app",
+  SUPPORT_EMAIL: "pagalba@craftos.app",
 
   PLANS: {
     nesting: {
@@ -48,7 +48,7 @@ window.FABSUITE = {
       missing: ["Pjovimo optimizacija (Nesting)"],
     },
     suite: {
-      name: "FabFlow",
+      name: "CraftOS",
       tagline: "Viskas viename — Nesting + DB su nuolaida.",
       month: 69, year: 690, apps: ["nesting", "db"], featured: true,
       features: [

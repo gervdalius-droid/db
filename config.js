@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * Per-deployment configuration for the DB app.
  * ────────────────────────────────────────────────────────────────────────────
- * THIS is the only file that differs between your private app and the FabFlow
+ * THIS is the only file that differs between your private app and the CraftOS
  * product. The app logic (index.html) is identical in both — it just reads the
  * values below. To make the sellable version, deploy the same index.html with a
  * different config.js (see config.commercial.js + TWO_VERSIONS.md).

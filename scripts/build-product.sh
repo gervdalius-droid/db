@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ════════════════════════════════════════════════════════════════════════════
-# Build the FabFlow product from this (private) repo.
+# Build the CraftOS product from this (private) repo.
 #
 # Same app code, COMMERCIAL config swapped in + paywall ON. Produces a folder you
 # upload/push to your separate `fabflow` repo (GitHub Pages).
@@ -22,7 +22,7 @@ if grep -q "TODO-COMMERCIAL-REF" "$ROOT/config.commercial.js"; then
   echo "   Building anyway so you can preview…"
 fi
 
-echo "Building FabFlow product → $OUT"
+echo "Building CraftOS product → $OUT"
 rm -rf "$OUT"; mkdir -p "$OUT"
 
 # 1) Identical app + shared code.

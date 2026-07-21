@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════════
- * FabFlow storefront — internationalization (EN / LT / DE / ES).
+ * CraftOS storefront — internationalization (EN / LT / DE / ES).
  * Drives every visible string via [data-i18n] attributes + a language switcher.
  * Usage: include AFTER config.js. Call I18N.apply() on DOMContentLoaded.
  *   <span data-i18n="nav.features"></span>        → textContent
@@ -9,7 +9,7 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 (function (g) {
   "use strict";
-  var BRAND = (g.FABSUITE && g.FABSUITE.BRAND) || "FabFlow";
+  var BRAND = (g.FABSUITE && g.FABSUITE.BRAND) || "CraftOS";
   var LANGS = [
     { code: "en", label: "English",  flag: "🇬🇧" },
     { code: "lt", label: "Lietuvių", flag: "🇱🇹" },

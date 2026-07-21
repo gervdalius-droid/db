@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * Per-deployment config for the NESTING app.
- * The only file that differs between your private app and the FabFlow product.
+ * The only file that differs between your private app and the CraftOS product.
  *
  * This copy = YOUR PRIVATE NESTING APP:
  *   • your own data + warehouse projects

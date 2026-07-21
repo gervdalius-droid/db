@@ -33,7 +33,7 @@ Upload these to your existing **`nesting`** repo:
 `config.js` here points at your projects with the paywall OFF, so your team logs
 in exactly as before.
 
-## Deploy — the FabFlow Nesting product
+## Deploy — the CraftOS Nesting product
 1. Create a **`fabflow-nesting`** repo (GitHub Pages).
 2. Fill the TODOs in `config.commercial.js`:
    - `WAREHOUSE_URL`/`WAREHOUSE_ANON_KEY` = your **commercial DB project** (same one

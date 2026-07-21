@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════════
- * COMMERCIAL config for the FabFlow product (the version you SELL).
+ * COMMERCIAL config for the CraftOS product (the version you SELL).
  * ────────────────────────────────────────────────────────────────────────────
  * This becomes `config.js` in the `fabflow` repo (the build script does the
  * swap). It points at your NEW, customer-only Supabase project and turns the
@@ -14,13 +14,13 @@ window.FAB_CONFIG = {
   SUPABASE_ANON_KEY: "sb_publishable_ODSJnx1sWO1KUjQEl0IRZQ_2_Iyz596",
 
   // Branding
-  BRAND_NAME: "FabFlow",
-  APP_TITLE: "FabFlow — Gamybos valdymas",
+  BRAND_NAME: "CraftOS",
+  APP_TITLE: "CraftOS — Gamybos valdymas",
 
   // Selling / billing — ON for the product.
   PAYWALL_ENABLED: true,
   APP_CODE: "db",
-  // Where the FabFlow storefront is hosted (update when it gets a custom domain).
+  // Where the CraftOS storefront is hosted (update when it gets a custom domain).
   FABSUITE_URL: "https://dbxfabflow.github.io/fabflow/fabsuite",
   // The commercial Nesting app (cross-links from inside the DB app).
   NESTING_URL: "https://dbxfabflow.github.io/fabflow-nesting/",

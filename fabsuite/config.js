@@ -16,7 +16,7 @@ window.FABSUITE = {
     nesting: "https://gervdalius-droid.github.io/nesting/",
   },
 
-  BRAND: "FabFlow",
+  BRAND: "CraftOS",
   CURRENCY: "€",
   TRIAL_DAYS: 14,
   SUPPORT_EMAIL: "pagalba@fabsuite.app",
