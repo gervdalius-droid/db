@@ -3333,7 +3333,7 @@ const I18N_EN={
 };
 const I18N_ATTRS=['placeholder','title'];
 let _i18nObserver=null,_i18nBusy=false;
-const I18N_DICT={en:I18N_EN,de:(window.I18N_DE||{}),es:(window.I18N_ES||{})};
+const I18N_DICT={en:Object.assign({},I18N_EN,window.I18N_EN_EXTRA||{}),de:(window.I18N_DE||{}),es:(window.I18N_ES||{})};
 function i18nTranslate(raw){
   if(LANG==='lt'||raw==null) return null;
   const D=I18N_DICT[LANG]; if(!D) return null;
