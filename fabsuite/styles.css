@@ -32,6 +32,8 @@ a{color:inherit}
 .nav .wrap{display:flex;align-items:center;gap:18px;height:62px}
 .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;text-decoration:none;letter-spacing:-.01em}
 .brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700}
+.brand-logo{height:29px;width:auto;display:block}
+@media(prefers-color-scheme:dark){.brand-logo{filter:brightness(0) invert(1)}}
 .nav .links{display:flex;gap:22px;margin-left:auto;align-items:center}
 .nav .links a:not(.btn){text-decoration:none;color:var(--muted);font-size:14px;font-weight:500}
 .nav .links a:not(.btn):hover{color:var(--text)}
