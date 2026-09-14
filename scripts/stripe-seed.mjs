@@ -2,9 +2,10 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * Fabsuite — create Stripe products & prices (idempotent).
  *
- * Creates 3 products (Nesting, DB, Fabsuite suite), each with a monthly and an
- * annual price, and tags each product with the metadata the webhook reads:
- *   fabsuite_plan = nesting | db | suite
+ * Creates 6 products (CRM, Offer, Invoices, Nesting, DB, and the CraftOS suite), each
+ * a monthly and an annual price, and tags each product with the metadata the
+ * webhook reads:
+ *   fabsuite_plan = crm | offer | invoices | nesting | db | suite
  *   fabsuite_apps = comma list of unlocked apps
  *
  * The AMOUNTS below MUST match fabsuite/config.js (display) — keep them in sync.
@@ -26,10 +27,13 @@ const stripe = new Stripe(KEY);
 const CURRENCY = "eur";
 // amount in MAJOR units (euros) → converted to cents below. Keep == config.js.
 const PLANS = {
-  nesting: { name: "Fabsuite Nesting", apps: "nesting",    month: 39, year: 390 },
-  db:      { name: "Fabsuite DB",      apps: "db",         month: 49, year: 490 },
+  crm:     { name: "CraftOS CRM",     apps: "crm",     month: 29, year: 290 },
+  offer:   { name: "CraftOS Offer",   apps: "offer",   month: 29, year: 290 },
+  invoices:{ name: "CraftOS Invoices",apps: "invoices",month: 19, year: 190 },
+  nesting: { name: "CraftOS Nesting", apps: "nesting", month: 39, year: 390 },
+  db:      { name: "CraftOS DB",      apps: "db",      month: 49, year: 490 },
   // To add an app: add a standalone entry above. The suite auto-includes it.
-  suite:   { name: "Fabsuite (whole suite)", apps: "",     month: 69, year: 690 },
+  suite:   { name: "CraftOS (whole suite)", apps: "",  month: 89, year: 890 },
 };
 // The suite always bundles every standalone app in the catalog.
 PLANS.suite.apps = Object.keys(PLANS).filter((k) => k !== "suite").join(",");
@@ -75,7 +79,7 @@ async function ensurePrice(product, plan, interval, euros) {
   return price;
 }
 
-const ENV_NAME = { nesting: "NESTING", db: "DB", suite: "SUITE" };
+const ENV_NAME = { crm: "CRM", offer: "OFFER", invoices: "INVOICES", nesting: "NESTING", db: "DB", suite: "SUITE" };
 
 async function main() {
   console.log("Seeding Stripe products & prices…\n");
@@ -93,7 +97,9 @@ async function main() {
   const line = Object.entries(secrets).map(([k, v]) => `${k}=${v}`).join(" \\\n  ");
   console.log("supabase secrets set \\\n  " + line);
   console.log("\n(Or paste each in Supabase → Edge Functions → Manage secrets.)");
-  console.log("Also set: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, FABSUITE_URL");
+  console.log("Also set: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, FABSUITE_URL,");
+  console.log("          FABSUITE_APPS=crm,offer,invoices,nesting,db  (what the suite unlocks)");
+  console.log("          FABSUITE_TRIAL_DAYS=60                (card on file, long trial)");
 }
 
 main().catch((e) => { console.error("✗", e.message); process.exit(1); });

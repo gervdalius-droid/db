@@ -24,6 +24,10 @@ window.FAB_CONFIG = {
   FABSUITE_URL: "https://dbxfabflow.github.io/fabflow/fabsuite",
   // The commercial Nesting app (cross-links from inside the DB app).
   NESTING_URL: "https://dbxfabflow.github.io/fabflow-nesting/",
+  // Sibling CraftOS apps (sidebar cross-links).
+  CRM_URL: "https://dbxfabflow.github.io/fabflow-crm/",
+  OFFER_URL: "https://dbxfabflow.github.io/fabflow-offer/",
+  INVOICES_URL: "https://dbxfabflow.github.io/fabflow-invoices/",
 
   // Worker name+PIN synthetic-email scheme. MUST match the set-worker-pin edge
   // function deployed in the commercial project (set FABSUITE_AUTH_DOMAIN there).

@@ -323,8 +323,11 @@ function drawerHtml(d){
         +['','active','trialing','past_due','canceled','none'].map(function(s){return '<option value="'+s+'">'+(s||'(nekeisti statuso)')+'</option>';}).join("")
       +'</select></div>'
       +'<div class="row2" style="margin-top:8px">'
-        +'<label style="margin:0"><input type="checkbox" id="ov-nesting" style="width:auto"> Nesting</label>'
-        +'<label style="margin:0;margin-left:14px"><input type="checkbox" id="ov-db" style="width:auto"> DB</label>'
+        +APP_CATALOG.map(function(a,i){
+            var on = (o.apps||[]).indexOf(a[0])>=0 ? ' checked' : '';
+            return '<label style="margin:0'+(i?';margin-left:14px':'')+'">'
+                 + '<input type="checkbox" id="ov-'+a[0]+'" style="width:auto"'+on+'> '+a[1]+'</label>';
+          }).join("")
         +'<button class="btn" style="margin-left:auto" onclick="doOverride()">Išsaugoti</button>'
       +'</div>'
     +'</div>'
@@ -359,9 +362,15 @@ async function openStripe(){
   try{ var d=await api("stripe_link",{workspace_code:CUR.workspace_code}); window.open(d.live,"_blank"); }
   catch(ex){ alert(ex.message); }
 }
+// Every sellable app, in the order the storefront lists them. Adding an app to
+// the suite means adding it here too, or it cannot be granted by hand.
+var APP_CATALOG=[["crm","CRM"],["offer","Offer"],["invoices","Invoices"],
+                 ["nesting","Nesting"],["db","DB"]];
 async function doOverride(){
   var status=document.getElementById("ov-status").value;
-  var apps=[]; if(document.getElementById("ov-nesting").checked) apps.push("nesting"); if(document.getElementById("ov-db").checked) apps.push("db");
+  var apps=APP_CATALOG.filter(function(a){
+    var el=document.getElementById("ov-"+a[0]); return el && el.checked;
+  }).map(function(a){ return a[0]; });
   var params={workspace_code:CUR.workspace_code};
   if(status) params.status=status;
   params.apps=apps; // explicit apps set

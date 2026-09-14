@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy</title>
+<link rel="icon" href="../shared/craftos-favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<style>
+.legalwrap{max-width:760px;margin:0 auto;padding:40px 22px 70px}
+.legalwrap h1{font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;margin-bottom:8px}
+.legalwrap .eff{color:var(--muted);font-size:14px;margin-bottom:34px}
+.legalwrap h2{font-size:17px;font-weight:650;margin:32px 0 10px;letter-spacing:-.01em}
+.legalwrap p{font-size:15px;line-height:1.7;color:var(--text);margin-bottom:12px}
+.legalwrap ul{margin:0 0 14px 20px}
+.legalwrap li{font-size:15px;line-height:1.7;margin-bottom:6px}
+.legalwrap a{color:var(--blue-t)}
+mark.todo{background:var(--amber-bg);color:var(--amber-t);font-weight:700;
+  padding:1px 6px;border-radius:5px;font-size:.92em}
+.lgnav{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:14px 0 0;border-top:1px solid var(--border);margin-top:40px;font-size:14px}
+.lgnav .sp{flex:1}
+#lgsw a{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;
+  font-weight:700;color:var(--muted);text-decoration:none}
+#lgsw a.on{background:var(--blue-bg);color:var(--blue-t)}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="brand-logo" src="../shared/craftos-logo.png" alt=""></a>
+    <div class="links"><a href="index.html#pricing">Pricing</a><a href="account.html">Account</a></div>
+  </div>
+</nav>
+<main class="legalwrap"><div id="doc"></div>
+  <div class="lgnav">
+    <a href="index.html">← <span data-brand>CraftOS</span></a>
+    <a id="otherdoc" data-href="terms.html" href="terms.html">Terms of Service</a>
+    <span class="sp"></span><span id="lgsw"></span>
+  </div>
+</main>
+<script src="legal.js"></script>
+<script>
+Legal.render({
+en:{
+ title:"Privacy Policy",
+ effective:"Effective {effective}. The controller is {company}, reg. no {reg_no}, {address}, {country}. Privacy contact: <a href=\"mailto:{email}\">{email}</a>.",
+ body:[
+  ["The short version",
+   "We hold the minimum needed to run {brand} for your workshop: who you are, what you paid, and the business records you put into the apps. We do not sell data, do not run advertising trackers, and do not use your content to train anything."],
+  ["1. Two different roles",
+   "<b>We are the controller</b> for your account: the person who signed up, the workspace, the subscription and the support conversation.",
+   "<b>We are a processor</b> for what you put inside the apps — your clients, your quotes, your team records. There, <i>you</i> are the controller: you decide what to store and why, and you answer your own customers' and employees' requests. We only act on your instructions. Section 7 is the processing agreement for that."],
+  ["2. What we collect as controller",
+   "<ul><li><b>Account:</b> name, email, password (hashed — we never see it), workspace name and code.</li><li><b>Billing:</b> plan, billing period, invoices, subscription status and the last four digits and expiry of your card. Stripe holds the full card number; we never receive it.</li><li><b>Technical:</b> server logs with IP address, timestamp and request path, kept to keep the service secure and working.</li><li><b>Support:</b> whatever you write to us.</li></ul>"],
+  ["3. Why, and on what legal basis",
+   "<ul><li><b>To provide the service</b> you signed up for — performance of a contract (GDPR Art. 6(1)(b)).</li><li><b>To take payment and keep accounts</b> — contract, and a legal obligation for tax records (Art. 6(1)(b) and (c)).</li><li><b>To keep the service secure</b> and diagnose faults — legitimate interests (Art. 6(1)(f)).</li><li><b>To email you about your subscription</b> (renewals, price changes, outages) — contract. These are not marketing and cannot be switched off while you have an account.</li><li><b>To send product news</b> — only with your consent (Art. 6(1)(a)); every such email has an unsubscribe link.</li></ul>"],
+  ["4. Who else touches the data",
+   "We use a small number of processors, all bound by contract and all in the EU/EEA or covered by an adequacy decision or standard contractual clauses:",
+   "<ul><li><b>Supabase</b> — database, authentication and server functions (hosting your workspace data).</li><li><b>Stripe</b> — payments, subscriptions and invoices. Stripe is an independent controller for payment data; see stripe.com/privacy.</li><li><b>GitHub Pages</b> — serves the app files themselves. It receives the request (including IP) but holds no workspace data.</li></ul>",
+   "We do not sell or rent personal data, and we do not share it for advertising."],
+  ["5. How long we keep it",
+   "<ul><li><b>Workspace content:</b> for as long as your workspace exists. After you cancel, it stays available for export for 30 days, then may be deleted.</li><li><b>Invoices and accounting records:</b> as long as tax law requires.</li><li><b>Server logs:</b> up to 90 days.</li><li><b>Support email:</b> up to 24 months.</li></ul>",
+   "You can ask us to delete the workspace sooner and we will, except for records we are legally required to keep."],
+  ["6. Your rights",
+   "Under the GDPR you can ask for a copy of your data, correct it, delete it, restrict or object to processing, get it in a portable format, and withdraw consent at any time. Write to <a href=\"mailto:{email}\">{email}</a> and we will answer within one month.",
+   "Most of it you can also do yourself: the apps export everything you have entered, and the account page shows and changes your billing.",
+   "If you think we have handled your data badly, please tell us first — but you also have the right to complain to your supervisory authority (in Lithuania, the State Data Protection Inspectorate, vdai.lrv.lt)."],
+  ["7. Processing agreement (for data you put in the apps)",
+   "This section applies where you use {brand} to hold personal data about your own customers and staff. It is our data processing agreement with you under GDPR Art. 28.",
+   "<ul><li><b>Subject matter:</b> providing {brand}. <b>Duration:</b> while your workspace exists.</li><li><b>Nature and purpose:</b> storage, retrieval, calculation and display of your business records.</li><li><b>Types of data:</b> whatever you enter — typically client names, contacts, addresses, order details, and your staff's names, roles and login credentials.</li><li><b>Data subjects:</b> your customers, prospects and employees.</li></ul>",
+   "We will: process only on your documented instructions; keep the data confidential and bind our staff to confidentiality; apply the security measures in section 8; use only the sub-processors listed in section 4 and tell you before adding another, so you can object; help you answer data-subject requests and handle breaches; notify you without undue delay after becoming aware of a personal data breach; and on termination delete the data (subject to section 5) or return it via export.",
+   "You will: only put in data you have a lawful basis to hold; give your own customers and staff the notice they are due; and keep your logins under control."],
+  ["8. Security",
+   "Traffic is encrypted in transit (TLS). Data is stored on managed infrastructure with encryption at rest. Passwords are hashed. Access to production is limited to those who need it.",
+   "Each workshop's records are separated by workspace, and the billing tables are readable only by our server functions.",
+   "<b>Be straight with you:</b> no system is perfectly secure. If a breach affects your data we will tell you promptly and tell you what we know, including what we do not yet know."],
+  ["9. Cookies and local storage",
+   "The storefront sets no advertising or analytics cookies.",
+   "The apps use your browser's <i>local storage</i> — not cookies — to keep you signed in, remember your chosen language, and hold an offline copy of your work so a dropped connection does not lose it. This never leaves your device except as part of normal saving to your workspace, and clearing site data removes it."],
+  ["10. Children",
+   "{brand} is business software and is not directed at anyone under 16. We do not knowingly collect their data."],
+  ["11. Transfers outside the EEA",
+   "We keep data in the EU/EEA where we can. Where a processor operates elsewhere, the transfer relies on an adequacy decision or on standard contractual clauses. Ask us and we will tell you exactly where your data sits."],
+  ["12. Changes",
+   "If we change this policy materially we will email you before it takes effect. The date at the top always shows the current version."],
+  ["13. Contact",
+   "{company}<br>{address}<br>Reg. no {reg_no}<br><a href=\"mailto:{email}\">{email}</a>"]
+ ]},
+lt:{
+ title:"Privatumo politika",
+ effective:"Galioja nuo {effective}. Duomenų valdytojas — {company}, įm. kodas {reg_no}, {address}, {country}. Kontaktas privatumo klausimais: <a href=\"mailto:{email}\">{email}</a>.",
+ body:[
+  ["Trumpai",
+   "Saugome tik tai, ko reikia, kad {brand} veiktų Jūsų ceche: kas Jūs esate, ką sumokėjote ir kokius verslo įrašus suvedate į programas. Duomenų neparduodame, reklaminių sekiklių nenaudojame ir Jūsų turinio jokių modelių mokymui nenaudojame."],
+  ["1. Dvi skirtingos rolės",
+   "<b>Esame valdytojas</b> Jūsų paskyros atžvilgiu: registravęsis asmuo, darbo vieta, prenumerata ir susirašinėjimas su pagalba.",
+   "<b>Esame tvarkytojas</b> to, ką suvedate į programas — Jūsų klientų, pasiūlymų, komandos įrašų. Ten valdytojas esate <i>Jūs</i>: sprendžiate, ką ir kodėl saugoti, ir patys atsakote savo klientams bei darbuotojams. Mes veikiame tik pagal Jūsų nurodymus. 7 skyrius yra duomenų tvarkymo sutartis dėl to."],
+  ["2. Ką renkame kaip valdytojas",
+   "<ul><li><b>Paskyra:</b> vardas, el. paštas, slaptažodis (maišos pavidalu — jo nematome), darbo vietos pavadinimas ir kodas.</li><li><b>Atsiskaitymai:</b> planas, laikotarpis, sąskaitos, prenumeratos būsena, paskutiniai keturi kortelės skaitmenys ir galiojimo data. Visą kortelės numerį saugo Stripe; mes jo negauname.</li><li><b>Techniniai:</b> serverio žurnalai su IP adresu, laiku ir užklausos keliu — paslaugos saugumui ir veikimui.</li><li><b>Pagalba:</b> tai, ką mums parašote.</li></ul>"],
+  ["3. Kodėl ir kokiu teisiniu pagrindu",
+   "<ul><li><b>Teikti paslaugą</b>, kurios užsisakėte — sutarties vykdymas (BDAR 6 str. 1 d. b p.).</li><li><b>Priimti mokėjimą ir tvarkyti apskaitą</b> — sutartis ir teisinė prievolė (b ir c p.).</li><li><b>Užtikrinti saugumą</b> ir šalinti gedimus — teisėtas interesas (f p.).</li><li><b>Rašyti apie prenumeratą</b> (atsinaujinimai, kainų pokyčiai, sutrikimai) — sutartis. Tai ne rinkodara ir, kol turite paskyrą, neišjungiama.</li><li><b>Siųsti naujienas apie produktą</b> — tik su Jūsų sutikimu (a p.); kiekviename tokiame laiške yra atsisakymo nuoroda.</li></ul>"],
+  ["4. Kas dar prisiliečia prie duomenų",
+   "Naudojame kelis tvarkytojus; visi saistomi sutarčių ir yra ES/EEE arba veikia pagal tinkamumo sprendimą ar standartines sutarčių sąlygas:",
+   "<ul><li><b>Supabase</b> — duomenų bazė, autentifikacija ir serverio funkcijos (Jūsų darbo vietos duomenys).</li><li><b>Stripe</b> — mokėjimai, prenumeratos, sąskaitos. Mokėjimo duomenų atžvilgiu Stripe yra savarankiškas valdytojas; žr. stripe.com/privacy.</li><li><b>GitHub Pages</b> — pateikia pačius programų failus. Gauna užklausą (įskaitant IP), bet darbo vietos duomenų nesaugo.</li></ul>",
+   "Asmens duomenų neparduodame, nenuomojame ir nedaliname reklamos tikslais."],
+  ["5. Kiek laiko saugome",
+   "<ul><li><b>Darbo vietos turinį</b> — kol darbo vieta gyvuoja. Atšaukus prenumeratą eksportuoti galima dar 30 dienų, vėliau galime ištrinti.</li><li><b>Sąskaitas ir apskaitos įrašus</b> — kiek reikalauja mokesčių teisė.</li><li><b>Serverio žurnalus</b> — iki 90 dienų.</li><li><b>Pagalbos susirašinėjimą</b> — iki 24 mėnesių.</li></ul>",
+   "Galite paprašyti ištrinti darbo vietą anksčiau — taip ir padarysime, išskyrus įrašus, kuriuos privalome saugoti pagal įstatymus."],
+  ["6. Jūsų teisės",
+   "Pagal BDAR galite prašyti duomenų kopijos, juos ištaisyti, ištrinti, apriboti tvarkymą ar jam nesutikti, gauti perkeliamu formatu ir bet kada atšaukti sutikimą. Rašykite <a href=\"mailto:{email}\">{email}</a> — atsakysime per vieną mėnesį.",
+   "Daugumą dalykų galite atlikti ir patys: programos eksportuoja viską, ką suvedėte, o paskyros puslapyje matote ir keičiate atsiskaitymus.",
+   "Jei manote, kad su Jūsų duomenimis pasielgėme netinkamai, pirmiausia parašykite mums — bet taip pat turite teisę pateikti skundą priežiūros institucijai (Lietuvoje — Valstybinei duomenų apsaugos inspekcijai, vdai.lrv.lt)."],
+  ["7. Duomenų tvarkymo sutartis (dėl programose suvestų duomenų)",
+   "Šis skyrius taikomas, kai {brand} laikote savo klientų ir darbuotojų asmens duomenis. Tai mūsų duomenų tvarkymo sutartis pagal BDAR 28 str.",
+   "<ul><li><b>Dalykas:</b> {brand} teikimas. <b>Trukmė:</b> kol gyvuoja Jūsų darbo vieta.</li><li><b>Pobūdis ir tikslas:</b> Jūsų verslo įrašų saugojimas, paieška, skaičiavimas ir rodymas.</li><li><b>Duomenų rūšys:</b> tai, ką suvedate — paprastai klientų pavadinimai, kontaktai, adresai, užsakymų detalės ir darbuotojų vardai, pareigos bei prisijungimai.</li><li><b>Duomenų subjektai:</b> Jūsų klientai, potencialūs klientai ir darbuotojai.</li></ul>",
+   "Mes: tvarkysime tik pagal Jūsų dokumentuotus nurodymus; laikysime duomenis konfidencialiais ir įpareigosime darbuotojus; taikysime 8 skyriaus saugumo priemones; naudosime tik 4 skyriuje išvardytus subtvarkytojus ir apie naują praneštume iš anksto, kad galėtumėte prieštarauti; padėsime atsakyti į duomenų subjektų prašymus ir tvarkyti incidentus; nepagrįstai nedelsdami praneštume apie asmens duomenų saugumo pažeidimą; pasibaigus sutarčiai duomenis ištrintume (atsižvelgiant į 5 skyrių) arba grąžintume eksportu.",
+   "Jūs: suvesite tik tuos duomenis, kuriuos turite teisėtą pagrindą laikyti; tinkamai informuosite savo klientus ir darbuotojus; ir kontroliuosite prisijungimus."],
+  ["8. Saugumas",
+   "Srautas šifruojamas perdavimo metu (TLS). Duomenys laikomi valdomoje infrastruktūroje su šifravimu ramybės būsenoje. Slaptažodžiai saugomi maišos pavidalu. Prieiga prie gamybinės aplinkos ribojama.",
+   "Kiekvieno cecho įrašai atskirti darbo vietos lygiu, o atsiskaitymų lentelės pasiekiamos tik mūsų serverio funkcijoms.",
+   "<b>Atvirai:</b> visiškai saugių sistemų nėra. Jei pažeidimas palies Jūsų duomenis, nedelsdami pranešime ir pasakysime, ką žinome — įskaitant tai, ko dar nežinome."],
+  ["9. Slapukai ir vietinė saugykla",
+   "Parduotuvės puslapis nenustato jokių reklamos ar analitikos slapukų.",
+   "Programos naudoja naršyklės <i>vietinę saugyklą</i> (ne slapukus): kad liktumėte prisijungę, kad būtų prisiminta kalba ir kad būtų laikoma darbo kopija neprisijungus — taip nutrūkęs ryšys neatima darbo. Iš Jūsų įrenginio tai neišeina, išskyrus įprastą įrašymą į darbo vietą; išvalius svetainės duomenis, tai pašalinama."],
+  ["10. Vaikai",
+   "{brand} yra verslo programinė įranga ir neskirta jaunesniems nei 16 metų asmenims. Jų duomenų sąmoningai nerenkame."],
+  ["11. Perdavimai už EEE ribų",
+   "Duomenis laikome ES/EEE, kur tik įmanoma. Jei tvarkytojas veikia kitur, perdavimas grindžiamas tinkamumo sprendimu arba standartinėmis sutarčių sąlygomis. Paklauskite — pasakysime tiksliai, kur Jūsų duomenys."],
+  ["12. Pakeitimai",
+   "Iš esmės keisdami šią politiką pranešime el. paštu prieš įsigaliojimą. Data viršuje visada rodo galiojančią versiją."],
+  ["13. Kontaktai",
+   "{company}<br>{address}<br>Įm. kodas {reg_no}<br><a href=\"mailto:{email}\">{email}</a>"]
+ ]}
+});
+</script>
+</body>
+</html>

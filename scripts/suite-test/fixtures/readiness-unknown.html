@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>unknown</title>
+<body>
+<a class="btn" href="../../../fabsuite/signup.html?plan=suite">Start</a>
+<form id="signup-form"><button id="go">Continue to payment</button></form>
+<script>
+/* Fixture: drives readiness.js against one simulated backend state. */
+window.FABSUITE = {
+  SUPABASE_URL: "https://stub.test", SUPABASE_ANON_KEY: "sb_publishable_stub",
+  SUPPORT_EMAIL: "help@example.test", FREE_SIGNUP: false, TRIAL_DAYS: 60,
+  LEGAL: {company:"X Ltd", reg_no:"12345", address:"Some St 1", email:"a@b.c"}
+};
+window.fetch = function(){
+  return Promise.reject(new Error("network down"));
+};
+</script>
+<script src="../../../fabsuite/readiness.js"></script>
+</body>

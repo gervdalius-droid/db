@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>CraftOS suite tests</title>
+<style>
+body{font:13px/1.6 ui-monospace,Menlo,monospace;margin:0;padding:16px;background:#111;color:#ddd}
+h1{font-size:15px;margin:0 0 12px}
+.app{margin:14px 0;border-left:3px solid #444;padding-left:10px}
+.app h2{font-size:13px;margin:0 0 4px;color:#8ab4ff}
+.ok{color:#6ee787}.fail{color:#ff7b72}.skip{color:#888}
+iframe{position:absolute;left:-9999px;width:1280px;height:900px;border:0}
+#sum{margin-top:16px;padding:10px;background:#1a1a1a;border-radius:6px;font-weight:700}
+</style></head>
+<body>
+<h1>CraftOS suite tests</h1>
+<div id="out"></div>
+<div id="sum">running…</div>
+<div id="frames"></div>
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+ * Headless-driven checks across all four CraftOS apps.
+ * Each app boots in an iframe; assertions run against its live globals and DOM.
+ * Read the result from document.title ("PASS n/n" or "FAIL …") so a headless
+ * Chrome --dump-dom is enough to gate a release.
+ * ════════════════════════════════════════════════════════════════════════════ */
+var results=[], current=null;
+function group(name){ current={name:name,rows:[]}; results.push(current); }
+function check(desc, fn){
+  var ok=false, err='';
+  try{ ok=!!fn(); }catch(e){ err=(e&&e.message)||String(e); }
+  current.rows.push({desc:desc, ok:ok, err:err});
+}
+/* Boot a page and collect any UNCAUGHT error it throws on load. A file can parse
+   cleanly and still die on an undefined identifier — that killed the whole Offer
+   wrapper once, so every app is checked for a silent boot failure. */
+function load(src){
+  return new Promise(function(res,rej){
+    var f=document.createElement('iframe');
+    f.__errs=[];
+    // Hook window.onerror as early as the frame exposes one, i.e. before its
+    // own scripts have finished running.
+    var iv=setInterval(function(){
+      try{
+        var w=f.contentWindow;
+        if(w && !w.__hooked){ w.__hooked=1;
+          w.onerror=function(m,s,l,c){ f.__errs.push(m+' @'+String(s||'').split('/').pop()+':'+l+':'+c); return true; };
+        }
+      }catch(e){}
+    },10);
+    f.src=src;
+    f.onload=function(){ setTimeout(function(){ clearInterval(iv); res(f); }, 1400); };
+    f.onerror=function(){ clearInterval(iv); rej(new Error('load failed: '+src)); };
+    document.getElementById('frames').appendChild(f);
+    setTimeout(function(){ clearInterval(iv); rej(new Error('timeout: '+src)); }, 20000);
+  });
+}
+function bootsClean(f){
+  return function(){
+    if(f.__errs && f.__errs.length) throw new Error(f.__errs.slice(0,2).join(' | '));
+    return true;
+  };
+}
+function render(){
+  var out=document.getElementById('out'), pass=0, total=0;
+  out.innerHTML=results.map(function(g){
+    return '<div class="app"><h2>'+g.name+'</h2>'+g.rows.map(function(r){
+      total++; if(r.ok)pass++;
+      return '<div class="'+(r.ok?'ok':'fail')+'">'+(r.ok?'✓':'✗')+' '+r.desc+(r.err?' — '+r.err:'')+'</div>';
+    }).join('')+'</div>';
+  }).join('');
+  document.getElementById('sum').textContent=(pass===total?'PASS ':'FAIL ')+pass+'/'+total;
+  document.title=(pass===total?'PASS ':'FAIL ')+pass+'/'+total;
+}
+</script>
+<script src="_where.js"></script><script src="tests.js"></script>
+</body></html>

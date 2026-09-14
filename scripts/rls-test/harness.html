@@ -1,0 +1,255 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PENDING</title>
+<style>body{font:12px/1.5 ui-monospace,Menlo,monospace;background:#111;color:#ddd;padding:14px}
+.ok{color:#6ee787}.fail{color:#ff7b72}.info{color:#8ab4ff}</style></head>
+<body><pre id="o">booting Postgres (WASM)…</pre>
+<script type="module">
+/* ════════════════════════════════════════════════════════════════════════════
+ * Executes the tenant-isolation migrations against a REAL Postgres (PGlite —
+ * Postgres 16 compiled to WASM) and then proves the policies actually isolate
+ * tenants. There is no Postgres, Docker or brew on this machine, and the
+ * migration must not be rehearsed on the live database, so this is how the SQL
+ * gets tested before anyone pastes it into the dashboard.
+ *
+ * Supabase-specific pieces (the auth schema, auth.uid(), the anon/authenticated
+ * roles) are stubbed exactly as Supabase defines them.
+ *
+ * PGlite is vendored into _pglite/ by run.sh rather than pulled from a CDN:
+ * headless Chrome's virtual clock fast-forwards past real network waits, so a
+ * remote import never resolves.
+ * ════════════════════════════════════════════════════════════════════════════ */
+const out = document.getElementById('o');
+let pass = 0, fail = 0;
+const log = (m, c) => { out.innerHTML += '\n' + (c ? `<span class="${c}">${m}</span>` : m); };
+const ok   = m => { pass++; log('  ✓ ' + m, 'ok'); };
+const bad  = (m, e) => { fail++; log('  ✗ ' + m + (e ? ' — ' + e : ''), 'fail'); };
+
+try {
+  const { PGlite } = await import('./_pglite/index.js');
+  const db = new PGlite();
+  await db.query('select 1');
+  const v = await db.query('select version()');
+  log('\n' + v.rows[0].version.split(',')[0], 'info');
+
+  // ── Supabase surface the migrations rely on ────────────────────────────
+  await db.exec(`
+    create schema if not exists auth;
+    create table if not exists auth.users(
+      id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb);
+    create or replace function auth.uid() returns uuid language sql stable as $q$
+      select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $q$;
+    create or replace function auth.role() returns text language sql stable as $q$
+      select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'anon') $q$;
+    do $q$ begin
+      if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
+      if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+      if not exists (select 1 from pg_roles where rolname='service_role') then create role service_role; end if;
+    end $q$;
+    grant usage on schema public to anon, authenticated, service_role;
+    grant usage on schema auth to anon, authenticated, service_role;
+  `);
+  log('supabase auth surface stubbed', 'info');
+
+  // ── run the migrations in order ────────────────────────────────────────
+  const FILES = ['0000_base_schema.sql','0001_fabsuite_billing.sql','0002_admin_audit.sql',
+                 '0003_apps_catalog.sql','0004_project_tenancy.sql','0005_tenant_isolation.sql'];
+  log('\n── migrations ──', 'info');
+  for (const f of FILES) {
+    try {
+      const sql = await (await fetch('../../supabase/migrations/' + f + '?t=' + Date.now(), {cache:'no-store'})).text();
+      await db.exec(sql);
+      ok(f + ' applied');
+    } catch (e) { bad(f, e.message); }
+  }
+
+  // idempotency: every migration must survive a second run
+  log('\n── re-run (idempotency) ──', 'info');
+  for (const f of FILES) {
+    try {
+      const sql = await (await fetch('../../supabase/migrations/' + f + '?t=' + Date.now(), {cache:'no-store'})).text();
+      await db.exec(sql);
+      ok(f + ' re-applied');
+    } catch (e) { bad(f + ' not idempotent', e.message); }
+  }
+
+  // ── the exact artifact the user pastes ─────────────────────────────────
+  // rls-test applies the files one at a time; the SQL editor runs APPLY_ME.sql
+  // as ONE transaction. Prove that form works too, on a clean database.
+  log('\n── APPLY_ME.sql as a single paste (clean DB) ──', 'info');
+  try {
+    const fresh = new PGlite();
+    await fresh.exec(`
+      create schema if not exists auth;
+      create table if not exists auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb);
+      create or replace function auth.uid() returns uuid language sql stable as $q$
+        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $q$;
+      create or replace function auth.role() returns text language sql stable as $q$
+        select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'anon') $q$;
+      do $q$ begin
+        if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if;
+        if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+        if not exists (select 1 from pg_roles where rolname='service_role') then create role service_role; end if;
+      end $q$;
+      grant usage on schema public to anon, authenticated, service_role;
+      grant usage on schema auth to anon, authenticated, service_role;
+    `);
+    // the live project already has 0000-0002; mirror that starting point
+    for (const f of ['0000_base_schema.sql','0001_fabsuite_billing.sql','0002_admin_audit.sql']) {
+      await fresh.exec(await (await fetch('../../supabase/migrations/' + f + '?t=' + Date.now(), {cache:'no-store'})).text());
+    }
+    const paste = await (await fetch('../../APPLY_ME.sql?t=' + Date.now(), {cache:'no-store'})).text();
+    await fresh.exec(paste);
+    ok('APPLY_ME.sql applies in one transaction');
+    await fresh.exec(paste);
+    ok('APPLY_ME.sql is idempotent (safe to re-run)');
+    const r = await fresh.query(`select count(*)::int n from pg_policies where schemaname='public'`);
+    if (r.rows[0].n >= 7) ok('policies created: ' + r.rows[0].n);
+    else bad('too few policies created', String(r.rows[0].n));
+  } catch (e) { bad('APPLY_ME.sql single paste', e.message); }
+
+  // ── seed two tenants ───────────────────────────────────────────────────
+  const A = '11111111-1111-1111-1111-111111111111';   // owner of AAAA1
+  const B = '22222222-2222-2222-2222-222222222222';   // owner of BBBB2
+  const W = '33333333-3333-3333-3333-333333333333';   // a worker in AAAA1
+  const X = '44444444-4444-4444-4444-444444444444';   // signed in, belongs to nothing
+  log('\n── seed ──', 'info');
+  try {
+    await db.exec(`
+      insert into auth.users(id,email) values
+        ('${A}','a@x.test'),('${B}','b@x.test'),
+        ('${W}','jonas.aaaa1@fabflow.app'),('${X}','nobody@x.test');
+      insert into public.fab_orgs(workspace_code,name,owner_user_id,status,apps)
+        values ('AAAA1','Alpha','${A}','active',array['db']),
+               ('BBBB2','Beta','${B}','active',array['db']);
+      insert into public.org_members(user_id,workspace_code,role) values
+        ('${A}','AAAA1','owner'), ('${B}','BBBB2','owner'), ('${W}','AAAA1','worker');
+      insert into public.fabflow(key,value) values
+        ('fab_AAAA1_projects','ALPHA-SECRET'), ('fab_BBBB2_projects','BETA-SECRET'),
+        ('fab_admin_${A}','{"workspaceCode":"AAAA1"}'), ('fab_admin_${B}','{"workspaceCode":"BBBB2"}');
+      insert into public.fabflow_projects(workspace_code,name,data) values
+        ('AAAA1','Kitchen','{}'::jsonb), ('BBBB2','Kitchen','{}'::jsonb);
+      insert into public.fabflow_stock(workspace_code,sku,qty) values
+        ('AAAA1','SKU1',5), ('BBBB2','SKU1',9);
+    `);
+    ok('two tenants seeded (service-role writes bypass RLS, as the edge functions do)');
+  } catch (e) { bad('seed', e.message); }
+
+  // ── helper: run a query AS a given signed-in user ──────────────────────
+  async function asUser(uid, sql) {
+    await db.exec(`set role authenticated; set request.jwt.claim.sub = '${uid}'; set request.jwt.claim.role = 'authenticated';`);
+    try { return await db.query(sql); }
+    finally { await db.exec(`reset role; select set_config('request.jwt.claim.sub','',false);`); }
+  }
+  async function asAnon(sql) {
+    await db.exec(`set role anon; select set_config('request.jwt.claim.sub','',false);`);
+    try { return await db.query(sql); }
+    finally { await db.exec('reset role;'); }
+  }
+
+  log('\n── isolation ──', 'info');
+
+  try {
+    const r = await asUser(A, `select key from public.fabflow order by key`);
+    const keys = r.rows.map(x => x.key);
+    const seesOwn   = keys.includes('fab_AAAA1_projects');
+    const seesOther = keys.some(k => k.includes('BBBB2'));
+    if (seesOwn && !seesOther) ok('owner of AAAA1 sees only AAAA1 rows (' + keys.join(', ') + ')');
+    else bad('fabflow leaks across tenants', keys.join(', '));
+  } catch (e) { bad('fabflow select as owner', e.message); }
+
+  try {
+    const r = await asUser(W, `select key from public.fabflow order by key`);
+    const keys = r.rows.map(x => x.key);
+    if (keys.includes('fab_AAAA1_projects') && !keys.some(k => k.includes('BBBB2')))
+      ok('WORKER in AAAA1 can read their workspace (this is the lockout risk — it works)');
+    else bad('worker cannot read their own workspace — RLS would lock workers out', keys.join(', '));
+  } catch (e) { bad('fabflow select as worker', e.message); }
+
+  try {
+    const r = await asUser(A, `select value from public.fabflow where key='fab_admin_${A}'`);
+    if (r.rows.length === 1) ok('a manager can read their own fab_admin_<uid> profile');
+    else bad('manager cannot read their own profile row — login would break');
+  } catch (e) { bad('own profile row', e.message); }
+
+  try {
+    const r = await asUser(A, `select value from public.fabflow where key='fab_admin_${B}'`);
+    if (r.rows.length === 0) ok("a manager cannot read another manager's profile row");
+    else bad('profile rows leak across users');
+  } catch (e) { bad('other profile row', e.message); }
+
+  try {
+    await asUser(A, `insert into public.fabflow(key,value) values ('fab_BBBB2_evil','X')`);
+    bad('WRITE into another tenant succeeded — isolation is broken');
+  } catch (e) { ok('writing into another tenant is refused (' + String(e.message).split('\n')[0].slice(0, 48) + ')'); }
+
+  try {
+    const r = await asUser(A, `select workspace_code,name from public.fabflow_projects`);
+    if (r.rows.length === 1 && r.rows[0].workspace_code === 'AAAA1')
+      ok('fabflow_projects: same-named project in another workspace stays invisible');
+    else bad('fabflow_projects leaks', JSON.stringify(r.rows));
+  } catch (e) { bad('fabflow_projects select', e.message); }
+
+  try {
+    const r = await asUser(A, `select sku,qty from public.fabflow_stock`);
+    if (r.rows.length === 1 && Number(r.rows[0].qty) === 5) ok('fabflow_stock is scoped to the tenant');
+    else bad('fabflow_stock leaks', JSON.stringify(r.rows));
+  } catch (e) { bad('fabflow_stock select', e.message); }
+
+  try {
+    const r = await asUser(X, `select key from public.fabflow`);
+    if (r.rows.length === 0) ok('a signed-in user with no membership sees nothing');
+    else bad('non-member sees rows', JSON.stringify(r.rows));
+  } catch (e) { bad('non-member select', e.message); }
+
+  try {
+    const r = await asAnon(`select key from public.fabflow`);
+    bad('ANON can still read fabflow — the public key would still expose data', JSON.stringify(r.rows));
+  } catch (e) { ok('anon is refused outright (' + String(e.message).split('\n')[0].slice(0, 42) + ')'); }
+
+  try {
+    const r = await asAnon(`select public.org_entitlement('AAAA1')`);
+    const ent = r.rows[0].org_entitlement;
+    if (ent && ent.active === true && 'has_crm' in ent)
+      ok('anon can still call org_entitlement (the paywall runs before sign-in) and it reports has_crm/has_offer');
+    else bad('org_entitlement wrong for anon', JSON.stringify(ent));
+  } catch (e) { bad('org_entitlement as anon', e.message); }
+
+  try {
+    const r = await asUser(W, `select public.fab_whoami()`);
+    const who = r.rows[0].fab_whoami;
+    if (who && who.workspaces && who.workspaces.includes('AAAA1')) ok('fab_whoami() reports the caller’s workspaces (lockout debugging)');
+    else bad('fab_whoami wrong', JSON.stringify(who));
+  } catch (e) { bad('fab_whoami', e.message); }
+
+  // the 0005 §6 backfill: a legacy worker with no membership row
+  log('\n── legacy-worker backfill (0005 §6) ──', 'info');
+  try {
+    const L = '55555555-5555-5555-5555-555555555555';
+    await db.exec(`insert into auth.users(id,email) values ('${L}','petras.bbbb2@fabflow.app');`);
+    let r = await asUser(L, `select key from public.fabflow`);
+    const before = r.rows.length;
+    const sql = await (await fetch('../../supabase/migrations/0005_tenant_isolation.sql?t=' + Date.now(), {cache:'no-store'})).text();
+    await db.exec(sql);                       // re-run: the backfill should adopt them
+    r = await asUser(L, `select key from public.fabflow`);
+    if (before === 0 && r.rows.length === 1 && r.rows[0].key.includes('BBBB2'))
+      ok('a pre-existing worker with no membership is adopted from their email and regains access');
+    else bad('backfill did not recover the legacy worker', `before=${before} after=${r.rows.length}`);
+  } catch (e) { bad('legacy worker backfill', e.message); }
+
+  report();
+} catch (e) {
+  log('\nHARNESS ERROR: ' + (e && e.stack || e), 'fail');
+  fail++;
+  report();
+}
+
+function report() {
+  document.title = (fail ? 'FAIL ' : 'PASS ') + pass + '/' + (pass + fail);
+  const text = out.innerText || out.textContent || '';
+  try {
+    navigator.sendBeacon('/__result', new Blob(
+      [JSON.stringify({ pass, fail, log: text })], { type: 'application/json' }));
+  } catch (e) {
+    fetch('/__result', { method: 'POST', body: JSON.stringify({ pass, fail, log: text }) });
+  }
+}
+</script></body></html>

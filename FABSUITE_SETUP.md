@@ -1,8 +1,11 @@
-# Fabsuite — selling NESTING & DB as subscriptions
+# CraftOS — selling CRM, Offer, Invoices, Nesting & DB as subscriptions
 
-This repo now contains everything to charge for the two apps with **Stripe**,
-gate access per **workspace** (= one customer company), and onboard customers
-through the **fabsuite** storefront.
+This repo contains everything to charge for the five apps with **Stripe**, gate
+access per **workspace** (= one customer company), and onboard customers through
+the **fabsuite** storefront.
+
+> Before going live, work through **`LAUNCH.md`** — it lists what is still
+> blocking real customers (tenant isolation, legal details, support address).
 
 ---
 
@@ -16,7 +19,7 @@ through the **fabsuite** storefront.
                            │  create-checkout-session ────────► Checkout (14-day trial)
   success.html ◄───────────┘                                   │
                                                                 ▼
-  DB app / NESTING app                  stripe-webhook ◄──── subscription events
+  DB / NESTING / INVOICES app           stripe-webhook ◄──── subscription events
   ─────────────────────                 (updates fab_orgs.status + apps)
   enterApp() → FabsuiteLicense.gate()
         │  org_entitlement(code)  ─────► reads fab_orgs
@@ -32,13 +35,22 @@ a Stripe subscription and the list of unlocked apps. The apps ask
 
 | File / piece | What it does |
 |---|---|
+| `supabase/migrations/0000_base_schema.sql` | the app tables themselves (run first on a fresh project) |
 | `supabase/migrations/0001_fabsuite_billing.sql` | `fab_orgs`, `org_members`, RLS, `org_entitlement()`, comp helper |
+| `supabase/migrations/0002_admin_audit.sql` | admin console audit trail |
+| `supabase/migrations/0003_apps_catalog.sql` | adds CRM + Offer to the catalog; back-fills suite/comp workspaces |
+| `supabase/migrations/0004_project_tenancy.sql` | `fabflow_projects` gains `workspace_code` (was globally keyed on name) |
+| `supabase/migrations/0005_tenant_isolation.sql` | **RLS on every app table**, keyed to `org_members` — read the header first |
+| `supabase/migrations/0006_invoices_app.sql` | adds Invoices to the catalog; back-fills suite/comp workspaces |
 | `supabase/functions/create-checkout-session` | Start Stripe Checkout for a plan |
 | `supabase/functions/create-portal-session` | Open Stripe Billing Portal |
 | `supabase/functions/stripe-webhook` | Sync subscription → `fab_orgs` (source of truth) |
 | `supabase/functions/register-org` | Provision a workspace on signup |
 | `shared/fabsuite-license.js` | Entitlement check + paywall (both apps reuse it) |
-| `fabsuite/` | Landing, pricing, signup, account, success/canceled |
+| `fabsuite/` | Landing, pricing, signup, account, success/canceled, terms, privacy |
+| `crm/` | The CRM app (source; built to `fabflow-crm`) |
+| `offer-patch/` | Wrapper that turns `~/github/offer` into the CraftOS Offer app |
+| `invoices-patch/` | Wrapper that turns `~/github/invoices` into the CraftOS Invoices app |
 | `scripts/stripe-seed.mjs` | Create the products & prices in Stripe |
 | `index.html` | DB app — gate wired into `enterApp()`, billing link in sidebar |
 
@@ -66,7 +78,8 @@ live never locks you out.
 npm i stripe
 STRIPE_SECRET_KEY=sk_test_xxx node scripts/stripe-seed.mjs
 ```
-It prints the six `PRICE_*` IDs. Keep that output.
+It creates five products (CRM, Offer, Nesting, DB, the CraftOS suite) and prints
+the ten `PRICE_*` IDs. Keep that output.
 
 ### 4 · Deploy the edge functions
 ```bash
@@ -84,11 +97,22 @@ supabase functions deploy stripe-webhook --no-verify-jwt   # Stripe can't send a
 ```bash
 supabase secrets set \
   STRIPE_SECRET_KEY=sk_test_xxx \
-  FABSUITE_URL=https://gervdalius-droid.github.io/db/fabsuite \
+  FABSUITE_URL=https://dbxfabflow.github.io/fabflow/fabsuite \
+  FABSUITE_APPS=crm,offer,invoices,nesting,db \
+  FABSUITE_TRIAL_DAYS=60 \
+  PRICE_CRM_MONTH=price_...     PRICE_CRM_YEAR=price_... \
+  PRICE_OFFER_MONTH=price_...   PRICE_OFFER_YEAR=price_... \
   PRICE_NESTING_MONTH=price_... PRICE_NESTING_YEAR=price_... \
   PRICE_DB_MONTH=price_...      PRICE_DB_YEAR=price_... \
   PRICE_SUITE_MONTH=price_...   PRICE_SUITE_YEAR=price_...
 ```
+
+`FABSUITE_APPS` is what the **suite** plan unlocks — add an app code here and the
+suite includes it automatically. `FABSUITE_TRIAL_DAYS` must match `TRIAL_DAYS` in
+`fabsuite/config.commercial.js`, which is what the storefront advertises.
+
+> Do **not** set `FABSUITE_FREE_SIGNUP` in production — it comps every signup and
+> skips Stripe entirely. It exists only for testing without payments.
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically.
 
 ### 6 · Wire the Stripe webhook
@@ -134,13 +158,14 @@ domain, update:
 
 | Plan | Unlocks | Monthly | Annual |
 |---|---|---|---|
+| CRM | CRM | €29 | €290 |
+| Offer | Offer | €29 | €290 |
 | Nesting | Nesting | €39 | €390 |
 | DB | DB | €49 | €490 |
-| **Fabsuite** | Nesting + DB | **€69** | **€690** |
+| **CraftOS** | all four | **€89** | **€890** |
 
-All plans start with a 14-day free trial (`FABSUITE_TRIAL_DAYS`, default 14).
-
----
+All plans start with a free trial (`FABSUITE_TRIAL_DAYS`, currently 60) and
+collect the card up front through Stripe Checkout, so they convert on their own.
 
 ## How gating behaves
 
@@ -165,5 +190,14 @@ All plans start with a 14-day free trial (`FABSUITE_TRIAL_DAYS`, default 14).
   later if you want hard isolation — that's an independent hardening step, not
   required for billing.
 - **NESTING app:** see `NESTING_INTEGRATION.md` — a ~10-line drop-in.
+- **OFFER app:** see `offer-patch/README.md` — wrapped rather than edited, so
+  upstream changes to the calculator need no re-patching.
+- **Tenant isolation:** migrations 0004 + 0005 are written but **not yet applied
+  anywhere**. Deploy the current `set-worker-pin` first, then run them against a
+  restored/staging project and verify a worker login still works
+  (`select public.fab_whoami();`). See blocker 2 in `LAUNCH.md`.
+- **Tests:** `bash scripts/suite-test/run.sh` boots all four apps headlessly and
+  checks the cross-app hand-offs, backup round-trips, auth headers and
+  translations. It exits non-zero on failure — run it before every deploy.
 - **Go live:** swap `sk_test_`/`pk_test_` for live keys, re-run the seed script
   in live mode, add a live webhook endpoint, update `STRIPE_WEBHOOK_SECRET`.

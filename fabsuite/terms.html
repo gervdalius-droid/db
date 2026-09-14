@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terms of Service</title>
+<link rel="icon" href="../shared/craftos-favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<style>
+.legalwrap{max-width:760px;margin:0 auto;padding:40px 22px 70px}
+.legalwrap h1{font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;margin-bottom:8px}
+.legalwrap .eff{color:var(--muted);font-size:14px;margin-bottom:34px}
+.legalwrap h2{font-size:17px;font-weight:650;margin:32px 0 10px;letter-spacing:-.01em}
+.legalwrap p{font-size:15px;line-height:1.7;color:var(--text);margin-bottom:12px}
+.legalwrap ul{margin:0 0 14px 20px}
+.legalwrap li{font-size:15px;line-height:1.7;margin-bottom:6px}
+.legalwrap a{color:var(--blue-t)}
+mark.todo{background:var(--amber-bg);color:var(--amber-t);font-weight:700;
+  padding:1px 6px;border-radius:5px;font-size:.92em}
+.lgnav{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:14px 0 0;border-top:1px solid var(--border);margin-top:40px;font-size:14px}
+.lgnav .sp{flex:1}
+#lgsw a{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;
+  font-weight:700;color:var(--muted);text-decoration:none}
+#lgsw a.on{background:var(--blue-bg);color:var(--blue-t)}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="brand-logo" src="../shared/craftos-logo.png" alt=""></a>
+    <div class="links"><a href="index.html#pricing">Pricing</a><a href="account.html">Account</a></div>
+  </div>
+</nav>
+<main class="legalwrap"><div id="doc"></div>
+  <div class="lgnav">
+    <a href="index.html">← <span data-brand>CraftOS</span></a>
+    <a id="otherdoc" data-href="privacy.html" href="privacy.html">Privacy Policy</a>
+    <span class="sp"></span><span id="lgsw"></span>
+  </div>
+</main>
+<script src="legal.js"></script>
+<script>
+Legal.render({
+en:{
+ title:"Terms of Service",
+ effective:"Effective {effective}. These Terms are between you and {company}, reg. no {reg_no}, VAT {vat_no}, {address}, {country} (“we”, “us”) — the provider of {brand}.",
+ body:[
+  ["1. What these Terms cover",
+   "These Terms govern your use of {brand} and its apps (CRM, Offer, Nesting and DB). By creating a workspace you accept them. If you do not accept them, do not use the service.",
+   "{brand} is business software sold to businesses. It is not aimed at consumers, and the statutory consumer withdrawal right does not apply to a business purchase."],
+  ["2. Your workspace and your team",
+   "When you sign up we create a <b>workspace</b> identified by a short code. Everyone you invite works inside that workspace. You are responsible for who you give the code and logins to, and for everything they do with them.",
+   "Keep your manager password and your team's PINs confidential. Tell us at once if you believe an account has been compromised."],
+  ["3. Subscription, trial and billing",
+   "Plans are sold per workspace as a monthly or annual subscription. Prices are shown on the pricing page and exclude VAT.",
+   "Every plan starts with a free trial of {trial} days. We collect your card at sign-up but do not charge it during the trial. Unless you cancel before the trial ends, the subscription starts automatically and the card is charged for the first period.",
+   "Payments are processed by Stripe. We do not see or store your full card number.",
+   "Subscriptions renew automatically at the end of each period until cancelled."],
+  ["4. Cancelling and refunds",
+   "You can cancel at any time from <a href=\"account.html\">your account</a> → Manage billing, or by emailing <a href=\"mailto:{email}\">{email}</a>. Cancellation takes effect at the end of the period you have already paid for; the apps keep working until then.",
+   "Because access is granted immediately and the trial lets you evaluate the service in full, part-periods are not refunded. If something went wrong — a duplicate charge, a plan you never used, a failure on our side — write to us and we will put it right.",
+   "If a payment fails we retry it. Access continues during a short grace period and is then suspended until payment succeeds. Your data is not deleted when a subscription lapses."],
+  ["5. Price changes",
+   "We may change prices. We will give at least 30 days' notice by email before a change applies to your workspace, and it will only take effect at your next renewal. If you do not accept a new price, cancel before it applies."],
+  ["6. Your data",
+   "The content you put into {brand} — clients, quotes, projects, cutting jobs, team records — is <b>yours</b>. We do not sell it, and we do not use it to train anything.",
+   "We process it only to run the service for you. How we handle personal data is described in our <a id=\"pp\" href=\"privacy.html\">Privacy Policy</a>, which forms part of these Terms.",
+   "You can export your data from inside the apps at any time. If you cancel, you keep the ability to export for 30 days, after which we may delete the workspace."],
+  ["7. Acceptable use",
+   "Do not use {brand} to break the law, to store other people's personal data without a lawful basis, to attack or overload the service, or to resell access without our written agreement.",
+   "We may suspend a workspace that is doing any of the above, and will tell you why."],
+  ["8. Availability",
+   "We aim to keep {brand} available and to fix faults promptly, but we do not promise uninterrupted service. Maintenance, third-party outages (hosting, payments) and force majeure happen.",
+   "The apps run in your browser and keep a local copy of your work, so a short outage generally does not stop work in progress."],
+  ["9. Liability",
+   "{brand} is provided “as is”. To the extent the law allows, our total liability to you in any 12-month period is limited to the fees you paid us in that period.",
+   "We are not liable for indirect or consequential loss — lost profits, lost orders, or the cost of substitute software.",
+   "Nothing here excludes liability that cannot be excluded by law, including for death or personal injury caused by negligence, or for fraud.",
+   "<b>Estimates and quotes.</b> The Offer and Nesting apps calculate from the figures and rates you enter. Check the result before you send a quote or cut material — you remain responsible for the numbers you give your customers."],
+  ["10. Ending the agreement",
+   "You may stop using the service and cancel at any time. We may end this agreement on 30 days' notice, or immediately for serious or repeated breach of section 7. If we end it without cause, we refund the unused part of any prepaid period."],
+  ["11. Changes to these Terms",
+   "We may update these Terms. For material changes we will give at least 30 days' notice by email, and the change applies from your next renewal. Continued use after that means you accept the new Terms."],
+  ["12. Law and disputes",
+   "These Terms are governed by the law of {country}, and the courts of {country} have jurisdiction. We would much rather sort a problem out by email first: <a href=\"mailto:{email}\">{email}</a>."],
+  ["13. Contact",
+   "{company}<br>{address}<br>Reg. no {reg_no} · VAT {vat_no}<br><a href=\"mailto:{email}\">{email}</a>"]
+ ]},
+lt:{
+ title:"Paslaugų teikimo sąlygos",
+ effective:"Galioja nuo {effective}. Šios sąlygos sudaromos tarp Jūsų ir {company}, įm. kodas {reg_no}, PVM {vat_no}, {address}, {country} („mes“) — {brand} teikėjo.",
+ body:[
+  ["1. Ką apima šios sąlygos",
+   "Šios sąlygos reglamentuoja naudojimąsi {brand} ir jo programomis (CRM, Offer, Nesting ir DB). Sukurdami darbo vietą Jūs su jomis sutinkate. Jei nesutinkate — paslauga nesinaudokite.",
+   "{brand} yra verslo programinė įranga, parduodama verslui. Ji nekreipiama į vartotojus, todėl vartotojo teisė atsisakyti sutarties netaikoma."],
+  ["2. Jūsų darbo vieta ir komanda",
+   "Registruojantis sukuriama <b>darbo vieta</b> su trumpu kodu. Visi Jūsų pakviesti žmonės dirba joje. Jūs atsakote už tai, kam duodate kodą ir prisijungimus, ir už viską, ką jie su jais daro.",
+   "Saugokite vadovo slaptažodį ir komandos PIN kodus. Nedelsdami praneškite, jei įtariate, kad paskyra pažeista."],
+  ["3. Prenumerata, bandomasis laikotarpis ir atsiskaitymai",
+   "Planai parduodami vienai darbo vietai kaip mėnesinė arba metinė prenumerata. Kainos nurodytos kainų puslapyje be PVM.",
+   "Kiekvienas planas prasideda {trial} dienų nemokamu bandomuoju laikotarpiu. Registruojantis nuskaitome kortelės duomenis, tačiau bandomuoju laikotarpiu pinigų nenuskaičiuojame. Jei neatšauksite iki pabaigos, prenumerata prasidės automatiškai ir kortelė bus apmokestinta už pirmąjį laikotarpį.",
+   "Mokėjimus tvarko Stripe. Mes nematome ir nesaugome viso Jūsų kortelės numerio.",
+   "Prenumerata automatiškai atsinaujina kiekvieno laikotarpio pabaigoje, kol ją atšaukiate."],
+  ["4. Atšaukimas ir grąžinimai",
+   "Atšaukti galite bet kada <a href=\"account.html\">savo paskyroje</a> → Valdyti atsiskaitymus arba parašę <a href=\"mailto:{email}\">{email}</a>. Atšaukimas įsigalioja jau apmokėto laikotarpio pabaigoje — iki tol programos veikia.",
+   "Kadangi prieiga suteikiama iš karto, o bandomasis laikotarpis leidžia paslaugą įvertinti visa apimtimi, dalis laikotarpio negrąžinama. Jei kas nors nepavyko — dvigubas nuskaitymas, planas, kuriuo nesinaudojote, mūsų klaida — parašykite ir sutvarkysime.",
+   "Nepavykus mokėjimui kartojame bandą. Trumpą laiką prieiga išlieka, vėliau sustabdoma, kol mokėjimas pavyks. Prenumeratai pasibaigus Jūsų duomenys netrinami."],
+  ["5. Kainų keitimas",
+   "Kainas galime keisti. Apie pakeitimą pranešime el. paštu ne vėliau kaip prieš 30 dienų, ir jis įsigalios tik nuo kito atsinaujinimo. Nesutikdami su nauja kaina, atšaukite prenumeratą iki jos įsigaliojimo."],
+  ["6. Jūsų duomenys",
+   "Turinys, kurį suvedate į {brand} — klientai, pasiūlymai, projektai, pjovimo darbai, komandos įrašai — yra <b>Jūsų</b>. Mes jo neparduodame ir nenaudojame jokių modelų mokymui.",
+   "Tvarkome jį tik tam, kad paslauga Jūsų labui veiktų. Kaip tvarkome asmens duomenis, aprašyta <a href=\"privacy.html\">Privatumo politikoje</a>, kuri yra šių sąlygų dalis.",
+   "Duomenis bet kada galite eksportuoti iš pačių programų. Atšaukus prenumeratą eksportuoti galite dar 30 dienų, po to darbo vietą galime ištrinti."],
+  ["7. Priimtinas naudojimas",
+   "Nenaudokite {brand} pažeisdami įstatymus, nesaugokite jame kitų asmenų duomenų be teisėto pagrindo, neatakuokite ir neperkraukite paslaugos, neperparduokite prieigos be raštiško mūsų sutikimo.",
+   "Tokius pažeidimus darantą darbo vietą galime sustabdyti — ir paaiškinsime, kodėl."],
+  ["8. Pasiekiamumas",
+   "Siekiame, kad {brand} veiktų nepertraukiamai ir gedimus taisome operatyviai, tačiau nepertraukiamo veikimo negarantuojame. Pasitaiko techninė priežiūra, trečiųjų šalių (prieglobos, mokėjimų) sutrikimai ir nenugalima jėga.",
+   "Programos veikia naršyklėje ir saugo vietinę darbo kopiją, todėl trumpas sutrikimas daržbą paprastai nenutraukia."],
+  ["9. Atsakomybė",
+   "{brand} teikiamas „toks, koks yra“. Kiek leidžia įstatymai, mūsų bendra atsakomybė per bet kurį 12 mėnesių laikotarpį ribojama Jūsų per tą laikotarpį sumokėtais mokesčiais.",
+   "Neatsakome už netiesioginį žalą — negautą pelną, prarastus užsakymus ar pakaitinės programinės įrangos kainą.",
+   "Niekas šiose sąlygose nešalina atsakomybės, kurios pagal įstatymus šalinti negalima.",
+   "<b>Įvertinimai ir pasiūlymai.</b> Offer ir Nesting programos skaičiuoja iš Jūsų suvestų duomenų ir įkainiuų. Prieš siųsdami pasiūlymą ar pjaudami medžiagą rezultatą patikrinkite — už klientui pateikiamus skaičius atsakote Jūs."],
+  ["10. Sutarties nutraukimas",
+   "Paslaugos galite atsisakyti bet kada. Mes sutartį galime nutraukti pranešę prieš 30 dienų arba nedelsiant dėl šiurkštaus ar kartotinio 7 skyriaus pažeidimo. Nutraukdami be priežasties grąžiname nepanaudotą apmokėto laikotarpio dalį."],
+  ["11. Sąlygų keitimas",
+   "Šias sąlygas galime atnaujinti. Apie esminius pakeitimus pranešime el. paštu ne vėliau kaip prieš 30 dienų; jie galios nuo kito atsinaujinimo. Toliau naudodamiesi paslauga sutinkate su naujomis sąlygomis."],
+  ["12. Taikoma teisė ir ginčai",
+   "Sutarčiai taikoma {country} teisė, ginčus sprendžia {country} teismai. Vis dėlto pirmiausia mielai išspręstume viskas el. paštu: <a href=\"mailto:{email}\">{email}</a>."],
+  ["13. Kontaktai",
+   "{company}<br>{address}<br>Įm. kodas {reg_no} · PVM {vat_no}<br><a href=\"mailto:{email}\">{email}</a>"]
+ ]}
+});
+</script>
+</body>
+</html>

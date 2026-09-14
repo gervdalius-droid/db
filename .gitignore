@@ -1,3 +1,6 @@
 build/
 .DS_Store
 supabase/.temp/
+
+# vendored Postgres-in-WASM for scripts/rls-test (18MB, fetched on demand)
+scripts/rls-test/_pglite/

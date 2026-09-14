@@ -979,6 +979,9 @@ button:disabled, .btn:disabled, .btn[disabled]{ opacity:.5; cursor:not-allowed; 
         <div class="nav-item" id="nav-backup" onclick="downloadBackup()"><span class="nav-icon">💾</span>Atsarginė kopija</div>
         <div class="nav-item" id="nav-restore" onclick="document.getElementById('backup-restore-input').click()"><span class="nav-icon">📥</span>Atkurti iš kopijos</div>
         <input type="file" id="backup-restore-input" accept=".xlsx,.json" style="display:none" onchange="importBackup(this)">
+        <div class="nav-item" id="nav-crm" onclick="openCrmHome()"><span class="nav-icon">🤝</span>CRM — klientai ↗</div>
+        <div class="nav-item" id="nav-offer" onclick="openOfferHome()"><span class="nav-icon">🧾</span>Pasiūlymų skaičiuoklė ↗</div>
+        <div class="nav-item" id="nav-invoices" onclick="openInvoicesHome()"><span class="nav-icon">💶</span>Sąskaitos faktūros ↗</div>
         <div class="nav-item" id="nav-nesting" onclick="openNestingHome()"><span class="nav-icon">📐</span>Pjovimo optimizacija ↗</div>
         <div class="nav-item" id="nav-billing" style="display:none" onclick="openBilling()"><span class="nav-icon">💳</span>Prenumerata ir atsiskaitymai</div>
       </div>
@@ -1625,6 +1628,63 @@ const SB_URL = _CFG.SUPABASE_URL || 'https://byvtqycdgboqbmpoysyt.supabase.co';
 const FABSUITE_URL = _CFG.FABSUITE_URL || 'https://gervdalius-droid.github.io/db/fabsuite';
 const NESTING_URL = _CFG.NESTING_URL || 'https://gervdalius-droid.github.io/nesting/';
 window.openNestingHome = function(){ window.open(NESTING_URL,'_blank'); };
+// Sibling CraftOS apps. Empty in a deployment that doesn't ship them, in which
+// case their sidebar entries stay hidden (see hideMissingAppLinks below).
+/* ── hand-off intake (CRM or Offer → DB) ─────────────────────────────────────
+ * The CRM opens this app with a won deal, and Offer with an accepted quote. We
+ * stash it at load and act on it once the user is actually inside the app, then
+ * strip the query so a refresh doesn't offer the same project twice.
+ *   ?from=crm|offer&project=…&client=…&value=…&deal=…&ws=…
+ * ────────────────────────────────────────────────────────────────────────── */
+let _handoff=null, _crmDealId='';
+(function(){
+  try{
+    const q=new URLSearchParams(location.search);
+    const from=q.get('from');
+    if(from!=='crm'&&from!=='offer')return;
+    _handoff={
+      from:from,
+      project:(q.get('project')||'').trim(),
+      client:(q.get('client')||'').trim(),
+      value:(q.get('value')||'').trim(),
+      dealId:(q.get('deal')||'').trim(),
+      ws:(q.get('ws')||'').trim().toUpperCase()
+    };
+    history.replaceState(null,'',location.pathname+location.hash);
+  }catch(e){}
+})();
+function consumeHandoff(){
+  if(!_handoff)return;
+  const h=_handoff; _handoff=null;
+  // Only managers/engineers can create projects; a worker just gets told.
+  const src = h.from==='offer' ? 'Offer' : 'CRM';
+  if(!(isManager()||isEngineer())){
+    toast(src+': '+(h.project||h.client||'—')+' — projektą sukurti gali vadovas','info');
+    return;
+  }
+  if(h.ws && WORKSPACE_CODE && h.ws!==WORKSPACE_CODE){
+    toast(src+' duomenys priklauso kitai darbo vietai ('+h.ws+')','error');
+    return;
+  }
+  openNewProjectModal({name:h.project||h.client||'',client:h.client||'',crmDealId:h.dealId});
+  _crmDealId=h.dealId||'';
+  toast('Perimta iš '+src+': '+(h.project||h.client||''),'success');
+}
+
+const CRM_URL      = _CFG.CRM_URL      || '';
+const OFFER_URL    = _CFG.OFFER_URL    || '';
+const INVOICES_URL = _CFG.INVOICES_URL || '';
+window.openCrmHome      = function(){ if(CRM_URL)      window.open(CRM_URL,'_blank'); };
+window.openOfferHome    = function(){ if(OFFER_URL)    window.open(OFFER_URL,'_blank'); };
+window.openInvoicesHome = function(){ if(INVOICES_URL) window.open(INVOICES_URL,'_blank'); };
+// A link to an app this deployment doesn't have is worse than no link.
+function hideMissingAppLinks(){
+  [['nav-crm',CRM_URL],['nav-offer',OFFER_URL],['nav-invoices',INVOICES_URL]].forEach(function(pair){
+    var e=document.getElementById(pair[0]);
+    if(e && !pair[1]) e.style.display='none';
+  });
+}
+document.addEventListener('DOMContentLoaded',hideMissingAppLinks);
 /* Brand: on the commercial build (BRAND_NAME set) swap the hardcoded Dėdės Baldai
    logo for a CraftOS wordmark (or _CFG.LOGO_URL). Private app keeps its logo. */
 (function(){
@@ -2317,6 +2377,7 @@ async function enterApp(){
   updateLangBtn();
   if(LANG==='en') setTimeout(i18nApply,50);
   if(_syncMode==='manual'&&!_offline) setSyncStatus('offline');
+  setTimeout(consumeHandoff,900);
   toast(_offline?'Lokalus režimas (be debesies)':'Sveiki, '+(CURRENT_USER_NAME||me?.name||'')+'!','success');
 }
 
@@ -4151,6 +4212,9 @@ const MOB_VIEWS=[
   {id:'nav-discipline', icon:'🎯', label:'Tikslai',        act:"showView('discipline')"},
   {id:'nav-import',     icon:'📥', label:'Importas',       act:"showView('import')"},
   {id:'nav-nesting',    icon:'✂️', label:'Pjovimas ↗',     act:"openNestingHome()"},
+  {id:'nav-crm',        icon:'🤝', label:'CRM ↗',           act:"openCrmHome()",   needsUrl:'CRM_URL'},
+  {id:'nav-offer',      icon:'🧾', label:'Pasiūlymai ↗',    act:"openOfferHome()", needsUrl:'OFFER_URL'},
+  {id:'nav-invoices',   icon:'💶', label:'Sąskaitos ↗',     act:"openInvoicesHome()", needsUrl:'INVOICES_URL'},
 ];
 // Which bottom-nav tab owns each view
 const MOB_TAB_FOR_VIEW={floor:'floor',projects:'projects',production:'projects',paslauga:'projects',
@@ -4190,6 +4254,13 @@ function toggleMobileGroup(key){
 }
 
 function mobViewAllowed(v){
+  // A cross-link to a sibling app this deployment doesn't ship stays hidden.
+  if(v.needsUrl){
+    var u = v.needsUrl==='CRM_URL' ? CRM_URL
+          : v.needsUrl==='OFFER_URL' ? OFFER_URL
+          : v.needsUrl==='INVOICES_URL' ? INVOICES_URL : '';
+    if(!u) return false;
+  }
   if(v.managerOnly&&!isManager())return false;
   if(v.noWorker&&!(isManager()||isEngineer()||isReadOnly()))return false;
   if(v.id==='nav-import'&&isReadOnly())return false;
@@ -9319,6 +9390,8 @@ async function createProject(fromOrderId){
     selectedSteps.forEach(s=>DB.tasks.push(makeTask(s.id,shortName,p.owner)));
   }
 
+  // Came in from a CRM deal → keep the link so the two systems stay tied.
+  if(_crmDealId){ p.crmDealId=_crmDealId; _crmDealId=''; }
   DB.projects.push(p);
   if(fromOrderId&&fromOrderId!==''){const o=(DB.orders||[]).find(x=>x.id===fromOrderId);if(o){o.status='converted';o.projectId=p.id;}}
   // If this project was created by combining several orders, mark them all converted

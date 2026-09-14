@@ -62,7 +62,7 @@ into Supabase → **Edge Functions → Deploy a new function** (like you did for
 **C2.** Set the secrets (Supabase → **Edge Functions → Manage secrets**) — paste:
 - `STRIPE_SECRET_KEY` = your `sk_test_...`
 - `STRIPE_WEBHOOK_SECRET` = (you get this in Phase D)
-- the six `PRICE_...` IDs from B3
+- the twelve `PRICE_...` IDs from B3 (six plans × month/year)
 - `FABSUITE_URL` = your shop's web address (Phase E)
 - `FABSUITE_ADMINS` = your email (so only you can use the admin console)
 - `FABSUITE_AUTH_DOMAIN` = `fabflow.app`

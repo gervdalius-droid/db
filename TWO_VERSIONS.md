@@ -4,12 +4,36 @@ You run **one codebase**, deployed **twice**. The only thing that differs is a
 small `config.js`. Never fork the code — edit here, rebuild the product.
 
 ```
-   THIS repo  (db)  ───────────────►  private app   ·  your Supabase  ·  paywall OFF  ·  "Dėdės Baldai"
+   THIS repo (db)  +  ~/github/offer        ──►  private apps · your Supabase · paywall OFF · "Dėdės Baldai"
+        │
         │  bash scripts/build-product.sh
         ▼
-   build/fabflow/   ──push──►  fabflow repo  ───────►  the product  ·  NEW Supabase  ·  paywall ON  ·  "CraftOS"
-                                                                         every customer = one workspace
+   build/fabflow/          ──push──►  repo fabflow          →  DB app + storefront + admin
+   build/fabflow-nesting/  ──push──►  repo fabflow-nesting  →  Nesting
+   build/fabflow-crm/      ──push──►  repo fabflow-crm      →  CRM
+   build/fabflow-offer/    ──push──►  repo fabflow-offer    →  Offer
+   build/fabflow-invoices/ ──push──►  repo fabflow-invoices →  Invoices
+                                        the product · NEW Supabase · paywall ON · "CraftOS"
+                                        every customer = one workspace
 ```
+
+## The five apps
+
+| App | Code | Source | What it does |
+|---|---|---|---|
+| CRM | `crm` | `crm/` | Clients, enquiries, deal pipeline. Hands a won deal to Offer or DB. |
+| Offer | `offer` | `~/github/offer` + `offer-patch/` | Cabinet costing → client-ready quotation PDF. |
+| Nesting | `nesting` | `nesting-patch/` | Cutting-plan optimisation + offcut warehouse. |
+| DB | `db` | `index.html` | The whole production flow: projects, steps, team, warehouse. |
+| Invoices | `invoices` | `~/github/invoices` + `invoices-patch/` | VAT invoices, waybills, payments and debt tracking. |
+
+They share one Supabase project and one workspace code, so a job flows
+**client → quote → project → cutting → invoice** without re-typing anything.
+
+`crm/` and `nesting-patch/` hold a full copy of their app. `offer-patch/` and
+`invoices-patch/` hold only a wrapper (`craftos.js`) — the build pulls the
+pristine app from `~/github/offer` / `~/github/invoices` and injects the
+wrapper, so upstream changes need no re-patching. See their READMEs.
 
 - **Your private app stays exactly as it is** — same URL, your data, no paywall.
 - **The product is a build of the same files** with `config.commercial.js`
@@ -26,6 +50,8 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
 | `PAYWALL_ENABLED` | `false` | `true` |
 | Brand / title | Dėdės Baldai | CraftOS |
 | Worker-email domain | `dedesbaldai.lt` / `gvs` | `fabflow.app` / `ff` |
+| Sibling app URLs | your own Pages | the `fabflow-*` repos |
+| `LEGAL` (storefront) | — | your company details on terms/privacy |
 
 `index.html` reads all of these from `window.FAB_CONFIG` (with safe fallbacks),
 so the HTML is byte-for-byte identical in both deployments.
@@ -36,10 +62,13 @@ so the HTML is byte-for-byte identical in both deployments.
    private app.
 2. When you want to ship to customers:
    ```bash
-   bash scripts/build-product.sh      # → build/fabflow/
+   bash scripts/build-product.sh              # all four
+   bash scripts/build-product.sh crm offer    # or just the ones you changed
    ```
-3. Upload the **contents** of `build/fabflow/` to the `fabflow` repo (drag-and-drop
-   in GitHub's "Add file → Upload files", or `cd build/fabflow && git push`).
+3. Push each built folder to its own repo:
+   ```bash
+   cd build/fabflow-crm && git add -A && git commit -m "Update" && git push
+   ```
 
 That's it — customers get the update, your private app is untouched.
 
@@ -95,3 +124,17 @@ after setting it: `supabase functions deploy set-worker-pin`.
 > When you productize **NESTING**, apply the same `WORKER_EMAIL_SCOPE` logic to
 > its `authEmail` so its worker logins match the DB app's (same accounts, both
 > apps).
+
+## Before you push a build
+
+```bash
+bash scripts/suite-test/run.sh      # 55 checks — the apps and the built output
+bash scripts/rls-test/run.sh        # 25 checks — migrations on a real Postgres
+bash scripts/build-product.sh       # then build
+```
+
+The suite boots each app in a headless browser and asserts the things that
+actually break in a multi-app product: the CRM → Offer → DB hand-offs, backup
+download/restore round-trips, that every app sends the signed-in user's token
+(not the publishable key), and that no Lithuanian is left in the other three
+languages. It exits non-zero on failure.

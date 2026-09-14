@@ -10,6 +10,44 @@
 <link rel="icon" type="image/png" href="../shared/craftos-favicon.png">
 <link rel="apple-touch-icon" href="../shared/craftos-icon.png">
 <script src="config.js"></script>
+<script>
+/* ── Line icons ───────────────────────────────────────────────────────────
+ * Same 24px single-stroke language as the apps themselves, so the site and the
+ * product look like one thing. Emoji read as consumer software and render
+ * differently on every OS; these do not.
+ * ──────────────────────────────────────────────────────────────────────── */
+var ICONS = {
+  crm:      '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  offer:    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
+  nesting:  '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 11h18M11 3v8M15 11v10"/>',
+  invoices: '<path d="M5 3h14v18l-2.4-1.5L14.2 21l-2.2-1.5L9.8 21l-2.4-1.5L5 21z"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>',
+  db:       '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 12h18"/>',
+  login:    '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.3"/>',
+  warehouse:'<path d="M3 21V9l9-5 9 5v12"/><rect x="8" y="13" width="8" height="8"/><path d="M8 17h8"/>',
+  cloud:    '<path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 10.5 3.75 3.75 0 0 0 6.5 19z"/><path d="M12 12v6"/><path d="M9.5 15.5 12 18l2.5-2.5"/>',
+  arrow:    '<path d="M5 12h13"/><path d="M13 6l6 6-6 6"/>',
+  bolt:     '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  shield:   '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>',
+  euro:     '<path d="M17 5.5A7 7 0 0 0 7.5 9M7.5 15A7 7 0 0 0 17 18.5"/><path d="M3.5 10.5h9M3.5 13.5h9"/>',
+  clock:    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>'
+};
+function ico(name, size){
+  var d = ICONS[name]; if(!d) return "";
+  var n = size || 22;
+  return '<svg class="ico-svg" width="'+n+'" height="'+n+'" viewBox="0 0 24 24" fill="none" '+
+    'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" '+
+    'aria-hidden="true">'+d+'</svg>';
+}
+function paintIcons(){
+  document.querySelectorAll("[data-ico]").forEach(function(el){
+    var k = el.getAttribute("data-ico");
+    if(el.getAttribute("data-painted") === k) return;
+    el.innerHTML = ico(k, Number(el.getAttribute("data-ico-size")) || 22);
+    el.setAttribute("data-painted", k);
+  });
+}
+</script>
+
 <script src="i18n.js"></script>
 </head>
 <body>
@@ -56,26 +94,88 @@
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
-      <h2 data-i18n="features.h2">Two tools. One workspace.</h2>
-      <p data-i18n="features.sub">Same logins, same warehouse, same team — across both apps.</p>
+      <h2 data-i18n="features.h2">Four tools. One workspace.</h2>
+      <p data-i18n="features.sub">Same logins, same clients, same warehouse — across all four apps.</p>
     </div>
-    <div class="grid grid-2">
-      <div class="card">
-        <div class="ico">📐</div>
+    <div class="apps">
+      <div class="card app-card">
+        <div class="ico" data-ico="crm"></div>
+        <h3 data-i18n="features.crm.h3">CRM — clients &amp; enquiries</h3>
+        <p data-i18n="features.crm.p">Every enquiry on one board, from first call to won job. Follow-ups that don't get forgotten.</p>
+      </div>
+      <div class="card app-card">
+        <div class="ico" data-ico="offer"></div>
+        <h3 data-i18n="features.offer.h3">Offer — costing &amp; quotes</h3>
+        <p data-i18n="features.offer.p">Cost a cabinet down to the hinge, then send a quotation on your own letterhead.</p>
+      </div>
+      <div class="card app-card">
+        <div class="ico" data-ico="nesting"></div>
         <h3 data-i18n="features.nesting.h3">Nesting — cutting optimization</h3>
         <p data-i18n="features.nesting.p">Automatic part layout on sheets, an offcut warehouse and material-cost reporting.</p>
       </div>
-      <div class="card">
-        <div class="ico">🏭</div>
+      <div class="card app-card">
+        <div class="ico" data-ico="db"></div>
         <h3 data-i18n="features.db.h3">DB — production management</h3>
         <p data-i18n="features.db.p">Shop-floor view, production steps, projects and orders, team roles.</p>
       </div>
+      <div class="card app-card">
+        <div class="ico" data-ico="invoices"></div>
+        <h3 data-i18n="features.invoices.h3">Invoices — billing &amp; waybills</h3>
+        <p data-i18n="features.invoices.p">VAT invoices, consignment notes and who still owes you money.</p>
+      </div>
     </div>
     <div class="grid grid-3" style="margin-top:18px">
-      <div class="card"><div class="ico">🔐</div><h3 data-i18n="features.logins.h3">One set of logins</h3><p data-i18n="features.logins.p">A worker signs in with a name and PIN.</p></div>
-      <div class="card"><div class="ico">📦</div><h3 data-i18n="features.warehouse.h3">Shared warehouse</h3><p data-i18n="features.warehouse.p">Offcuts and sheets visible in both apps in real time.</p></div>
-      <div class="card"><div class="ico">☁️</div><h3 data-i18n="features.cloud.h3">In the cloud</h3><p data-i18n="features.cloud.p">Nothing to install. Open it in a browser.</p></div>
+      <div class="card"><div class="ico" data-ico="login"></div><h3 data-i18n="features.logins.h3">One set of logins</h3><p data-i18n="features.logins.p">A worker signs in with a name and PIN.</p></div>
+      <div class="card"><div class="ico" data-ico="warehouse"></div><h3 data-i18n="features.warehouse.h3">Shared warehouse</h3><p data-i18n="features.warehouse.p">Offcuts and sheets visible across the apps in real time.</p></div>
+      <div class="card"><div class="ico" data-ico="cloud"></div><h3 data-i18n="features.cloud.h3">In the cloud</h3><p data-i18n="features.cloud.p">Nothing to install. Open it in a browser.</p></div>
     </div>
+  </div>
+</section>
+
+<!-- ══════════════ THE FLOW ══════════════ -->
+<section id="flow" style="background:var(--surface2)">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 data-i18n="flow.h2">One job, start to finish — nothing retyped</h2>
+      <p data-i18n="flow.sub">The four apps hand work to each other. A phone call becomes a quote, a quote becomes a project, a project becomes a cutting plan.</p>
+    </div>
+    <ol class="flowchain">
+      <li class="fc-step">
+        <span class="fc-ico" data-ico="crm" data-ico-size="20"></span>
+        <span class="fc-app">CRM</span>
+        <span class="fc-t" data-i18n="flow.s1.t">The enquiry lands</span>
+        <span class="fc-p" data-i18n="flow.s1.p">Client, contact and what they want — on the board with a next step and a date.</span>
+      </li>
+      <li class="fc-arrow" aria-hidden="true"></li>
+      <li class="fc-step">
+        <span class="fc-ico" data-ico="offer" data-ico-size="20"></span>
+        <span class="fc-app">Offer</span>
+        <span class="fc-t" data-i18n="flow.s2.t">Price it</span>
+        <span class="fc-p" data-i18n="flow.s2.p">The client carries over. Cost the cabinets, set your margin, send the PDF.</span>
+      </li>
+      <li class="fc-arrow" aria-hidden="true"></li>
+      <li class="fc-step">
+        <span class="fc-ico" data-ico="db" data-ico-size="20"></span>
+        <span class="fc-app">DB</span>
+        <span class="fc-t" data-i18n="flow.s3.t">Build it</span>
+        <span class="fc-p" data-i18n="flow.s3.p">An accepted quote opens a project with its steps, deadline and team already filled in.</span>
+      </li>
+      <li class="fc-arrow" aria-hidden="true"></li>
+      <li class="fc-step">
+        <span class="fc-ico" data-ico="nesting" data-ico-size="20"></span>
+        <span class="fc-app">Nesting</span>
+        <span class="fc-t" data-i18n="flow.s4.t">Cut it</span>
+        <span class="fc-p" data-i18n="flow.s4.p">Parts go straight to the saw, offcuts back to the shared warehouse.</span>
+      </li>
+      <li class="fc-arrow" aria-hidden="true"></li>
+      <li class="fc-step">
+        <span class="fc-ico" data-ico="invoices" data-ico-size="20"></span>
+        <span class="fc-app">Invoices</span>
+        <span class="fc-t" data-i18n="flow.s5.t">Bill it</span>
+        <span class="fc-p" data-i18n="flow.s5.p">The delivered job becomes a VAT invoice and a waybill — and then a payment you can chase.</span>
+      </li>
+    </ol>
+    <p class="center note" style="margin-top:26px" data-i18n="flow.foot">Use one app on its own, or the whole chain. The hand-offs only appear once you have both ends.</p>
   </div>
 </section>
 
@@ -87,7 +187,55 @@
       <p data-i18n="demo.sub">Live, in your browser — no screenshots. Sample projects, real behavior.</p>
     </div>
 
-    <!-- 1) NESTING -->
+    <!-- 1) CRM PIPELINE -->
+    <div class="shot-row demo-lg">
+      <div class="shot-txt">
+        <span class="tag" data-i18n="demo.crm.tag">CRM · Pipeline</span>
+        <h3 data-i18n="demo.crm.h3">Every enquiry, and what happens next</h3>
+        <p data-i18n="demo.crm.p">Drag a job along as it moves. Nothing sits forgotten in an inbox.</p>
+        <ul>
+          <li data-i18n="demo.crm.b1">Enquiry → measure → quoted → won, at a glance</li>
+          <li data-i18n="demo.crm.b2">A next step and a date on every deal</li>
+          <li data-i18n="demo.crm.b3">Overdue follow-ups surface on the Today screen</li>
+        </ul>
+      </div>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">crm · pipeline</span><span class="live"><span class="dot"></span><span data-i18n="demo.board.live">Live</span></span></div>
+        <div class="demo-body">
+          <div class="crm-board" id="crm-board"></div>
+          <div class="crm-foot">
+            <span class="crm-sum"><b id="crm-val">€0</b> <span data-i18n="demo.crm.value">in the pipeline</span></span>
+            <button class="btn nest-replay" id="crm-replay" type="button"><span data-i18n="demo.nesting.replay">Replay</span> ↻</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2) OFFER — COSTING -->
+    <div class="shot-row rev">
+      <div class="shot-txt">
+        <span class="tag" data-i18n="demo.offer.tag">Offer · Costing</span>
+        <h3 data-i18n="demo.offer.h3">From materials to a price you can stand behind</h3>
+        <p data-i18n="demo.offer.p">Board, edging, hardware and labour add up — then your margin and VAT on top.</p>
+        <ul>
+          <li data-i18n="demo.offer.b1">Cost each cabinet section by section</li>
+          <li data-i18n="demo.offer.b2">See exactly where the money goes before you quote</li>
+          <li data-i18n="demo.offer.b3">PDF quotation on your own letterhead</li>
+        </ul>
+      </div>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">offer · kitchen 4.2 m</span></div>
+        <div class="demo-body">
+          <div class="ladder" id="offer-ladder"></div>
+          <div class="crm-foot">
+            <span class="crm-sum"><b id="offer-m2">0.0</b> m² · <b id="offer-perm2">€0</b><span data-i18n="demo.offer.perm2">/m²</span></span>
+            <button class="btn nest-replay" id="offer-replay" type="button"><span data-i18n="demo.nesting.replay">Replay</span> ↻</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3) NESTING -->
     <div class="shot-row">
       <div class="shot-txt">
         <span class="tag" data-i18n="demo.nesting.tag">Nesting</span>
@@ -115,7 +263,7 @@
       </div>
     </div>
 
-    <!-- 2) PRODUCTION BOARD -->
+    <!-- 4) PRODUCTION BOARD -->
     <div class="shot-row rev demo-lg">
       <div class="shot-txt">
         <span class="tag" data-i18n="demo.board.tag">DB · Production</span>
@@ -135,7 +283,7 @@
       </div>
     </div>
 
-    <!-- 3) DAILY REPORT -->
+    <!-- 5) DAILY REPORT -->
     <div class="shot-row">
       <div class="shot-txt">
         <span class="tag" data-i18n="demo.report.tag">DB · Daily report</span>
@@ -157,6 +305,47 @@
           </div>
           <div class="rep-chart-head mono" data-i18n="demo.report.trend">14-day trend</div>
           <div class="rep-chart" id="rep-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6) INVOICE -->
+    <div class="shot-row rev">
+      <div class="shot-txt">
+        <span class="tag" data-i18n="demo.invoices.tag">Invoices · Billing</span>
+        <h3 data-i18n="demo.invoices.h3">The job ends with an invoice, not a spreadsheet</h3>
+        <p data-i18n="demo.invoices.p">Your numbering, your bank details and the VAT broken down by rate — everything the law asks for, on one document.</p>
+        <ul>
+          <li data-i18n="demo.invoices.b1">VAT invoices, proformas and credit notes</li>
+          <li data-i18n="demo.invoices.b2">Consignment notes with route, vehicle and driver</li>
+          <li data-i18n="demo.invoices.b3">PDF, CSV and an EN&nbsp;16931 e-invoice XML</li>
+        </ul>
+      </div>
+      <div class="demo-frame">
+        <div class="bar"><i></i><i></i><i></i><span class="bar-title mono">invoices &middot; SF 0142</span></div>
+        <div class="demo-body">
+          <div class="inv-doc">
+            <div class="inv-head">
+              <div>
+                <div class="inv-kind" data-i18n="demo.invoices.kind">VAT invoice</div>
+                <div class="inv-no mono">SF &middot; 0142</div>
+              </div>
+              <div class="inv-party">
+                <span data-i18n="demo.invoices.buyer">Buyer</span>
+                <b>UAB Vilniaus Interjeras</b>
+              </div>
+            </div>
+            <div class="inv-lines" id="inv-lines"></div>
+            <div class="inv-tot">
+              <div class="inv-row"><span data-i18n="demo.invoices.net">Net</span><b id="inv-net">&euro;0</b></div>
+              <div class="inv-row"><span data-i18n="demo.invoices.vat">VAT 21%</span><b id="inv-vat">&euro;0</b></div>
+              <div class="inv-row inv-grand"><span data-i18n="demo.invoices.total">Total</span><b id="inv-total">&euro;0</b></div>
+            </div>
+          </div>
+          <div class="crm-foot">
+            <span class="inv-chip" id="inv-status" data-state="draft" data-i18n="demo.invoices.draft">Draft</span>
+            <button class="btn nest-replay" id="inv-replay" type="button"><span data-i18n="demo.nesting.replay">Replay</span> &#8635;</button>
+          </div>
         </div>
       </div>
     </div>
@@ -240,6 +429,8 @@
       <a href="account.html" data-i18n="footer.account">My account</a>
       <a href="#pricing" data-i18n="footer.pricing">Pricing</a>
       <a id="supafoot" href="#" data-i18n="footer.help">Help</a>
+      <a href="terms.html" data-i18n="footer.terms">Terms</a>
+      <a href="privacy.html" data-i18n="footer.privacy">Privacy</a>
     </div>
   </div>
 </footer>
@@ -253,6 +444,8 @@ document.getElementById("yr").textContent = new Date().getFullYear();
 
 /* ── pricing ────────────────────────────────────────────────────────────── */
 var INTERVAL = "month";
+// Single-app plans, ordered the way a job flows: enquiry → quote → invoice → cutting → build.
+var APP_PLANS = ["crm","offer","invoices","nesting","db"];
 function planUrl(code){
   var ws = (new RegExp("[?&]ws=([^&#]*)").exec(location.search)||[])[1] || "";
   var u = "signup.html?plan="+code+"&interval="+INTERVAL;
@@ -269,27 +462,40 @@ function setBilling(i){
 function renderPlans(){
   var T = window.I18N ? I18N.t : function(k){return k;};
   var L = window.I18N ? I18N.tList : function(){return [];};
-  var order = ["nesting","suite","db"];
-  var html = order.map(function(code){
+  var per  = INTERVAL==="year" ? T("pricing.per_year") : T("pricing.per_month");
+  var unit = INTERVAL==="year" ? T("pricing.yr") : T("pricing.mo");
+
+  function card(code, hero){
     var cfg = FABSUITE.PLANS[code] || {};
     var price = INTERVAL==="year" ? cfg.year : cfg.month;
-    var per = INTERVAL==="year" ? T("pricing.per_year") : T("pricing.per_month");
-    var unit = INTERVAL==="year" ? T("pricing.yr") : T("pricing.mo");
     var feats = L("plan."+code+".f").map(function(f){return "<li>"+f+"</li>";}).join("");
     var miss  = L("plan."+code+".miss").map(function(f){return '<li class="muted">'+f+"</li>";}).join("");
-    var featured = !!cfg.featured;
-    return ''
-      + '<div class="plan'+(featured?' featured':'')+'">'
-      +   (featured?'<div class="badge">'+T("pricing.popular")+'</div>':'')
-      +   '<div class="pname">'+T("plan."+code+".name")+'</div>'
-      +   '<div class="ptag">'+T("plan."+code+".tag")+'</div>'
-      +   '<div class="price">'+FABSUITE.CURRENCY+price+' <small>/'+unit+'</small></div>'
-      +   '<div class="per">'+per+' · '+T("pricing.trial_short")+'</div>'
-      +   '<ul>'+feats+miss+'</ul>'
-      +   '<a class="btn '+(featured?'btn-primary':'')+' btn-block" href="'+planUrl(code)+'">'+T("pricing.start")+'</a>'
-      + '</div>';
-  }).join("");
-  document.getElementById("plans").innerHTML = html;
+    var cta = '<a class="btn '+(hero?"btn-primary":"")+' btn-block" href="'+planUrl(code)+'">'+T("pricing.start")+"</a>";
+    var head = ''
+      + '<div class="pname">'+T("plan."+code+".name")+'</div>'
+      + '<div class="ptag">'+T("plan."+code+".tag")+'</div>'
+      + '<div class="price">'+FABSUITE.CURRENCY+price+' <small>/'+unit+'</small></div>'
+      + '<div class="per">'+per+' · '+T("pricing.trial_short")+'</div>';
+    if(hero){
+      // How much the bundle saves against buying every app separately.
+      var sum = APP_PLANS.reduce(function(a,c){
+        var pc = FABSUITE.PLANS[c]||{}; return a + (INTERVAL==="year" ? (pc.year||0) : (pc.month||0));
+      },0);
+      var save = sum - price;
+      var saveHtml = save>0
+        ? '<div class="suite-save">'+T("pricing.save_vs").replace("{amount}", FABSUITE.CURRENCY+save+"/"+unit)+'</div>'
+        : '';
+      return '<div class="plan featured suitecard">'
+        + '<div class="badge">'+T("pricing.popular")+'</div>'
+        + '<div>'+head+saveHtml+cta+'</div>'
+        + '<ul>'+feats+'</ul>'
+        + '</div>';
+    }
+    return '<div class="plan">'+head+'<ul>'+feats+miss+'</ul>'+cta+'</div>';
+  }
+
+  document.getElementById("plans").innerHTML =
+    card("suite", true) + APP_PLANS.map(function(c){ return card(c, false); }).join("");
 }
 
 /* ══ DEMO 1 — NESTING ═════════════════════════════════════════════════════ */
@@ -418,8 +624,14 @@ function startBoard(){
 
 /* ══ COMPETITOR COMPARISON ════════════════════════════════════════════════ */
 var COMPARE = { cols:["you","sheets","nesting","erp"], rows:[
+  // Judged as market categories, not specific products — a big ERP really does
+  // have a CRM and a quoting module, so those columns say so.
+  {k:"seats",     m:["yes","yes","part","no"]},
+  {k:"clients",   m:["yes","part","no","yes"]},
+  {k:"quotes",    m:["yes","part","part","yes"]},
   {k:"nesting",   m:["yes","no","yes","part"]},
   {k:"floor",     m:["yes","part","no","yes"]},
+  {k:"invoices",  m:["yes","no","no","yes"]},
   {k:"pin",       m:["yes","no","no","part"]},
   {k:"furniture", m:["yes","part","yes","no"]},
   {k:"cloud",     m:["yes","yes","no","part"]},
@@ -467,6 +679,209 @@ function runReport(){
   }).join("");
 }
 
+/* ══ DEMO — INVOICE ═══════════════════════════════════════════════════════
+ * The document the app actually prints: numbered lines with qty · unit · price,
+ * the VAT broken out by rate, and the status the invoice moves through once it
+ * is sent. Lines drop in one by one and the totals count up with them, so the
+ * arithmetic is visible rather than asserted.
+ * ────────────────────────────────────────────────────────────────────────── */
+var INV_LINES = [
+  { k:"l1", q:1, u:"unit", p:4820 },
+  { k:"l2", q:6, u:"unit", p:145  },
+  { k:"l3", q:1, u:"unit", p:280  },
+  { k:"l4", q:2, u:"hour", p:38   }
+];
+var INV_VAT = 0.21;
+var invTimers = [];
+function invMoney(n){
+  return "€" + n.toLocaleString("lt-LT", { minimumFractionDigits:2, maximumFractionDigits:2 })
+                .replace(/[\u00a0\u202f]/g, "\u2009");
+}
+function runInvoice(){
+  var host = document.getElementById("inv-lines"); if(!host) return;
+  var T = window.I18N ? I18N.t : function(k){ return k.split(".").pop(); };
+  invTimers.forEach(clearTimeout); invTimers = [];
+  host.innerHTML = "";
+
+  var chip = document.getElementById("inv-status");
+  if(chip){ chip.setAttribute("data-state","draft"); chip.textContent = T("demo.invoices.draft"); }
+  var net = 0;
+  function paintTotals(){
+    var vat = net * INV_VAT;
+    var el;
+    if((el = document.getElementById("inv-net")))   el.textContent = invMoney(net);
+    if((el = document.getElementById("inv-vat")))   el.textContent = invMoney(vat);
+    if((el = document.getElementById("inv-total"))) el.textContent = invMoney(net + vat);
+  }
+  paintTotals();
+
+  INV_LINES.forEach(function(ln, i){
+    invTimers.push(setTimeout(function(){
+      var sum = ln.q * ln.p;
+      net += sum;
+      var row = document.createElement("div");
+      row.className = "inv-line";
+      row.innerHTML =
+        '<span class="il-n mono">' + (i+1) + '</span>' +
+        '<span class="il-t">' + T("demo.invoices." + ln.k) + '</span>' +
+        '<span class="il-q mono">' + ln.q + " " + T("demo.invoices.u." + ln.u) + '</span>' +
+        '<span class="il-p mono">' + invMoney(sum) + '</span>';
+      host.appendChild(row);
+      paintTotals();
+    }, 260 + i * 380));
+  });
+
+  // …sent, then paid — the two states the money actually passes through.
+  invTimers.push(setTimeout(function(){
+    if(chip){ chip.setAttribute("data-state","sent"); chip.textContent = T("demo.invoices.sent"); }
+  }, 260 + INV_LINES.length * 380 + 420));
+  invTimers.push(setTimeout(function(){
+    if(chip){ chip.setAttribute("data-state","paid"); chip.textContent = T("demo.invoices.paid"); }
+  }, 260 + INV_LINES.length * 380 + 1500));
+}
+
+/* ══ DEMO — CRM PIPELINE ══════════════════════════════════════════════════
+ * Mirrors the real board: the app's own stage names and colours, a per-column
+ * money total under the header, and cards laid out exactly as dealCard() does —
+ * title, client, then value · due chip · source pill.
+ * ────────────────────────────────────────────────────────────────────────── */
+var CRM_STAGES = [                       // colours copied from the app's STAGES
+  { k:"new",         c:"#6b7280" },
+  { k:"measure",     c:"#0d9488" },
+  { k:"quoted",      c:"#7c3aed" },
+  { k:"negotiation", c:"#d97706" }
+];
+var CRM_DEALS = [
+  { s:0, k:"d1", c:"c5", v:9600, due:"09-05", src:"s5", late:false },
+  { s:1, k:"d2", c:"c2", v:1950, due:"09-04", src:"s2", late:true  },
+  { s:2, k:"d3", c:"c1", v:6800, due:"09-02", src:"s1", late:true  },
+  { s:1, k:"d4", c:"c4", v:1450, due:"09-07", src:"s4", late:false },
+  { s:3, k:"d5", c:"c3", v:4200, due:"09-06", src:"s3", late:false }
+];
+var crmTimers = [];
+function crmMoney(n){
+  return "€" + n.toLocaleString("lt-LT").replace(/[\u00a0\u202f]/g, "\u2009");
+}
+function runCrm(){
+  var host = document.getElementById("crm-board"); if(!host) return;
+  crmTimers.forEach(clearTimeout); crmTimers = [];
+  var T = window.I18N ? I18N.t : function(k){ return k; };
+
+  host.innerHTML = CRM_STAGES.map(function(st){
+    return '<div class="crm-col">' +
+      '<div class="crm-h"><i style="background:'+st.c+'"></i>'+T("demo.crm.st."+st.k)+
+      '<b data-n="'+st.k+'">0</b></div>' +
+      '<div class="crm-sumline" data-sum="'+st.k+'"></div>' +
+      '<div class="crm-list" data-col="'+st.k+'"></div></div>';
+  }).join("");
+
+  var sums = {}, total = 0;
+  var val = document.getElementById("crm-val");
+  if(val) val.textContent = "€0";
+
+  CRM_DEALS.forEach(function(d, i){
+    crmTimers.push(setTimeout(function(){
+      var st = CRM_STAGES[d.s];
+      var list = host.querySelector('[data-col="'+st.k+'"]'); if(!list) return;
+      var el = document.createElement("div");
+      el.className = "crm-card";
+      el.innerHTML =
+        '<div class="t">'+T("demo.crm."+d.k)+'</div>' +
+        '<div class="c">'+ico("crm",11)+T("demo.crm."+d.c)+'</div>' +
+        '<div class="foot">' +
+          '<span class="val">'+crmMoney(d.v)+'</span>' +
+          '<span class="due'+(d.late?" late":"")+'">'+d.due+'</span>' +
+          '<span class="tagpill">'+T("demo.crm."+d.src)+'</span>' +
+        '</div>';
+      list.appendChild(el);
+      var n = host.querySelector('[data-n="'+st.k+'"]');
+      if(n) n.textContent = list.children.length;
+      sums[st.k] = (sums[st.k] || 0) + d.v;
+      var sl = host.querySelector('[data-sum="'+st.k+'"]');
+      if(sl) sl.textContent = crmMoney(sums[st.k]);
+      total += d.v;
+      if(val) val.textContent = crmMoney(total);
+    }, 300 * i + 150));
+  });
+}
+
+/* ══ DEMO — OFFER COSTING LADDER ══════════════════════════════════════════
+ * This mirrors the real app's "Nuo savikainos iki pasiūlymo" ladder: the same
+ * rows, the same running subtotals (production → labour → full cost → quote),
+ * and the same "€ 1 840,00" formatting. A trimmed selection of the real rows —
+ * the app shows every accessory line too — but nothing invented.
+ * ────────────────────────────────────────────────────────────────────────── */
+var OFFER_LADDER = [
+  { k:"cabinets",  v:2480 },
+  { k:"boards",    v:310  },
+  { k:"matMarkup", v:279  },
+  { k:"packing",   v:64   },
+  { k:"waste",     v:697  },
+  { k:"design",    v:288  },
+  { k:"production", tot:true },          // running subtotal
+  { k:"assembly",  v:320  },
+  { k:"admin",     v:412  },
+  { k:"labour",    tot:true },
+  { k:"fullCost",  tot:true },
+  { k:"margin",    pct:28 },
+  { k:"exclVat",   tot:true },
+  { k:"vat",       pct:21 },
+  { k:"inclVat",   grand:true }
+];
+var offerTimers = [];
+/* The app prints "€ 1 840,00" — euro, space, LT grouping, two decimals. */
+function eur(n){
+  var v = (Math.round(n * 100) / 100).toLocaleString("lt-LT",
+    { minimumFractionDigits:2, maximumFractionDigits:2 });
+  return "€ " + v.replace(/[\u00a0\u202f]/g, "\u2009");
+}
+function runOffer(){
+  var host = document.getElementById("offer-ladder"); if(!host) return;
+  offerTimers.forEach(clearTimeout); offerTimers = [];
+  var T = window.I18N ? I18N.t : function(k){ return k; };
+
+  // Same arithmetic the app does, in the same order.
+  var production = 0, labour = 0, vals = {};
+  OFFER_LADDER.forEach(function(r){
+    if(r.v != null){ vals[r.k] = r.v; }
+  });
+  ["cabinets","boards","matMarkup","packing","waste","design"].forEach(function(k){ production += vals[k]; });
+  ["assembly","admin"].forEach(function(k){ labour += vals[k]; });
+  var fullCost = production + labour;
+  var margin   = Math.round(fullCost * 0.28);
+  var exclVat  = fullCost + margin;
+  var vat      = Math.round(exclVat * 0.21);
+  var inclVat  = exclVat + vat;
+  var calc = { production:production, labour:labour, fullCost:fullCost,
+               margin:margin, exclVat:exclVat, vat:vat, inclVat:inclVat };
+
+  host.innerHTML = OFFER_LADDER.map(function(r){
+    var cls = r.grand ? "lr grand" : (r.tot ? "lr tot" : "lr");
+    var lab = T("demo.offer." + r.k) + (r.pct ? ' <span class="pct">(' + r.pct + "%)</span>" : "");
+    return '<div class="' + cls + '"><div class="ll">' + lab +
+           '</div><div class="lv" data-k="' + r.k + '">—</div></div>';
+  }).join("");
+
+  OFFER_LADDER.forEach(function(r, i){
+    offerTimers.push(setTimeout(function(){
+      var cell = host.querySelector('[data-k="' + r.k + '"]'); if(!cell) return;
+      var v = (r.v != null) ? r.v : calc[r.k];
+      cell.textContent = eur(v);
+      cell.classList.add("in");
+      if(r.k === "inclVat"){
+        // The strip under the ladder mirrors the app's KPI row: area, and what
+        // the job works out to per square metre — the number a shop compares.
+        var M2 = 12.4;
+        var a = document.getElementById("offer-m2");
+        var pm = document.getElementById("offer-perm2");
+        if(a) a.textContent = M2.toFixed(1);
+        if(pm) pm.textContent = eur(v / M2).replace(/,\d\d$/, "");
+      }
+    }, 190 * i + 200));
+  });
+  var pm0 = document.getElementById("offer-perm2"); if(pm0) pm0.textContent = "—";
+}
+
 /* ── run demos when scrolled into view ──────────────────────────────────── */
 function whenVisible(el, cb, once){
   if(!el) return;
@@ -479,19 +894,27 @@ function whenVisible(el, cb, once){
 
 /* ── wire everything after i18n is applied ──────────────────────────────── */
 function boot(){
+  paintIcons();
   renderPlans();
   renderBoard();
   renderCompare();
+  whenVisible(document.getElementById("crm-board"), runCrm, false);
+  whenVisible(document.getElementById("offer-ladder"), runOffer, false);
   whenVisible(document.getElementById("nest-svg"), runNesting, false);
   whenVisible(document.getElementById("board"), startBoard, true);
   whenVisible(document.getElementById("rep-chart"), runReport, false);
+  whenVisible(document.getElementById("inv-lines"), runInvoice, false);
 }
 document.addEventListener("i18n:changed", function(){
   // re-render language-dependent widgets
-  renderPlans(); renderBoard(); renderCompare();
+  renderPlans(); renderBoard(); renderCompare(); runCrm(); runOffer(); runInvoice();
 });
 var _rb = document.getElementById("nest-replay"); if(_rb) _rb.addEventListener("click", runNesting);
+var _cb = document.getElementById("crm-replay");  if(_cb) _cb.addEventListener("click", runCrm);
+var _ob = document.getElementById("offer-replay");if(_ob) _ob.addEventListener("click", runOffer);
+var _ib = document.getElementById("inv-replay");  if(_ib) _ib.addEventListener("click", runInvoice);
 if(document.readyState!=="loading") boot(); else document.addEventListener("DOMContentLoaded", boot);
 </script>
+<script src="readiness.js"></script>
 </body>
 </html>

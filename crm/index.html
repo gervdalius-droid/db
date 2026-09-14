@@ -1,0 +1,1710 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CraftOS — CRM</title>
+<link rel="icon" href="shared/craftos-favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="shared/fabsuite-license.js"></script>
+<script src="shared/craftos-backup.js"></script>
+<style>
+:root{
+  --font:'Sora',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  --bg:#f3f1ec;--surface:#fff;--surface2:#faf8f3;--surface3:#eeebe3;
+  --border:rgba(28,25,20,.07);--border2:rgba(28,25,20,.12);
+  --text:#1a1815;--muted:#5f5b53;--hint:#8b867d;
+  --blue:#2563eb;--blue-bg:#eff6ff;--blue-t:#1d4ed8;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-t:#15803d;
+  --amber:#d97706;--amber-bg:#fffbeb;--amber-t:#b45309;
+  --red:#dc2626;--red-bg:#fef2f2;--red-t:#b91c1c;
+  --purple:#7c3aed;--purple-bg:#f5f3ff;--purple-t:#6d28d9;
+  --teal:#0d9488;--teal-bg:#f0fdfa;--teal-t:#0f766e;
+  --sh:0 1px 2px rgba(28,25,20,.04),0 1px 1px rgba(28,25,20,.03);
+  --sh2:0 4px 14px -2px rgba(28,25,20,.08),0 2px 6px -1px rgba(28,25,20,.04);
+  --sh3:0 24px 48px -12px rgba(28,25,20,.18),0 8px 16px -4px rgba(28,25,20,.06);
+  --r:10px;--rl:14px;--rxl:18px;
+  --focus:0 0 0 3px rgba(37,99,235,.35);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0f0e0c;--surface:#1a1916;--surface2:#221f1b;--surface3:#2a2722;
+  --border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.11);
+  --text:#ebe8e2;--muted:#a8a399;--hint:#736e65;
+  --blue-bg:#1e2d4a;--blue-t:#93c5fd;--green-bg:#14261e;--green-t:#86efac;
+  --amber-bg:#2a1f0a;--amber-t:#fcd34d;--red-bg:#2a1010;--red-t:#fca5a5;
+  --purple-bg:#2d1f4a;--purple-t:#c4b5fd;--teal-bg:#0c2926;--teal-t:#5eead4;
+  --sh:0 1px 2px rgba(0,0,0,.3),0 1px 1px rgba(0,0,0,.2);
+  --sh2:0 4px 14px -2px rgba(0,0,0,.4),0 2px 6px -1px rgba(0,0,0,.25);
+  --sh3:0 24px 48px -12px rgba(0,0,0,.6),0 8px 16px -4px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);font-size:15px;background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;min-height:100vh}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:var(--blue-t)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--focus);border-radius:6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  background:var(--surface);border:1px solid var(--border2);color:var(--text);
+  font-size:14px;font-weight:600;padding:9px 15px;border-radius:var(--r);
+  box-shadow:var(--sh);transition:transform .1s,box-shadow .15s;white-space:nowrap}
+.btn:hover{box-shadow:var(--sh2)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-danger{background:var(--red-bg);border-color:transparent;color:var(--red-t)}
+.btn-ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted)}
+.btn-ghost:hover{background:var(--surface3);box-shadow:none}
+.btn-sm{font-size:13px;padding:6px 11px}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.5;pointer-events:none}
+
+/* ── forms ───────────────────────────────────────────────────────────────── */
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 6px}
+.inp,input[type=text],input[type=email],input[type=password],input[type=number],
+input[type=date],input[type=tel],select,textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--r);padding:10px 12px;outline:none;transition:border-color .15s}
+.inp:focus,input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:78px;line-height:1.5}
+.field{margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+
+/* ── app shell ───────────────────────────────────────────────────────────── */
+#app{display:none;min-height:100vh;grid-template-columns:236px 1fr}
+#app.on{display:grid}
+@media(max-width:900px){#app.on{grid-template-columns:1fr}}
+.side{background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 12px;gap:4px;
+  position:sticky;top:0;height:100vh;overflow-y:auto}
+@media(max-width:900px){.side{position:fixed;inset:0 auto 0 0;width:250px;z-index:60;
+  transform:translateX(-100%);transition:transform .22s;box-shadow:var(--sh3)}
+  .side.open{transform:none}}
+.brandrow{display:flex;align-items:center;gap:9px;padding:6px 8px 16px}
+.brandrow img{height:26px;width:auto}
+@media(prefers-color-scheme:dark){.brandrow img{filter:brightness(0) invert(1)}}
+.brandrow .tag{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--purple-t);background:var(--purple-bg);padding:3px 7px;border-radius:6px}
+.navlink{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--r);
+  font-size:14.5px;font-weight:500;color:var(--muted);width:100%;text-align:left}
+.navlink:hover{background:var(--surface3);color:var(--text)}
+.navlink.on{background:var(--blue-bg);color:var(--blue-t);font-weight:600}
+.navlink .ic{width:18px;text-align:center;flex-shrink:0}
+.navlink .cnt{margin-left:auto;font-size:11.5px;font-weight:700;background:var(--surface3);
+  color:var(--muted);padding:2px 7px;border-radius:999px}
+.navlink.on .cnt{background:#fff;color:var(--blue-t)}
+.side-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.whoami{display:flex;align-items:center;gap:9px;padding:8px 10px;font-size:13px;color:var(--muted)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--purple-bg);color:var(--purple-t);
+  display:grid;place-items:center;font-size:11.5px;font-weight:700;flex-shrink:0}
+.scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55}
+.scrim.on{display:block}
+@media(min-width:901px){.scrim{display:none!important}}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 22px;
+  border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:30}
+.topbar h1{font-size:19px;font-weight:600;letter-spacing:-.01em;margin-right:auto}
+.burger{display:none}
+@media(max-width:900px){.burger{display:inline-flex}.topbar{padding:12px 14px}}
+.content{padding:22px;flex:1;min-width:0}
+@media(max-width:900px){.content{padding:14px}}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--hint);display:block}
+
+/* ── cards, tables ───────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
+  box-shadow:var(--sh);padding:18px}
+.card h2{font-size:15px;font-weight:600;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
+  padding:16px 18px;box-shadow:var(--sh)}
+.stat .k{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.stat .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1.1}
+.stat .s{font-size:12.5px;color:var(--hint);margin-top:3px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--border2)}
+td{padding:11px 10px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface2)}
+.tscroll{overflow-x:auto}
+.empty{text-align:center;padding:44px 20px;color:var(--hint)}
+.empty .big{font-size:34px;margin-bottom:10px}
+.empty p{font-size:14px;margin-bottom:16px;color:var(--muted)}
+
+/* ── pipeline board ──────────────────────────────────────────────────────── */
+.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.col{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);
+  width:274px;flex-shrink:0;display:flex;flex-direction:column;
+  min-height:300px;max-height:calc(100vh - 190px)}
+.col.drop{border-color:var(--blue);background:var(--blue-bg)}
+.colhead{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.colhead .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.colhead .nm{font-size:13.5px;font-weight:600}
+.colhead .n{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--muted);
+  background:var(--surface3);padding:2px 8px;border-radius:999px}
+.colsum{padding:9px 14px 4px;font-size:12px;color:var(--muted);font-family:var(--mono);font-weight:500}
+.collist{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;min-height:60px}
+.deal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px;box-shadow:var(--sh);cursor:grab;transition:box-shadow .15s,transform .1s}
+.deal:hover{box-shadow:var(--sh2)}
+.deal.drag{opacity:.45}
+.deal .t{font-size:14px;font-weight:600;line-height:1.35;margin-bottom:5px}
+.deal .c{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px}
+.deal .foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.deal .val{font-family:var(--mono);font-size:13px;font-weight:600}
+.due{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:999px;
+  background:var(--surface3);color:var(--muted)}
+.due.soon{background:var(--amber-bg);color:var(--amber-t)}
+.due.late{background:var(--red-bg);color:var(--red-t)}
+.tagpill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
+  background:var(--surface3);color:var(--muted)}
+
+/* ── modal ───────────────────────────────────────────────────────────────── */
+.modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+  background:rgba(20,18,15,.55);backdrop-filter:blur(4px);padding:18px}
+.modal.on{display:flex}
+.sheet{background:var(--surface);border-radius:var(--rxl);box-shadow:var(--sh3);
+  width:100%;max-width:560px;max-height:92vh;overflow-y:auto}
+.sheet.wide{max-width:760px}
+.sheethead{display:flex;align-items:center;gap:12px;padding:20px 22px 0}
+.sheethead h2{font-size:18px;font-weight:600;margin-right:auto}
+.sheetbody{padding:18px 22px}
+.sheetfoot{display:flex;gap:10px;justify-content:flex-end;padding:0 22px 20px;flex-wrap:wrap}
+.x{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:18px}
+.x:hover{background:var(--surface3)}
+
+/* ── auth ────────────────────────────────────────────────────────────────── */
+#auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.authbox{width:100%;max-width:410px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rxl);box-shadow:var(--sh2);padding:30px 28px}
+.authbox .logo{display:flex;justify-content:center;margin-bottom:6px}
+.authbox .logo img{height:30px}
+@media(prefers-color-scheme:dark){.authbox .logo img{filter:brightness(0) invert(1)}}
+.authbox .kicker{text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--purple-t);margin-bottom:20px}
+.tabs{display:flex;gap:4px;background:var(--surface3);padding:4px;border-radius:var(--r);margin-bottom:20px}
+.tabs button{flex:1;padding:8px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button.on{background:var(--surface);color:var(--text);box-shadow:var(--sh)}
+.pane{display:none}.pane.on{display:block}
+.msg{font-size:13px;padding:10px 12px;border-radius:9px;margin-top:14px;display:none;line-height:1.45}
+.msg.on{display:block}
+.msg.err{background:var(--red-bg);color:var(--red-t)}
+.msg.ok{background:var(--green-bg);color:var(--green-t)}
+.authfoot{text-align:center;font-size:12.5px;color:var(--hint);margin-top:18px;line-height:1.7}
+.pindots{display:flex;gap:9px;justify-content:center;margin:14px 0}
+.pindots span{width:13px;height:13px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2)}
+.pindots span.on{background:var(--blue);border-color:var(--blue)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.pad button{padding:14px 0;border-radius:var(--r);background:var(--surface2);
+  border:1px solid var(--border2);font-size:19px;font-weight:600}
+.pad button:active{background:var(--surface3)}
+
+/* ── toast ───────────────────────────────────────────────────────────────── */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:var(--bg);font-size:14px;font-weight:500;padding:11px 18px;
+  border-radius:var(--r);box-shadow:var(--sh3);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;z-index:200;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%)}
+#toast.err{background:var(--red);color:#fff}
+#toast.ok{background:var(--green);color:#fff}
+
+/* ── misc ────────────────────────────────────────────────────────────────── */
+.rowbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.rowbar .grow{flex:1;min-width:150px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+  padding:5px 11px;border-radius:999px;background:var(--surface3);color:var(--muted)}
+.chip.on{background:var(--blue-bg);color:var(--blue-t)}
+.tl{display:flex;flex-direction:column;gap:0}
+.tlitem{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.tlitem:last-child{border-bottom:0}
+.tlicon{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface3);font-size:14px;flex-shrink:0}
+.tlbody{min-width:0;flex:1}
+.tlbody .w{font-size:12px;color:var(--hint);margin-bottom:2px}
+.tlbody .x{font-size:14px;line-height:1.5;width:auto;height:auto;display:block;color:var(--text)}
+.hint{font-size:12.5px;color:var(--hint);line-height:1.55}
+.sep{height:1px;background:var(--border);margin:16px 0}
+</style>
+</head>
+<body>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ═══════════════════════════ LOGIN ═══════════════════════════ -->
+<div id="auth">
+  <div class="authbox">
+    <div class="logo"><img src="shared/craftos-logo.png" alt="CraftOS"></div>
+    <div class="kicker">CRM</div>
+
+    <div class="tabs" role="tablist">
+      <button id="tab-mgr"  class="on" role="tab" onclick="setTab('mgr')"  data-t="auth.tab.manager">Vadovas</button>
+      <button id="tab-work"            role="tab" onclick="setTab('work')" data-t="auth.tab.worker">Darbuotojas</button>
+      <button id="tab-demo"            role="tab" onclick="setTab('demo')" data-t="auth.tab.demo">Demo</button>
+    </div>
+
+    <!-- manager: email + password -->
+    <div id="pane-mgr" class="pane on">
+      <form onsubmit="return loginManager(event)">
+        <div class="field">
+          <label for="m-email" data-t="auth.email">El. paštas</label>
+          <input id="m-email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="m-pw" data-t="auth.password">Slaptažodis</label>
+          <input id="m-pw" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" id="m-btn" type="submit" data-t="auth.signin">Prisijungti</button>
+      </form>
+      <div class="authfoot">
+        <span data-t="auth.no_account">Dar neturite darbo vietos?</span>
+        <a id="lnk-signup" href="#" data-t="auth.create">Sukurti</a>
+      </div>
+    </div>
+
+    <!-- worker: workspace + name + PIN -->
+    <div id="pane-work" class="pane">
+      <form onsubmit="return loginWorker(event)">
+        <div class="field">
+          <label for="w-ws" data-t="auth.workspace">Darbo vietos kodas</label>
+          <input id="w-ws" type="text" style="text-transform:uppercase;letter-spacing:.1em;font-weight:600" required>
+        </div>
+        <div class="field">
+          <label for="w-name" data-t="auth.name">Vardas</label>
+          <input id="w-name" type="text" autocomplete="name" required>
+        </div>
+        <label data-t="auth.pin">PIN</label>
+        <div class="pindots" id="pindots"></div>
+        <div class="pad">
+          <button type="button" onclick="pinPush(1)">1</button><button type="button" onclick="pinPush(2)">2</button><button type="button" onclick="pinPush(3)">3</button>
+          <button type="button" onclick="pinPush(4)">4</button><button type="button" onclick="pinPush(5)">5</button><button type="button" onclick="pinPush(6)">6</button>
+          <button type="button" onclick="pinPush(7)">7</button><button type="button" onclick="pinPush(8)">8</button><button type="button" onclick="pinPush(9)">9</button>
+          <button type="button" onclick="pinBack()">←</button><button type="button" onclick="pinPush(0)">0</button>
+          <button type="submit" class="btn-primary" style="background:var(--blue);color:#fff;border-color:var(--blue)">→</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- demo: local only, no backend -->
+    <div id="pane-demo" class="pane">
+      <p class="hint" style="margin-bottom:16px" data-t="auth.demo_note">
+        Išbandykite CRM su pavyzdiniais duomenimis. Viskas saugoma tik šioje naršyklėje —
+        niekas nesiunčiama į serverį.
+      </p>
+      <button class="btn btn-primary btn-block" onclick="loginDemo()" data-t="auth.demo_start">Atidaryti demo</button>
+    </div>
+
+    <div id="auth-msg" class="msg" role="alert"></div>
+
+    <div class="authfoot" style="margin-top:22px">
+      <span data-lang-pick></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ APP ═══════════════════════════ -->
+<div class="scrim" id="scrim" onclick="toggleNav(false)"></div>
+<div id="app">
+  <nav class="side" id="side" aria-label="CRM">
+    <div class="brandrow">
+      <img src="shared/craftos-logo.png" alt="CraftOS">
+      <span class="tag">CRM</span>
+    </div>
+    <button class="navlink on" data-nav="today"    onclick="go('today')"><span class="ic">☀</span><span data-t="nav.today">Šiandien</span><span class="cnt" id="cnt-today">0</span></button>
+    <button class="navlink"    data-nav="pipeline" onclick="go('pipeline')"><span class="ic">▤</span><span data-t="nav.pipeline">Sandoriai</span><span class="cnt" id="cnt-deals">0</span></button>
+    <button class="navlink"    data-nav="clients"  onclick="go('clients')"><span class="ic">☺</span><span data-t="nav.clients">Klientai</span><span class="cnt" id="cnt-clients">0</span></button>
+    <button class="navlink"    data-nav="report"   onclick="go('report')"><span class="ic">◈</span><span data-t="nav.report">Ataskaita</span></button>
+    <button class="navlink"    data-nav="settings" onclick="go('settings')"><span class="ic">⚙</span><span data-t="nav.settings">Nustatymai</span></button>
+
+    <div class="side-foot">
+      <div id="applinks" style="display:flex;flex-direction:column;gap:4px"></div>
+      <div class="whoami">
+        <span class="avatar" id="me-av">?</span>
+        <span style="min-width:0">
+          <span id="me-name" style="display:block;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <span id="me-ws" class="hint" style="font-family:var(--mono);font-size:11px"></span>
+        </span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:0 10px 6px">
+        <span class="sync" id="sync"><i></i><span></span></span>
+        <span style="margin-left:auto" data-lang-pick></span>
+      </div>
+      <button class="navlink" onclick="logout()"><span class="ic">⏻</span><span data-t="nav.logout">Atsijungti</span></button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn-ghost burger" onclick="toggleNav(true)" aria-label="Menu">☰</button>
+      <h1 id="title">—</h1>
+      <div id="actions" style="display:flex;gap:8px"></div>
+    </header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- modals get injected here -->
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+ * CraftOS CRM — clients, enquiries and the deal pipeline for a furniture shop.
+ * ────────────────────────────────────────────────────────────────────────────
+ * One file, no build step, no dependencies. Same shape as the other CraftOS
+ * apps: per-deployment settings come from config.js (window.FAB_CONFIG), data
+ * lives in the shared `fabflow` key-value table namespaced by workspace code,
+ * and the subscription gate is the shared FabsuiteLicense client.
+ * ════════════════════════════════════════════════════════════════════════════ */
+"use strict";
+
+/* ── per-deployment config ─────────────────────────────────────────────────── */
+var CFG = window.FAB_CONFIG || {};
+var SB_URL   = CFG.SUPABASE_URL || CFG.DATA_URL || '';
+var SB_KEY   = CFG.SUPABASE_ANON_KEY || CFG.DATA_ANON_KEY || '';
+var BRAND    = CFG.BRAND_NAME || 'CraftOS';
+var APP_CODE = CFG.APP_CODE || 'crm';
+var PAYWALL  = !!CFG.PAYWALL_ENABLED;
+var FABSUITE_URL = (CFG.FABSUITE_URL || '').replace(/\/+$/, '');
+var SUPPORT_EMAIL = CFG.SUPPORT_EMAIL || '';
+var AUTH_DOMAIN = CFG.AUTH_DOMAIN || 'dedesbaldai.lt';
+var WORKSHOP_CODE = CFG.WORKSHOP_CODE || 'gvs';
+var WORKER_SCOPE = CFG.WORKER_EMAIL_SCOPE || 'workshop';
+var DB_URL    = (CFG.DB_URL || '').replace(/\/+$/, '');      // the DB app, for hand-offs
+var OFFER_URL = (CFG.OFFER_URL || '').replace(/\/+$/, '');   // the Offer app, for hand-offs
+var INVOICES_URL = (CFG.INVOICES_URL || '').replace(/\/+$/, '');   // the Invoices app
+var PIN_LEN = 4, PIN_SALT = '_dedes';
+var TABLE = 'fabflow';                                        // shared key-value store
+
+/* ── i18n ──────────────────────────────────────────────────────────────────── */
+var LANGS = [{c:'lt',f:'🇱🇹',n:'Lietuvių'},{c:'en',f:'🇬🇧',n:'English'},
+             {c:'de',f:'🇩🇪',n:'Deutsch'},{c:'es',f:'🇪🇸',n:'Español'}];
+var STR = {
+lt:{
+ 'app.title':'CraftOS — CRM',
+ 'auth.tab.manager':'Vadovas','auth.tab.worker':'Darbuotojas','auth.tab.demo':'Demo',
+ 'auth.email':'El. paštas','auth.password':'Slaptažodis','auth.signin':'Prisijungti',
+ 'auth.workspace':'Darbo vietos kodas','auth.name':'Vardas','auth.pin':'PIN',
+ 'auth.no_account':'Dar neturite darbo vietos?','auth.create':'Sukurti',
+ 'auth.demo_note':'Išbandykite CRM su pavyzdiniais duomenimis. Viskas saugoma tik šioje naršyklėje — niekas nesiunčiama į serverį.',
+ 'auth.demo_start':'Atidaryti demo',
+ 'auth.bad':'Neteisingas el. paštas arba slaptažodis.','auth.bad_pin':'Neteisingas vardas arba PIN.',
+ 'auth.need_pin':'Įveskite {n} skaitmenų PIN.','auth.need_ws':'Įveskite darbo vietos kodą.',
+ 'auth.no_ws':'Šiai paskyrai nepriskirta darbo vieta. Prisijunkite prie DB programos ir susikurkite ją.',
+ 'nav.today':'Šiandien','nav.pipeline':'Sandoriai','nav.clients':'Klientai',
+ 'nav.report':'Ataskaita','nav.settings':'Nustatymai','nav.logout':'Atsijungti',
+ 'st.new':'Nauja užklausa','st.contacted':'Susisiekta','st.measure':'Matavimai',
+ 'st.quoted':'Pasiūlymas išsiųstas','st.negotiation':'Derybos','st.won':'Laimėta','st.lost':'Pralaimėta',
+ 'deal.new':'Naujas sandoris','deal.edit':'Sandoris','deal.title':'Pavadinimas',
+ 'deal.client':'Klientas','deal.value':'Vertė','deal.stage':'Etapas','deal.owner':'Atsakingas',
+ 'deal.close':'Numatoma data','deal.next':'Sekantis žingsnis','deal.next_due':'Iki kada',
+ 'deal.source':'Iš kur','deal.notes':'Pastabos','deal.lost_reason':'Kodėl pralaimėta',
+ 'deal.no_client':'— be kliento —','deal.won_at':'Laimėta','deal.activity':'Įvykiai',
+ 'deal.add_note':'Pridėti pastabą…','deal.log':'Įrašyti',
+ 'client.new':'Naujas klientas','client.edit':'Klientas','client.name':'Pavadinimas / vardas',
+ 'client.kind':'Tipas','client.company':'Įmonė','client.person':'Privatus',
+ 'client.contact':'Kontaktinis asmuo','client.phone':'Telefonas','client.email':'El. paštas',
+ 'client.address':'Adresas','client.vat':'PVM / įmonės kodas','client.notes':'Pastabos',
+ 'client.deals':'Sandoriai','client.none':'Klientų dar nėra.',
+ 'today.h':'Šiandien','today.overdue':'Pradelsta','today.due':'Šiandien ir rytoj',
+ 'today.later':'Vėliau','today.no_next':'Be sekančio žingsnio','today.clear':'Viskas padaryta 🎉',
+ 'today.clear_sub':'Nėra pradelstų ar šiandienai suplanuotų žingsnių.',
+ 'rep.pipeline':'Sandorių vertė','rep.open':'Aktyvūs sandoriai','rep.won_m':'Laimėta (30 d.)',
+ 'rep.winrate':'Laimėjimų dalis','rep.by_stage':'Pagal etapą','rep.by_source':'Pagal šaltinį',
+ 'rep.no_data':'Duomenų dar nėra.','rep.avg':'Vidutinė vertė',
+ 'set.h':'Nustatymai','set.ws':'Darbo vieta','set.sources':'Užklausų šaltiniai',
+ 'set.sources_hint':'Po vieną eilutėje. Naudojama sandorio lauke „Iš kur“.',
+ 'set.currency':'Valiuta','set.export':'Atsisiųsti duomenis (JSON)','set.import':'Įkelti duomenis',
+ 'set.import_ok':'Duomenys įkelti.','set.import_bad':'Nepavyko perskaityti failo.',
+ 'set.save':'Išsaugoti','set.danger':'Pavojinga zona','set.wipe':'Išvalyti visus CRM duomenis',
+ 'set.wipe_ask':'Ištrinti VISUS šios darbo vietos CRM duomenis? Šio veiksmo atšaukti negalima.',
+ 'act.new':'Naujas','act.search':'Paieška…','act.all':'Visi','act.save':'Išsaugoti',
+ 'act.edit':'Redaguoti','act.cancel':'Atšaukti','act.delete':'Ištrinti','act.close':'Uždaryti','act.open':'Atidaryti',
+ 'act.del_ask':'Ištrinti „{x}“?','act.saved':'Išsaugota','act.deleted':'Ištrinta',
+ 'ho.h':'Perduoti','ho.offer':'Sukurti pasiūlymą (Offer)','ho.db':'Sukurti projektą (DB)',
+ 'ho.copied':'Kliento duomenys nukopijuoti — įklijuokite naujame pasiūlyme.',
+ 'sync.online':'Debesis ✓','sync.saving':'Saugoma…','sync.local':'Lokalus','sync.error':'Klaida',
+ 'e.deals':'Sandorių dar nėra.','e.deals_sub':'Įtraukite pirmą užklausą ir stebėkite jos kelią iki laimėto darbo.',
+ 'e.saved_local':'Išsaugota tik naršyklėje (nėra ryšio).',
+ 'nb.note':'Pastaba','nb.call':'Skambutis','nb.meet':'Susitikimas','nb.email':'El. laiškas',
+ 'nb.stage':'Etapas pakeistas','nb.created':'Sukurta'
+},
+en:{
+ 'app.title':'CraftOS — CRM',
+ 'auth.tab.manager':'Manager','auth.tab.worker':'Team member','auth.tab.demo':'Demo',
+ 'auth.email':'Email','auth.password':'Password','auth.signin':'Sign in',
+ 'auth.workspace':'Workspace code','auth.name':'Name','auth.pin':'PIN',
+ 'auth.no_account':'No workspace yet?','auth.create':'Create one',
+ 'auth.demo_note':'Try the CRM with sample data. Everything stays in this browser — nothing is sent to a server.',
+ 'auth.demo_start':'Open the demo',
+ 'auth.bad':'Wrong email or password.','auth.bad_pin':'Wrong name or PIN.',
+ 'auth.need_pin':'Enter your {n}-digit PIN.','auth.need_ws':'Enter your workspace code.',
+ 'auth.no_ws':'This account has no workspace yet. Sign in to the DB app to create one.',
+ 'nav.today':'Today','nav.pipeline':'Deals','nav.clients':'Clients',
+ 'nav.report':'Report','nav.settings':'Settings','nav.logout':'Sign out',
+ 'st.new':'New enquiry','st.contacted':'Contacted','st.measure':'Measuring',
+ 'st.quoted':'Quote sent','st.negotiation':'Negotiating','st.won':'Won','st.lost':'Lost',
+ 'deal.new':'New deal','deal.edit':'Deal','deal.title':'Title',
+ 'deal.client':'Client','deal.value':'Value','deal.stage':'Stage','deal.owner':'Owner',
+ 'deal.close':'Expected close','deal.next':'Next step','deal.next_due':'Due',
+ 'deal.source':'Source','deal.notes':'Notes','deal.lost_reason':'Why it was lost',
+ 'deal.no_client':'— no client —','deal.won_at':'Won','deal.activity':'Activity',
+ 'deal.add_note':'Add a note…','deal.log':'Log',
+ 'client.new':'New client','client.edit':'Client','client.name':'Company / person',
+ 'client.kind':'Type','client.company':'Company','client.person':'Private',
+ 'client.contact':'Contact person','client.phone':'Phone','client.email':'Email',
+ 'client.address':'Address','client.vat':'VAT / company no.','client.notes':'Notes',
+ 'client.deals':'Deals','client.none':'No clients yet.',
+ 'today.h':'Today','today.overdue':'Overdue','today.due':'Today and tomorrow',
+ 'today.later':'Later','today.no_next':'No next step','today.clear':'All clear 🎉',
+ 'today.clear_sub':'Nothing overdue and nothing due today.',
+ 'rep.pipeline':'Pipeline value','rep.open':'Open deals','rep.won_m':'Won (30 days)',
+ 'rep.winrate':'Win rate','rep.by_stage':'By stage','rep.by_source':'By source',
+ 'rep.no_data':'No data yet.','rep.avg':'Average value',
+ 'set.h':'Settings','set.ws':'Workspace','set.sources':'Enquiry sources',
+ 'set.sources_hint':'One per line. Used by the deal "Source" field.',
+ 'set.currency':'Currency','set.export':'Download data (JSON)','set.import':'Import data',
+ 'set.import_ok':'Data imported.','set.import_bad':'Could not read that file.',
+ 'set.save':'Save','set.danger':'Danger zone','set.wipe':'Erase all CRM data',
+ 'set.wipe_ask':'Delete ALL CRM data for this workspace? This cannot be undone.',
+ 'act.new':'New','act.search':'Search…','act.all':'All','act.save':'Save',
+ 'act.edit':'Edit','act.cancel':'Cancel','act.delete':'Delete','act.close':'Close','act.open':'Open',
+ 'act.del_ask':'Delete "{x}"?','act.saved':'Saved','act.deleted':'Deleted',
+ 'ho.h':'Hand off','ho.offer':'Create a quote (Offer)','ho.db':'Create a project (DB)',
+ 'ho.copied':'Client details copied — paste them into the new quote.',
+ 'sync.online':'Cloud ✓','sync.saving':'Saving…','sync.local':'Local','sync.error':'Error',
+ 'e.deals':'No deals yet.','e.deals_sub':'Add your first enquiry and follow it through to a won job.',
+ 'e.saved_local':'Saved in this browser only (offline).',
+ 'nb.note':'Note','nb.call':'Call','nb.meet':'Meeting','nb.email':'Email',
+ 'nb.stage':'Stage changed','nb.created':'Created'
+},
+de:{
+ 'app.title':'CraftOS — CRM',
+ 'auth.tab.manager':'Leitung','auth.tab.worker':'Mitarbeiter','auth.tab.demo':'Demo',
+ 'auth.email':'E-Mail','auth.password':'Passwort','auth.signin':'Anmelden',
+ 'auth.workspace':'Arbeitsbereich-Code','auth.name':'Name','auth.pin':'PIN',
+ 'auth.no_account':'Noch kein Arbeitsbereich?','auth.create':'Erstellen',
+ 'auth.demo_note':'Testen Sie das CRM mit Beispieldaten. Alles bleibt in diesem Browser — nichts wird an einen Server gesendet.',
+ 'auth.demo_start':'Demo öffnen',
+ 'auth.bad':'Falsche E-Mail oder falsches Passwort.','auth.bad_pin':'Falscher Name oder falsche PIN.',
+ 'auth.need_pin':'Geben Sie Ihre {n}-stellige PIN ein.','auth.need_ws':'Geben Sie Ihren Arbeitsbereich-Code ein.',
+ 'auth.no_ws':'Dieses Konto hat noch keinen Arbeitsbereich. Melden Sie sich in der DB-App an, um einen zu erstellen.',
+ 'nav.today':'Heute','nav.pipeline':'Deals','nav.clients':'Kunden',
+ 'nav.report':'Bericht','nav.settings':'Einstellungen','nav.logout':'Abmelden',
+ 'st.new':'Neue Anfrage','st.contacted':'Kontaktiert','st.measure':'Aufmaß',
+ 'st.quoted':'Angebot gesendet','st.negotiation':'Verhandlung','st.won':'Gewonnen','st.lost':'Verloren',
+ 'deal.new':'Neuer Deal','deal.edit':'Deal','deal.title':'Titel',
+ 'deal.client':'Kunde','deal.value':'Wert','deal.stage':'Phase','deal.owner':'Zuständig',
+ 'deal.close':'Erwarteter Abschluss','deal.next':'Nächster Schritt','deal.next_due':'Fällig',
+ 'deal.source':'Quelle','deal.notes':'Notizen','deal.lost_reason':'Warum verloren',
+ 'deal.no_client':'— kein Kunde —','deal.won_at':'Gewonnen','deal.activity':'Verlauf',
+ 'deal.add_note':'Notiz hinzufügen…','deal.log':'Erfassen',
+ 'client.new':'Neuer Kunde','client.edit':'Kunde','client.name':'Firma / Person',
+ 'client.kind':'Typ','client.company':'Firma','client.person':'Privat',
+ 'client.contact':'Ansprechpartner','client.phone':'Telefon','client.email':'E-Mail',
+ 'client.address':'Adresse','client.vat':'USt-IdNr. / Firmennr.','client.notes':'Notizen',
+ 'client.deals':'Deals','client.none':'Noch keine Kunden.',
+ 'today.h':'Heute','today.overdue':'Überfällig','today.due':'Heute und morgen',
+ 'today.later':'Später','today.no_next':'Kein nächster Schritt','today.clear':'Alles erledigt 🎉',
+ 'today.clear_sub':'Nichts überfällig und nichts für heute geplant.',
+ 'rep.pipeline':'Pipeline-Wert','rep.open':'Offene Deals','rep.won_m':'Gewonnen (30 Tage)',
+ 'rep.winrate':'Gewinnquote','rep.by_stage':'Nach Phase','rep.by_source':'Nach Quelle',
+ 'rep.no_data':'Noch keine Daten.','rep.avg':'Durchschnittswert',
+ 'set.h':'Einstellungen','set.ws':'Arbeitsbereich','set.sources':'Anfragequellen',
+ 'set.sources_hint':'Eine pro Zeile. Wird im Deal-Feld „Quelle“ verwendet.',
+ 'set.currency':'Währung','set.export':'Daten herunterladen (JSON)','set.import':'Daten importieren',
+ 'set.import_ok':'Daten importiert.','set.import_bad':'Datei konnte nicht gelesen werden.',
+ 'set.save':'Speichern','set.danger':'Gefahrenzone','set.wipe':'Alle CRM-Daten löschen',
+ 'set.wipe_ask':'ALLE CRM-Daten dieses Arbeitsbereichs löschen? Das kann nicht rückgängig gemacht werden.',
+ 'act.new':'Neu','act.search':'Suchen…','act.all':'Alle','act.save':'Speichern',
+ 'act.edit':'Bearbeiten','act.cancel':'Abbrechen','act.delete':'Löschen','act.close':'Schließen','act.open':'Öffnen',
+ 'act.del_ask':'„{x}“ löschen?','act.saved':'Gespeichert','act.deleted':'Gelöscht',
+ 'ho.h':'Übergeben','ho.offer':'Angebot erstellen (Offer)','ho.db':'Projekt erstellen (DB)',
+ 'ho.copied':'Kundendaten kopiert — im neuen Angebot einfügen.',
+ 'sync.online':'Cloud ✓','sync.saving':'Speichern…','sync.local':'Lokal','sync.error':'Fehler',
+ 'e.deals':'Noch keine Deals.','e.deals_sub':'Erfassen Sie die erste Anfrage und verfolgen Sie sie bis zum gewonnenen Auftrag.',
+ 'e.saved_local':'Nur in diesem Browser gespeichert (offline).',
+ 'nb.note':'Notiz','nb.call':'Anruf','nb.meet':'Termin','nb.email':'E-Mail',
+ 'nb.stage':'Phase geändert','nb.created':'Erstellt'
+},
+es:{
+ 'app.title':'CraftOS — CRM',
+ 'auth.tab.manager':'Responsable','auth.tab.worker':'Miembro del equipo','auth.tab.demo':'Demo',
+ 'auth.email':'Email','auth.password':'Contraseña','auth.signin':'Entrar',
+ 'auth.workspace':'Código del espacio','auth.name':'Nombre','auth.pin':'PIN',
+ 'auth.no_account':'¿Aún no tienes espacio de trabajo?','auth.create':'Crear uno',
+ 'auth.demo_note':'Prueba el CRM con datos de ejemplo. Todo se queda en este navegador — nada se envía a un servidor.',
+ 'auth.demo_start':'Abrir la demo',
+ 'auth.bad':'Email o contraseña incorrectos.','auth.bad_pin':'Nombre o PIN incorrectos.',
+ 'auth.need_pin':'Introduce tu PIN de {n} dígitos.','auth.need_ws':'Introduce el código del espacio.',
+ 'auth.no_ws':'Esta cuenta aún no tiene espacio de trabajo. Entra en la app DB para crear uno.',
+ 'nav.today':'Hoy','nav.pipeline':'Tratos','nav.clients':'Clientes',
+ 'nav.report':'Informe','nav.settings':'Ajustes','nav.logout':'Salir',
+ 'st.new':'Nueva consulta','st.contacted':'Contactado','st.measure':'Medición',
+ 'st.quoted':'Presupuesto enviado','st.negotiation':'Negociación','st.won':'Ganado','st.lost':'Perdido',
+ 'deal.new':'Nuevo trato','deal.edit':'Trato','deal.title':'Título',
+ 'deal.client':'Cliente','deal.value':'Valor','deal.stage':'Etapa','deal.owner':'Responsable',
+ 'deal.close':'Cierre previsto','deal.next':'Siguiente paso','deal.next_due':'Para',
+ 'deal.source':'Origen','deal.notes':'Notas','deal.lost_reason':'Por qué se perdió',
+ 'deal.no_client':'— sin cliente —','deal.won_at':'Ganado','deal.activity':'Actividad',
+ 'deal.add_note':'Añadir una nota…','deal.log':'Registrar',
+ 'client.new':'Nuevo cliente','client.edit':'Cliente','client.name':'Empresa / persona',
+ 'client.kind':'Tipo','client.company':'Empresa','client.person':'Particular',
+ 'client.contact':'Persona de contacto','client.phone':'Teléfono','client.email':'Email',
+ 'client.address':'Dirección','client.vat':'NIF / CIF','client.notes':'Notas',
+ 'client.deals':'Tratos','client.none':'Aún no hay clientes.',
+ 'today.h':'Hoy','today.overdue':'Atrasado','today.due':'Hoy y mañana',
+ 'today.later':'Más adelante','today.no_next':'Sin siguiente paso','today.clear':'Todo al día 🎉',
+ 'today.clear_sub':'Nada atrasado ni previsto para hoy.',
+ 'rep.pipeline':'Valor del embudo','rep.open':'Tratos abiertos','rep.won_m':'Ganado (30 días)',
+ 'rep.winrate':'Tasa de éxito','rep.by_stage':'Por etapa','rep.by_source':'Por origen',
+ 'rep.no_data':'Aún no hay datos.','rep.avg':'Valor medio',
+ 'set.h':'Ajustes','set.ws':'Espacio de trabajo','set.sources':'Orígenes de consultas',
+ 'set.sources_hint':'Uno por línea. Se usa en el campo «Origen» del trato.',
+ 'set.currency':'Moneda','set.export':'Descargar datos (JSON)','set.import':'Importar datos',
+ 'set.import_ok':'Datos importados.','set.import_bad':'No se pudo leer el archivo.',
+ 'set.save':'Guardar','set.danger':'Zona de peligro','set.wipe':'Borrar todos los datos del CRM',
+ 'set.wipe_ask':'¿Borrar TODOS los datos del CRM de este espacio? No se puede deshacer.',
+ 'act.new':'Nuevo','act.search':'Buscar…','act.all':'Todos','act.save':'Guardar',
+ 'act.edit':'Editar','act.cancel':'Cancelar','act.delete':'Borrar','act.close':'Cerrar','act.open':'Abrir',
+ 'act.del_ask':'¿Borrar «{x}»?','act.saved':'Guardado','act.deleted':'Borrado',
+ 'ho.h':'Traspasar','ho.offer':'Crear presupuesto (Offer)','ho.db':'Crear proyecto (DB)',
+ 'ho.copied':'Datos del cliente copiados — pégalos en el nuevo presupuesto.',
+ 'sync.online':'Nube ✓','sync.saving':'Guardando…','sync.local':'Local','sync.error':'Error',
+ 'e.deals':'Aún no hay tratos.','e.deals_sub':'Añade tu primera consulta y síguela hasta el trabajo ganado.',
+ 'e.saved_local':'Guardado solo en este navegador (sin conexión).',
+ 'nb.note':'Nota','nb.call':'Llamada','nb.meet':'Reunión','nb.email':'Email',
+ 'nb.stage':'Etapa cambiada','nb.created':'Creado'
+}};
+
+var LANG = 'lt';
+function detectLang(){
+  try{ var v=localStorage.getItem('fab_lang'); if(STR[v]) return v; }catch(e){}
+  var b=String((navigator.language||'')).toLowerCase();
+  if(b.indexOf('lt')===0)return 'lt';
+  if(b.indexOf('de')===0)return 'de';
+  if(b.indexOf('es')===0)return 'es';
+  return 'en';
+}
+function T(k,vars){
+  var s=(STR[LANG]&&STR[LANG][k]);
+  if(s==null)s=STR.en[k];
+  if(s==null)return k;
+  if(vars)s=s.replace(/\{(\w+)\}/g,function(m,x){return vars[x]!=null?vars[x]:m;});
+  return s;
+}
+function setLang(c){
+  if(!STR[c])return;
+  LANG=c;
+  try{localStorage.setItem('fab_lang',c);}catch(e){}
+  document.documentElement.lang=c;
+  applyT();
+  mountLangPickers();
+  // In the demo the data itself is sample copy, so it follows the language too.
+  if(OFFLINE && WS==='DEMO'){ D=demoData(); saveLocal(); }
+  if(document.getElementById('app').classList.contains('on'))render();
+}
+function applyT(){
+  document.title=T('app.title');
+  document.querySelectorAll('[data-t]').forEach(function(el){
+    el.textContent=T(el.getAttribute('data-t'));
+  });
+  document.querySelectorAll('[data-tph]').forEach(function(el){
+    el.setAttribute('placeholder',T(el.getAttribute('data-tph')));
+  });
+}
+function mountLangPickers(){
+  document.querySelectorAll('[data-lang-pick]').forEach(function(host){
+    host.innerHTML=LANGS.map(function(l){
+      return '<button class="chip'+(l.c===LANG?' on':'')+'" style="padding:3px 8px;font-size:11.5px" '+
+             'onclick="setLang(\''+l.c+'\')" title="'+l.n+'">'+l.f+' '+l.c.toUpperCase()+'</button>';
+    }).join(' ');
+  });
+}
+</script>
+
+<script>
+/* ── state ─────────────────────────────────────────────────────────────────── */
+var STAGES = [
+  {id:'new',         color:'#6b7280'},
+  {id:'contacted',   color:'#2563eb'},
+  {id:'measure',     color:'#0d9488'},
+  {id:'quoted',      color:'#7c3aed'},
+  {id:'negotiation', color:'#d97706'},
+  {id:'won',         color:'#16a34a'},
+  {id:'lost',        color:'#dc2626'}
+];
+var OPEN_STAGES = ['new','contacted','measure','quoted','negotiation'];
+function stageName(id){ return T('st.'+id); }
+function stageColor(id){ var s=STAGES.filter(function(x){return x.id===id;})[0]; return s?s.color:'#6b7280'; }
+
+// A new workspace starts with sources in its own language; the workshop edits
+// them in Settings afterwards.
+var SOURCES={
+  lt:['Rekomendacija','Facebook','Google','Paroda','Senas klientas'],
+  en:['Referral','Facebook','Google','Trade fair','Returning client'],
+  de:['Empfehlung','Facebook','Google','Messe','Bestandskunde'],
+  es:['Recomendación','Facebook','Google','Feria','Cliente habitual']
+};
+function defaultSources(){ return (SOURCES[LANG]||SOURCES.en).slice(); }
+
+function blank(){
+  return {
+    clients:[], deals:[], acts:[],
+    settings:{ currency:'€', sources:defaultSources() },
+    v:1
+  };
+}
+var D = blank();
+var WS = '';                 // workspace code
+var ME = { name:'', role:'manager', id:'' };
+var TOKEN = null, REFRESH = null, TOK_EXP = 0;
+var OFFLINE = false;         // demo / no-cloud mode
+var VIEW = 'today';
+var FILTER = { q:'', stage:'' };
+var _saveTimer = null, _dirty = false;
+
+var LS_TOK  = 'craftos_crm_tok';
+var LS_DATA = 'craftos_crm_data';    // + ':' + WS
+
+/* ── tiny helpers ──────────────────────────────────────────────────────────── */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function el(id){ return document.getElementById(id); }
+function toast(msg,kind){
+  var t=el('toast'); t.textContent=msg; t.className='on'+(kind?' '+kind:'');
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.className=''; },2600);
+}
+var _LOC={lt:'lt-LT',en:'en-GB',de:'de-DE',es:'es-ES'};
+function money(n){
+  var v=Math.round(Number(n)||0);
+  var g;
+  try{ g=new Intl.NumberFormat(_LOC[LANG]||'en-GB',{maximumFractionDigits:0}).format(v); }
+  catch(e){ g=String(v); }
+  // NBSP / narrow-NBSP group separators render as a very wide gap in Sora.
+  return (D.settings.currency||'\u20ac')+g.replace(/[\u00a0\u202f]/g,'\u2009');
+}
+function today(){ var d=new Date(); return d.toISOString().slice(0,10); }
+function addDays(iso,n){ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function dayDiff(iso){
+  if(!iso) return null;
+  var a=new Date(iso+'T00:00:00'), b=new Date(today()+'T00:00:00');
+  return Math.round((a-b)/86400000);
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  try{ return new Date(iso+'T00:00:00').toLocaleDateString(LANG==='lt'?'lt-LT':LANG,{day:'2-digit',month:'short'}); }
+  catch(e){ return iso; }
+}
+function fmtWhen(ts){
+  try{ return new Date(ts).toLocaleString(LANG==='lt'?'lt-LT':LANG,
+    {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; }
+}
+function initials(s){
+  return String(s||'?').trim().split(/\s+/).map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()||'?';
+}
+function slug(s){
+  var m={'ą':'a','č':'c','ę':'e','ė':'e','į':'i','š':'s','ų':'u','ū':'u','ž':'z'};
+  return String(s||'').trim().toLowerCase().replace(/[ąčęėįšųūž]/g,function(c){return m[c]||c;})
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function clientOf(id){ return D.clients.filter(function(c){return c.id===id;})[0]||null; }
+function clientName(id){ var c=clientOf(id); return c?c.name:''; }
+
+/* ── Supabase key-value store (same `fabflow` table the DB app uses) ───────── */
+function sbHeaders(){
+  return { 'apikey':SB_KEY, 'Authorization':'Bearer '+(TOKEN||SB_KEY),
+           'Content-Type':'application/json', 'Prefer':'return=minimal' };
+}
+function dataKey(){ return 'fab_'+WS+'_crm'; }
+
+async function sbRead(key){
+  var r=await fetch(SB_URL+'/rest/v1/'+TABLE+'?key=eq.'+encodeURIComponent(key)+'&select=value',
+    {headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(TOKEN||SB_KEY)}});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  var rows=await r.json();
+  return rows.length?rows[0].value:null;
+}
+async function sbWrite(key,value){
+  var r=await fetch(SB_URL+'/rest/v1/'+TABLE+'?on_conflict=key',{
+    method:'POST', headers:Object.assign(sbHeaders(),{'Prefer':'resolution=merge-duplicates'}),
+    body:JSON.stringify({key:key,value:value,updated_at:new Date().toISOString()})
+  });
+  if(!r.ok) throw new Error('HTTP '+r.status);
+}
+
+/* ── load / save ───────────────────────────────────────────────────────────── */
+function localKey(){ return LS_DATA+':'+(WS||'LOCAL'); }
+function saveLocal(){ try{ localStorage.setItem(localKey(),JSON.stringify(D)); }catch(e){} }
+function loadLocal(){
+  try{ var v=localStorage.getItem(localKey()); if(!v) return false;
+       var o=JSON.parse(v); if(o&&o.deals){ D=normalize(o); return true; } }catch(e){}
+  return false;
+}
+function normalize(o){
+  var b=blank();
+  b.clients=Array.isArray(o.clients)?o.clients:[];
+  b.deals=Array.isArray(o.deals)?o.deals:[];
+  b.acts=Array.isArray(o.acts)?o.acts:[];
+  if(o.settings){
+    b.settings.currency=o.settings.currency||b.settings.currency;
+    if(Array.isArray(o.settings.sources)&&o.settings.sources.length)b.settings.sources=o.settings.sources;
+  }
+  // Drop anything that lost its stage in an old export.
+  b.deals.forEach(function(d){ if(OPEN_STAGES.concat(['won','lost']).indexOf(d.stage)<0) d.stage='new'; });
+  return b;
+}
+
+async function loadData(){
+  saveLocal.__suspend=true;
+  var got=loadLocal();          // show something immediately
+  if(!OFFLINE){
+    try{
+      setSync('saving');
+      var raw=await sbRead(dataKey());
+      if(raw){ D=normalize(JSON.parse(raw)); saveLocal(); }
+      else if(!got){ D=blank(); }
+      setSync('online');
+    }catch(e){
+      console.warn('CRM load failed:',e&&e.message);
+      setSync('error');
+    }
+  } else setSync('local');
+  saveLocal.__suspend=false;
+  return true;
+}
+function touch(){
+  _dirty=true; saveLocal();
+  if(OFFLINE){ setSync('local'); return; }
+  clearTimeout(_saveTimer);
+  setSync('saving');
+  _saveTimer=setTimeout(flush,700);
+}
+async function flush(){
+  if(!_dirty||OFFLINE) return;
+  try{
+    await sbWrite(dataKey(),JSON.stringify(D));
+    _dirty=false; setSync('online');
+  }catch(e){
+    console.warn('CRM save failed:',e&&e.message);
+    setSync('error');
+  }
+}
+window.addEventListener('beforeunload',function(){ if(_dirty&&!OFFLINE) flush(); });
+
+function setSync(s){
+  var host=el('sync'); if(!host) return;
+  var map={online:['#16a34a','sync.online'],saving:['#d97706','sync.saving'],
+           local:['#8b867d','sync.local'],error:['#dc2626','sync.error']};
+  var m=map[s]||map.local;
+  host.querySelector('i').style.background=m[0];
+  host.querySelector('span').textContent=T(m[1]);
+}
+
+/* ── activity log ──────────────────────────────────────────────────────────── */
+function logAct(dealId,type,text){
+  D.acts.unshift({id:uid(),dealId:dealId,type:type,text:text||'',by:ME.name,at:Date.now()});
+  if(D.acts.length>4000) D.acts.length=4000;
+}
+function actsOf(dealId){ return D.acts.filter(function(a){return a.dealId===dealId;}); }
+</script>
+
+<script>
+/* ── auth ──────────────────────────────────────────────────────────────────── */
+function authMsg(text,kind){
+  var m=el('auth-msg');
+  if(!text){ m.className='msg'; m.textContent=''; return; }
+  m.className='msg on '+(kind||'err'); m.textContent=text;
+}
+function setTab(t){
+  ['mgr','work','demo'].forEach(function(x){
+    el('tab-'+x).classList.toggle('on',x===t);
+    el('pane-'+x).classList.toggle('on',x===t);
+  });
+  authMsg('');
+}
+var _pin='';
+function pinRender(){
+  var h=''; for(var i=0;i<PIN_LEN;i++) h+='<span class="'+(i<_pin.length?'on':'')+'"></span>';
+  el('pindots').innerHTML=h;
+}
+function pinPush(n){ if(_pin.length<PIN_LEN){ _pin+=String(n); pinRender(); } }
+function pinBack(){ _pin=_pin.slice(0,-1); pinRender(); }
+
+function saveTok(a,r,exp){
+  TOKEN=a; REFRESH=r; TOK_EXP=exp;
+  try{ localStorage.setItem(LS_TOK,JSON.stringify({a:a,r:r,e:exp,ws:WS,n:ME.name,ro:ME.role,id:ME.id})); }catch(e){}
+}
+function clearTok(){
+  TOKEN=REFRESH=null; TOK_EXP=0;
+  try{ localStorage.removeItem(LS_TOK); }catch(e){}
+}
+function loadTok(){ try{ return JSON.parse(localStorage.getItem(LS_TOK)||'null'); }catch(e){ return null; } }
+
+async function sbPassword(email,pw){
+  var r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{
+    method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({email:email,password:pw})});
+  return r.json();
+}
+async function sbRefreshTok(rt){
+  var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{
+    method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({refresh_token:rt})});
+  return r.json();
+}
+function startRefreshTimer(){
+  setInterval(async function(){
+    if(OFFLINE||!REFRESH) return;
+    if(TOK_EXP && TOK_EXP < Date.now()+120000){
+      var d=await sbRefreshTok(REFRESH).catch(function(){return {};});
+      if(d.access_token) saveTok(d.access_token,d.refresh_token||REFRESH,Date.now()+((d.expires_in||3600)*1000));
+    }
+  },60000);
+}
+
+// A manager's workspace code lives in the profile row the DB app / register-org
+// writes: fab_admin_<uid> → {workspaceCode, name, role}.
+async function workspaceOfUser(uid_){
+  try{
+    var raw=await sbRead('fab_admin_'+uid_);
+    if(!raw) return null;
+    var p=JSON.parse(raw);
+    return p&&p.workspaceCode ? {code:String(p.workspaceCode).toUpperCase(),name:p.name||'',role:p.role||'manager'} : null;
+  }catch(e){ return null; }
+}
+
+async function loginManager(ev){
+  ev.preventDefault();
+  if(!SB_URL||!SB_KEY){ authMsg('Supabase not configured (config.js).'); return false; }
+  var btn=el('m-btn'); btn.disabled=true; authMsg('');
+  try{
+    var email=el('m-email').value.trim(), pw=el('m-pw').value;
+    var d=await sbPassword(email,pw);
+    if(!d.access_token){ authMsg(T('auth.bad')); return false; }
+    TOKEN=d.access_token; REFRESH=d.refresh_token; TOK_EXP=Date.now()+((d.expires_in||3600)*1000);
+    var uidv=(d.user&&d.user.id)||'';
+    var prof=await workspaceOfUser(uidv);
+    if(!prof){ authMsg(T('auth.no_ws')); clearTok(); return false; }
+    WS=prof.code; ME={name:prof.name||email.split('@')[0],role:prof.role||'manager',id:uidv};
+    saveTok(TOKEN,REFRESH,TOK_EXP);
+    await enter();
+  }catch(e){ authMsg(String(e&&e.message||e)); }
+  finally{ btn.disabled=false; }
+  return false;
+}
+
+async function loginWorker(ev){
+  ev.preventDefault();
+  if(!SB_URL||!SB_KEY){ authMsg('Supabase not configured (config.js).'); return false; }
+  var ws=(el('w-ws').value||'').trim().toUpperCase();
+  var name=(el('w-name').value||'').trim();
+  if(!ws){ authMsg(T('auth.need_ws')); return false; }
+  if(_pin.length<PIN_LEN){ authMsg(T('auth.need_pin',{n:PIN_LEN})); return false; }
+  authMsg('');
+  var ns=(WORKER_SCOPE==='workspace')?ws:WORKSHOP_CODE;
+  var email=slug(name)+'.'+slug(ns)+'@'+AUTH_DOMAIN;
+  try{
+    var d=await sbPassword(email,String(_pin)+PIN_SALT);
+    if(!d.access_token){ authMsg(T('auth.bad_pin')); _pin=''; pinRender(); return false; }
+    TOKEN=d.access_token; REFRESH=d.refresh_token; TOK_EXP=Date.now()+((d.expires_in||3600)*1000);
+    WS=ws; ME={name:name,role:'worker',id:(d.user&&d.user.id)||''};
+    saveTok(TOKEN,REFRESH,TOK_EXP);
+    _pin=''; pinRender();
+    await enter();
+  }catch(e){ authMsg(String(e&&e.message||e)); }
+  return false;
+}
+
+function loginDemo(){
+  OFFLINE=true; WS='DEMO'; ME={name:'Demo',role:'manager',id:'demo'};
+  if(!loadLocal()) { D=demoData(); saveLocal(); }
+  enter();
+}
+
+async function logout(){
+  if(!confirm(T('nav.logout')+'?')) return;
+  await flush();
+  if(TOKEN){ try{ await fetch(SB_URL+'/auth/v1/logout',{method:'POST',
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+TOKEN}}); }catch(e){} }
+  clearTok(); location.reload();
+}
+
+/* ── subscription gate ─────────────────────────────────────────────────────── */
+async function gate(){
+  if(!PAYWALL || OFFLINE || !WS || WS==='LOCAL' || !window.FabsuiteLicense) return true;
+  try{
+    FabsuiteLicense.config({supabaseUrl:SB_URL,anonKey:SB_KEY,fabsuiteUrl:FABSUITE_URL,
+      app:APP_CODE,brand:BRAND,supportEmail:SUPPORT_EMAIL,lang:LANG});
+    return await FabsuiteLicense.gate({workspaceCode:WS,token:TOKEN,onSignOut:function(){ clearTok(); location.reload(); }});
+  }catch(e){ console.warn('gate (non-fatal):',e&&e.message); return true; }
+}
+
+/* ── entering the app ──────────────────────────────────────────────────────── */
+async function enter(){
+  var ok=await gate();
+  if(!ok){ el('auth').style.display='none'; return; }
+  el('auth').style.display='none';
+  el('app').classList.add('on');
+  el('me-name').textContent=ME.name||'';
+  el('me-ws').textContent=WS;
+  el('me-av').textContent=initials(ME.name);
+  buildAppLinks();
+  initBackup();
+  await loadData();
+  if(!OFFLINE) startRefreshTimer();
+  go(VIEW);
+  if(window.CraftOSBackup) setTimeout(CraftOSBackup.checkDaily, 3000);
+}
+
+// Cross-links to the other CraftOS apps, when this deployment knows their URLs.
+function buildAppLinks(){
+  var host=el('applinks'); if(!host) return;
+  var links=[];
+  if(OFFER_URL) links.push(['Offer','◇',OFFER_URL]);
+  if(DB_URL)    links.push(['DB','▦',DB_URL]);
+  if(INVOICES_URL) links.push(['Invoices','€',INVOICES_URL]);
+  host.innerHTML=links.map(function(l){
+    return '<a class="navlink" href="'+esc(l[2])+'" target="_blank" rel="noopener">'+
+           '<span class="ic">'+l[1]+'</span><span>'+esc(l[0])+'</span>'+
+           '<span class="cnt" style="background:transparent">↗</span></a>';
+  }).join('');
+}
+
+/* ── restore a stored session on load ──────────────────────────────────────── */
+async function boot(){
+  LANG=detectLang();
+  document.documentElement.lang=LANG;
+  applyT(); mountLangPickers(); pinRender();
+  if(FABSUITE_URL) el('lnk-signup').href=FABSUITE_URL+'/index.html#pricing';
+  else el('lnk-signup').style.display='none';
+
+  // ?demo=1 opens the sample workspace straight away (used by the storefront
+  // "try it" link and by the headless test pass).
+  if(/[?&]demo=1/.test(location.search)){ loginDemo(); return; }
+
+  var t=loadTok();
+  if(t&&t.a&&t.ws){
+    TOKEN=t.a; REFRESH=t.r; TOK_EXP=t.e||0; WS=t.ws;
+    ME={name:t.n||'',role:t.ro||'manager',id:t.id||''};
+    if(TOK_EXP && TOK_EXP < Date.now()+30000 && REFRESH){
+      var d=await sbRefreshTok(REFRESH).catch(function(){return {};});
+      if(d.access_token) saveTok(d.access_token,d.refresh_token||REFRESH,Date.now()+((d.expires_in||3600)*1000));
+      else { clearTok(); return; }
+    }
+    await enter();
+  }
+}
+document.addEventListener('keydown',function(e){
+  if(el('app').classList.contains('on')) return;
+  if(!el('pane-work').classList.contains('on')) return;
+  if(e.key>='0'&&e.key<='9'){ pinPush(e.key); }
+  else if(e.key==='Backspace'&&document.activeElement&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); pinBack(); }
+});
+</script>
+
+<script>
+/* ── router ────────────────────────────────────────────────────────────────── */
+function go(v){
+  VIEW=v;
+  document.querySelectorAll('[data-nav]').forEach(function(b){
+    b.classList.toggle('on',b.getAttribute('data-nav')===v);
+  });
+  toggleNav(false);
+  render();
+}
+function toggleNav(open){
+  el('side').classList.toggle('open',!!open);
+  el('scrim').classList.toggle('on',!!open);
+}
+function render(){
+  applyT(); mountLangPickers(); refreshCounts();
+  var titles={today:'today.h',pipeline:'nav.pipeline',clients:'nav.clients',report:'nav.report',settings:'set.h'};
+  el('title').textContent=T(titles[VIEW]||'app.title');
+  el('actions').innerHTML=viewActions();
+  var c=el('content');
+  if(VIEW==='today')         c.innerHTML=viewToday();
+  else if(VIEW==='pipeline'){c.innerHTML=viewPipeline(); wireBoard();}
+  else if(VIEW==='clients')  c.innerHTML=viewClients();
+  else if(VIEW==='report')   c.innerHTML=viewReport();
+  else                       c.innerHTML=viewSettings();
+}
+function refreshCounts(){
+  var open=D.deals.filter(function(d){return OPEN_STAGES.indexOf(d.stage)>=0;});
+  el('cnt-deals').textContent=open.length;
+  el('cnt-clients').textContent=D.clients.length;
+  var due=open.filter(function(d){ var k=dayDiff(d.nextDue); return k!=null&&k<=0; });
+  el('cnt-today').textContent=due.length;
+}
+function viewActions(){
+  if(VIEW==='pipeline') return '<button class="btn btn-primary btn-sm" onclick="editDeal()">+ '+esc(T('deal.new'))+'</button>';
+  if(VIEW==='clients')  return '<button class="btn btn-primary btn-sm" onclick="editClient()">+ '+esc(T('client.new'))+'</button>';
+  if(VIEW==='today')    return '<button class="btn btn-primary btn-sm" onclick="editDeal()">+ '+esc(T('deal.new'))+'</button>';
+  return '';
+}
+
+/* ── TODAY ─────────────────────────────────────────────────────────────────── */
+function viewToday(){
+  var open=D.deals.filter(function(d){return OPEN_STAGES.indexOf(d.stage)>=0;});
+  var groups={over:[],now:[],later:[],none:[]};
+  open.forEach(function(d){
+    var k=dayDiff(d.nextDue);
+    if(k==null) groups.none.push(d);
+    else if(k<0) groups.over.push(d);
+    else if(k<=1) groups.now.push(d);
+    else groups.later.push(d);
+  });
+  var by=function(a,b){ return String(a.nextDue||'').localeCompare(String(b.nextDue||'')); };
+  groups.over.sort(by); groups.now.sort(by); groups.later.sort(by);
+
+  var pipe=open.reduce(function(a,d){return a+(Number(d.value)||0);},0);
+  var head=''
+    +'<div class="stats">'
+    +  stat(T('rep.open'),open.length,'')
+    +  stat(T('rep.pipeline'),money(pipe),'')
+    +  stat(T('today.overdue'),groups.over.length,'')
+    +'</div>';
+
+  if(!groups.over.length && !groups.now.length){
+    return head+'<div class="card"><div class="empty"><div class="big">✓</div>'
+      +'<h2 style="margin-bottom:6px">'+esc(T('today.clear'))+'</h2>'
+      +'<p>'+esc(T('today.clear_sub'))+'</p></div></div>'
+      + (groups.none.length?section(T('today.no_next'),groups.none.map(dealRow).join('')):'');
+  }
+  return head
+    + (groups.over.length ? section(T('today.overdue'),groups.over.map(dealRow).join('')) : '')
+    + (groups.now.length  ? section(T('today.due'),groups.now.map(dealRow).join('')) : '')
+    + (groups.later.length? section(T('today.later'),groups.later.slice(0,10).map(dealRow).join('')) : '')
+    + (groups.none.length ? section(T('today.no_next'),groups.none.slice(0,10).map(dealRow).join('')) : '');
+}
+function section(title,rows){
+  return '<div class="card" style="margin-bottom:16px"><h2>'+esc(title)+'</h2>'
+    +'<div class="tscroll"><table><tbody>'+rows+'</tbody></table></div></div>';
+}
+function dealRow(d){
+  var k=dayDiff(d.nextDue);
+  var cls=k==null?'':(k<0?'late':(k<=1?'soon':''));
+  return '<tr onclick="openDeal(\''+d.id+'\')" style="cursor:pointer">'
+    +'<td style="width:11px;padding-right:0"><span style="display:block;width:8px;height:8px;border-radius:50%;background:'+stageColor(d.stage)+'"></span></td>'
+    +'<td><b>'+esc(d.title||'—')+'</b><div class="hint">'+esc(clientName(d.clientId)||T('deal.no_client'))+'</div></td>'
+    +'<td class="hint" style="max-width:240px">'+esc(d.nextAction||'')+'</td>'
+    +'<td style="white-space:nowrap">'+(d.nextDue?'<span class="due '+cls+'">'+esc(fmtDate(d.nextDue))+'</span>':'')+'</td>'
+    +'<td style="text-align:right;font-family:var(--mono);white-space:nowrap">'+esc(d.value?money(d.value):'')+'</td>'
+    +'</tr>';
+}
+function stat(k,v,s){
+  return '<div class="stat"><div class="k">'+esc(k)+'</div><div class="v">'+esc(String(v))+'</div>'
+    +(s?'<div class="s">'+esc(s)+'</div>':'')+'</div>';
+}
+
+/* ── PIPELINE (kanban) ─────────────────────────────────────────────────────── */
+function viewPipeline(){
+  var q=FILTER.q.toLowerCase();
+  var deals=D.deals.filter(function(d){
+    if(!q) return true;
+    return (d.title+' '+clientName(d.clientId)+' '+(d.nextAction||'')).toLowerCase().indexOf(q)>=0;
+  });
+  var bar='<div class="rowbar">'
+    +'<input class="inp grow" id="pf-q" value="'+esc(FILTER.q)+'" data-tph="act.search" placeholder="'+esc(T('act.search'))+'" '
+    +'oninput="FILTER.q=this.value;var s=this.selectionStart;render();var e=document.getElementById(\'pf-q\');if(e){e.focus();e.setSelectionRange(s,s);}">'
+    +'</div>';
+  if(!D.deals.length){
+    return bar+'<div class="card"><div class="empty"><div class="big">▤</div>'
+      +'<h2 style="margin-bottom:6px">'+esc(T('e.deals'))+'</h2><p>'+esc(T('e.deals_sub'))+'</p>'
+      +'<button class="btn btn-primary" onclick="editDeal()">+ '+esc(T('deal.new'))+'</button></div></div>';
+  }
+  var cols=STAGES.map(function(s){
+    var list=deals.filter(function(d){return d.stage===s.id;});
+    var sum=list.reduce(function(a,d){return a+(Number(d.value)||0);},0);
+    return '<div class="col" data-stage="'+s.id+'">'
+      +'<div class="colhead"><span class="dot" style="background:'+s.color+'"></span>'
+      +'<span class="nm">'+esc(stageName(s.id))+'</span><span class="n">'+list.length+'</span></div>'
+      +(sum?'<div class="colsum">'+esc(money(sum))+'</div>':'')
+      +'<div class="collist" data-list="'+s.id+'">'+list.map(dealCard).join('')+'</div>'
+      +'</div>';
+  }).join('');
+  return bar+'<div class="board" id="board">'+cols+'</div>';
+}
+function dealCard(d){
+  var k=dayDiff(d.nextDue);
+  var cls=k==null?'':(k<0?'late':(k<=1?'soon':''));
+  return '<div class="deal" draggable="true" data-id="'+d.id+'" onclick="openDeal(\''+d.id+'\')">'
+    +'<div class="t">'+esc(d.title||'—')+'</div>'
+    +(d.clientId?'<div class="c">☺ '+esc(clientName(d.clientId))+'</div>':'')
+    +'<div class="foot">'
+    + (d.value?'<span class="val">'+esc(money(d.value))+'</span>':'')
+    + (d.nextDue?'<span class="due '+cls+'">'+esc(fmtDate(d.nextDue))+'</span>':'')
+    + (d.source?'<span class="tagpill">'+esc(d.source)+'</span>':'')
+    +'</div></div>';
+}
+function wireBoard(){
+  var dragId=null;
+  document.querySelectorAll('.deal').forEach(function(card){
+    card.addEventListener('dragstart',function(e){
+      dragId=card.getAttribute('data-id'); card.classList.add('drag');
+      try{ e.dataTransfer.setData('text/plain',dragId); e.dataTransfer.effectAllowed='move'; }catch(x){}
+    });
+    card.addEventListener('dragend',function(){ card.classList.remove('drag'); dragId=null;
+      document.querySelectorAll('.col').forEach(function(c){c.classList.remove('drop');}); });
+  });
+  document.querySelectorAll('.col').forEach(function(col){
+    col.addEventListener('dragover',function(e){ e.preventDefault(); col.classList.add('drop'); });
+    col.addEventListener('dragleave',function(){ col.classList.remove('drop'); });
+    col.addEventListener('drop',function(e){
+      e.preventDefault(); col.classList.remove('drop');
+      var id=dragId||(function(){ try{ return e.dataTransfer.getData('text/plain'); }catch(x){ return ''; } })();
+      var stage=col.getAttribute('data-stage');
+      if(id&&stage) moveDeal(id,stage);
+    });
+  });
+}
+function moveDeal(id,stage){
+  var d=D.deals.filter(function(x){return x.id===id;})[0];
+  if(!d||d.stage===stage) return;
+  var from=d.stage;
+  d.stage=stage; d.updated=Date.now();
+  if(stage==='won'||stage==='lost') d.closedAt=Date.now();
+  else d.closedAt=null;
+  logAct(id,'stage',stageName(from)+' → '+stageName(stage));
+  touch(); render();
+}
+</script>
+
+<script>
+/* ── CLIENTS ───────────────────────────────────────────────────────────────── */
+function viewClients(){
+  var q=FILTER.q.toLowerCase();
+  var list=D.clients.filter(function(c){
+    if(!q) return true;
+    return (c.name+' '+(c.contact||'')+' '+(c.phone||'')+' '+(c.email||'')).toLowerCase().indexOf(q)>=0;
+  }).sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); });
+
+  var bar='<div class="rowbar">'
+    +'<input class="inp grow" id="cf-q" value="'+esc(FILTER.q)+'" placeholder="'+esc(T('act.search'))+'" '
+    +'oninput="FILTER.q=this.value;var s=this.selectionStart;render();var e=document.getElementById(\'cf-q\');if(e){e.focus();e.setSelectionRange(s,s);}">'
+    +'</div>';
+  if(!D.clients.length){
+    return bar+'<div class="card"><div class="empty"><div class="big">☺</div><p>'+esc(T('client.none'))+'</p>'
+      +'<button class="btn btn-primary" onclick="editClient()">+ '+esc(T('client.new'))+'</button></div></div>';
+  }
+  var rows=list.map(function(c){
+    var mine=D.deals.filter(function(d){return d.clientId===c.id;});
+    var open=mine.filter(function(d){return OPEN_STAGES.indexOf(d.stage)>=0;});
+    var val=open.reduce(function(a,d){return a+(Number(d.value)||0);},0);
+    return '<tr onclick="editClient(\''+c.id+'\')" style="cursor:pointer">'
+      +'<td><b>'+esc(c.name)+'</b>'+(c.contact?'<div class="hint">'+esc(c.contact)+'</div>':'')+'</td>'
+      +'<td class="hint">'+esc(c.phone||'')+'</td>'
+      +'<td class="hint">'+esc(c.email||'')+'</td>'
+      +'<td style="text-align:center">'+(open.length?'<span class="chip on">'+open.length+'</span>':'<span class="hint">'+mine.length+'</span>')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);white-space:nowrap">'+esc(val?money(val):'')+'</td>'
+      +'</tr>';
+  }).join('');
+  return bar+'<div class="card"><div class="tscroll"><table><thead><tr>'
+    +'<th>'+esc(T('client.name'))+'</th><th>'+esc(T('client.phone'))+'</th><th>'+esc(T('client.email'))+'</th>'
+    +'<th style="text-align:center">'+esc(T('client.deals'))+'</th><th style="text-align:right">'+esc(T('rep.pipeline'))+'</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+
+/* ── REPORT ────────────────────────────────────────────────────────────────── */
+function viewReport(){
+  var open=D.deals.filter(function(d){return OPEN_STAGES.indexOf(d.stage)>=0;});
+  var won=D.deals.filter(function(d){return d.stage==='won';});
+  var lost=D.deals.filter(function(d){return d.stage==='lost';});
+  var pipe=open.reduce(function(a,d){return a+(Number(d.value)||0);},0);
+  var cut=Date.now()-30*86400000;
+  var won30=won.filter(function(d){return (d.closedAt||0)>=cut;});
+  var won30v=won30.reduce(function(a,d){return a+(Number(d.value)||0);},0);
+  var closed=won.length+lost.length;
+  var rate=closed?Math.round(won.length/closed*100):0;
+  var avg=won.length?Math.round(won.reduce(function(a,d){return a+(Number(d.value)||0);},0)/won.length):0;
+
+  var head='<div class="stats">'
+    +stat(T('rep.pipeline'),money(pipe),open.length+' '+T('rep.open').toLowerCase())
+    +stat(T('rep.won_m'),money(won30v),won30.length+' ×')
+    +stat(T('rep.winrate'),rate+'%',closed?(won.length+'/'+closed):T('rep.no_data'))
+    +stat(T('rep.avg'),money(avg),'')
+    +'</div>';
+
+  var maxS=Math.max.apply(null,[1].concat(STAGES.map(function(s){
+    return D.deals.filter(function(d){return d.stage===s.id;}).length; })));
+  var byStage=STAGES.map(function(s){
+    var n=D.deals.filter(function(d){return d.stage===s.id;}).length;
+    var v=D.deals.filter(function(d){return d.stage===s.id;}).reduce(function(a,d){return a+(Number(d.value)||0);},0);
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">'
+      +'<span style="width:130px;font-size:13px;flex-shrink:0">'+esc(stageName(s.id))+'</span>'
+      +'<span style="flex:1;height:22px;background:var(--surface3);border-radius:5px;overflow:hidden;min-width:40px">'
+      +'<span style="display:block;height:100%;width:'+Math.round(n/maxS*100)+'%;background:'+s.color+';opacity:.85"></span></span>'
+      +'<span style="width:34px;text-align:right;font-family:var(--mono);font-size:13px">'+n+'</span>'
+      +'<span style="width:82px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted)">'+esc(v?money(v):'')+'</span>'
+      +'</div>';
+  }).join('');
+
+  var srcMap={};
+  D.deals.forEach(function(d){ var k=d.source||'—'; srcMap[k]=(srcMap[k]||0)+1; });
+  var srcKeys=Object.keys(srcMap).sort(function(a,b){return srcMap[b]-srcMap[a];});
+  var maxSrc=Math.max.apply(null,[1].concat(srcKeys.map(function(k){return srcMap[k];})));
+  var bySource=srcKeys.length?srcKeys.map(function(k){
+    return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">'
+      +'<span style="width:130px;font-size:13px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(k)+'</span>'
+      +'<span style="flex:1;height:22px;background:var(--surface3);border-radius:5px;overflow:hidden;min-width:40px">'
+      +'<span style="display:block;height:100%;width:'+Math.round(srcMap[k]/maxSrc*100)+'%;background:var(--blue);opacity:.8"></span></span>'
+      +'<span style="width:34px;text-align:right;font-family:var(--mono);font-size:13px">'+srcMap[k]+'</span>'
+      +'</div>';
+  }).join(''):'<p class="hint">'+esc(T('rep.no_data'))+'</p>';
+
+  return head
+    +'<div class="grid2" style="align-items:start">'
+    +'<div class="card"><h2>'+esc(T('rep.by_stage'))+'</h2>'+byStage+'</div>'
+    +'<div class="card"><h2>'+esc(T('rep.by_source'))+'</h2>'+bySource+'</div>'
+    +'</div>';
+}
+
+/* ── SETTINGS ──────────────────────────────────────────────────────────────── */
+function viewSettings(){
+  return ''
+  +'<div class="card" style="margin-bottom:16px">'
+  +'<h2>'+esc(T('set.ws'))+'</h2>'
+  +'<div class="grid2">'
+  +'<div><label>'+esc(T('set.ws'))+'</label><input class="inp" value="'+esc(WS)+'" readonly style="font-family:var(--mono);font-weight:600"></div>'
+  +'<div><label>'+esc(T('set.currency'))+'</label><input class="inp" id="s-cur" value="'+esc(D.settings.currency)+'" maxlength="4"></div>'
+  +'</div>'
+  +'<div class="field" style="margin-top:14px"><label>'+esc(T('set.sources'))+'</label>'
+  +'<textarea id="s-src">'+esc((D.settings.sources||[]).join('\n'))+'</textarea>'
+  +'<p class="hint" style="margin-top:6px">'+esc(T('set.sources_hint'))+'</p></div>'
+  +'<button class="btn btn-primary" onclick="saveSettings()">'+esc(T('set.save'))+'</button>'
+  +'</div>'
+
+  +'<div class="card" style="margin-bottom:16px">'
+  +'<h2>'+esc(T('set.export'))+'</h2>'
+  +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+  +'<button class="btn" onclick="exportData()">↓ '+esc(T('set.export'))+'</button>'
+  +'<label class="btn" style="margin:0"><span>↑ '+esc(T('set.import'))+'</span>'
+  +'<input type="file" accept="application/json" style="display:none" onchange="importData(this)"></label>'
+  +'</div></div>'
+
+  +'<div class="card">'
+  +'<h2 style="color:var(--red-t)">'+esc(T('set.danger'))+'</h2>'
+  +'<button class="btn btn-danger" onclick="wipe()">'+esc(T('set.wipe'))+'</button>'
+  +'</div>';
+}
+function saveSettings(){
+  D.settings.currency=(el('s-cur').value||'€').trim()||'€';
+  D.settings.sources=(el('s-src').value||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  touch(); toast(T('act.saved'),'ok'); render();
+}
+// Backup/restore is the shared CraftOS module, so a file from any app in the
+// suite looks the same and the daily nudge behaves the same everywhere.
+function initBackup(){
+  if(!window.CraftOSBackup) return;
+  CraftOSBackup.init({
+    app:'crm', brand:BRAND,
+    workspace:function(){ return WS; },
+    collect:function(){ return D; },
+    restore:function(data){ D=normalize(data); touch(); render(); },
+    describe:function(data){
+      var c=(data.clients||[]).length, d=(data.deals||[]).length, a=(data.acts||[]).length;
+      return c+' '+T('nav.clients').toLowerCase()+' · '+d+' '+T('nav.pipeline').toLowerCase()+' · '+a+' '+T('deal.activity').toLowerCase();
+    },
+    canRestore:function(){ return ME.role!=='worker'; },
+    toast:function(m,k){ toast(m, k==='error'?'err':(k==='success'?'ok':'')); },
+    lang:function(){ return LANG; }
+  });
+}
+function exportData(){ if(window.CraftOSBackup) CraftOSBackup.download(); }
+function importData(input){ if(window.CraftOSBackup) CraftOSBackup.restoreFromInput(input); }
+function wipe(){
+  if(!confirm(T('set.wipe_ask'))) return;
+  D=blank(); touch(); render(); toast(T('act.deleted'));
+}
+</script>
+
+<script>
+/* ── modal plumbing ────────────────────────────────────────────────────────── */
+function closeModal(){ el('modal').classList.remove('on'); el('sheet').innerHTML=''; }
+function openModal(html,wide){
+  el('sheet').className='sheet'+(wide?' wide':'');
+  el('sheet').innerHTML=html;
+  el('modal').classList.add('on');
+  var f=el('sheet').querySelector('[autofocus]')||el('sheet').querySelector('input,select,textarea');
+  if(f) setTimeout(function(){ f.focus(); },40);
+}
+el('modal').addEventListener('click',function(e){ if(e.target===el('modal')) closeModal(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&el('modal').classList.contains('on')) closeModal(); });
+
+function selOpts(list,cur,blankLabel){
+  var h=blankLabel!=null?'<option value="">'+esc(blankLabel)+'</option>':'';
+  return h+list.map(function(o){
+    var v=(typeof o==='string')?o:o.v, l=(typeof o==='string')?o:o.l;
+    return '<option value="'+esc(v)+'"'+(String(v)===String(cur)?' selected':'')+'>'+esc(l)+'</option>';
+  }).join('');
+}
+
+/* ── deal editor ───────────────────────────────────────────────────────────── */
+function editDeal(id){
+  var d=id?D.deals.filter(function(x){return x.id===id;})[0]:null;
+  var isNew=!d;
+  d=d||{id:'',title:'',clientId:'',value:'',stage:'new',nextAction:'',nextDue:addDays(today(),2),
+         expectedClose:'',source:'',notes:'',lostReason:''};
+  var clientOpts=D.clients.slice().sort(function(a,b){return String(a.name).localeCompare(String(b.name));})
+    .map(function(c){return {v:c.id,l:c.name};});
+  openModal(''
+   +'<div class="sheethead"><h2>'+esc(isNew?T('deal.new'):T('deal.edit'))+'</h2>'
+   +'<button class="x" onclick="closeModal()" aria-label="'+esc(T('act.close'))+'">×</button></div>'
+   +'<div class="sheetbody">'
+   +'<div class="field"><label for="d-title">'+esc(T('deal.title'))+'</label>'
+   +'<input id="d-title" value="'+esc(d.title)+'"></div>'
+   +'<div class="grid2">'
+   +'<div class="field"><label for="d-client">'+esc(T('deal.client'))+'</label>'
+   +'<select id="d-client">'+selOpts(clientOpts,d.clientId,T('deal.no_client'))+'</select>'
+   +'<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="editClient(null,\''+(id||'')+'\')">+ '+esc(T('client.new'))+'</button></div>'
+   +'<div class="field"><label for="d-stage">'+esc(T('deal.stage'))+'</label>'
+   +'<select id="d-stage">'+selOpts(STAGES.map(function(s){return {v:s.id,l:stageName(s.id)};}),d.stage)+'</select></div>'
+   +'</div>'
+   +'<div class="grid2">'
+   +'<div class="field"><label for="d-value">'+esc(T('deal.value'))+' ('+esc(D.settings.currency)+')</label>'
+   +'<input id="d-value" type="number" min="0" step="1" value="'+esc(d.value)+'"></div>'
+   +'<div class="field"><label for="d-source">'+esc(T('deal.source'))+'</label>'
+   +'<select id="d-source">'+selOpts(D.settings.sources||[],d.source,'—')+'</select></div>'
+   +'</div>'
+   +'<div class="grid2">'
+   +'<div class="field"><label for="d-next">'+esc(T('deal.next'))+'</label>'
+   +'<input id="d-next" value="'+esc(d.nextAction)+'"></div>'
+   +'<div class="field"><label for="d-due">'+esc(T('deal.next_due'))+'</label>'
+   +'<input id="d-due" type="date" value="'+esc(d.nextDue||'')+'"></div>'
+   +'</div>'
+   +'<div class="field"><label for="d-close">'+esc(T('deal.close'))+'</label>'
+   +'<input id="d-close" type="date" value="'+esc(d.expectedClose||'')+'"></div>'
+   +'<div class="field"><label for="d-notes">'+esc(T('deal.notes'))+'</label>'
+   +'<textarea id="d-notes">'+esc(d.notes)+'</textarea></div>'
+   +'<div class="field" id="d-lost-wrap" style="display:'+(d.stage==='lost'?'block':'none')+'">'
+   +'<label for="d-lost">'+esc(T('deal.lost_reason'))+'</label>'
+   +'<input id="d-lost" value="'+esc(d.lostReason||'')+'"></div>'
+   +'</div>'
+   +'<div class="sheetfoot">'
+   +(isNew?'':'<button class="btn btn-danger" onclick="deleteDeal(\''+d.id+'\')">'+esc(T('act.delete'))+'</button>')
+   +'<span style="flex:1"></span>'
+   +'<button class="btn" onclick="closeModal()">'+esc(T('act.cancel'))+'</button>'
+   +'<button class="btn btn-primary" onclick="saveDeal(\''+(id||'')+'\')">'+esc(T('act.save'))+'</button>'
+   +'</div>');
+  el('d-stage').addEventListener('change',function(){
+    el('d-lost-wrap').style.display=this.value==='lost'?'block':'none';
+  });
+}
+function saveDeal(id){
+  var patch={
+    title:(el('d-title').value||'').trim(),
+    clientId:el('d-client').value||'',
+    stage:el('d-stage').value,
+    value:Number(el('d-value').value)||0,
+    source:el('d-source').value||'',
+    nextAction:(el('d-next').value||'').trim(),
+    nextDue:el('d-due').value||'',
+    expectedClose:el('d-close').value||'',
+    notes:el('d-notes').value||'',
+    lostReason:(el('d-lost')&&el('d-lost').value||'').trim(),
+    updated:Date.now()
+  };
+  if(!patch.title && patch.clientId) patch.title=clientName(patch.clientId);
+  if(!patch.title){ toast(T('deal.title'),'err'); return; }
+  if(id){
+    var d=D.deals.filter(function(x){return x.id===id;})[0];
+    if(!d) return;
+    var oldStage=d.stage;
+    Object.keys(patch).forEach(function(k){ d[k]=patch[k]; });
+    if(patch.stage==='won'||patch.stage==='lost'){ if(!d.closedAt) d.closedAt=Date.now(); }
+    else d.closedAt=null;
+    if(oldStage!==patch.stage) logAct(id,'stage',stageName(oldStage)+' → '+stageName(patch.stage));
+  }else{
+    patch.id=uid(); patch.created=Date.now();
+    if(patch.stage==='won'||patch.stage==='lost') patch.closedAt=Date.now();
+    D.deals.unshift(patch);
+    logAct(patch.id,'created',T('nb.created'));
+  }
+  touch(); closeModal(); render(); toast(T('act.saved'),'ok');
+}
+function deleteDeal(id){
+  var d=D.deals.filter(function(x){return x.id===id;})[0]; if(!d) return;
+  if(!confirm(T('act.del_ask',{x:d.title}))) return;
+  D.deals=D.deals.filter(function(x){return x.id!==id;});
+  D.acts=D.acts.filter(function(a){return a.dealId!==id;});
+  touch(); closeModal(); render(); toast(T('act.deleted'));
+}
+
+/* ── deal detail (activity + hand-offs) ────────────────────────────────────── */
+function openDeal(id){
+  var d=D.deals.filter(function(x){return x.id===id;})[0]; if(!d) return;
+  var c=clientOf(d.clientId);
+  var k=dayDiff(d.nextDue);
+  var cls=k==null?'':(k<0?'late':(k<=1?'soon':''));
+  var acts=actsOf(id);
+  var icons={note:'✎',call:'☎',meet:'☕',email:'✉',stage:'⇄',created:'✦'};
+  var tl=acts.length?acts.map(function(a){
+    return '<div class="tlitem"><span class="tlicon">'+(icons[a.type]||'•')+'</span>'
+      +'<div class="tlbody"><div class="w">'+esc(fmtWhen(a.at))+(a.by?' · '+esc(a.by):'')+'</div>'
+      +'<div class="x">'+esc(a.text)+'</div></div></div>';
+  }).join(''):'<p class="hint">—</p>';
+
+  var ho=[];
+  if(OFFER_URL) ho.push('<button class="btn btn-sm" onclick="handoffOffer(\''+id+'\')">'+esc(T('ho.offer'))+' ↗</button>');
+  if(DB_URL)    ho.push('<button class="btn btn-sm" onclick="handoffDb(\''+id+'\')">'+esc(T('ho.db'))+' ↗</button>');
+
+  openModal(''
+   +'<div class="sheethead">'
+   +'<span style="width:10px;height:10px;border-radius:50%;background:'+stageColor(d.stage)+';flex-shrink:0"></span>'
+   +'<h2>'+esc(d.title)+'</h2>'
+   +'<button class="x" onclick="closeModal()" aria-label="'+esc(T('act.close'))+'">×</button></div>'
+   +'<div class="sheetbody">'
+   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">'
+   +'<span class="chip">'+esc(stageName(d.stage))+'</span>'
+   +(d.value?'<span class="chip">'+esc(money(d.value))+'</span>':'')
+   +(d.source?'<span class="chip">'+esc(d.source)+'</span>':'')
+   +(d.nextDue?'<span class="due '+cls+'">'+esc(T('deal.next_due'))+': '+esc(fmtDate(d.nextDue))+'</span>':'')
+   +'</div>'
+   +(c?'<div class="card" style="background:var(--surface2);box-shadow:none;margin-bottom:16px">'
+       +'<b>'+esc(c.name)+'</b>'
+       +(c.contact?'<div class="hint">'+esc(c.contact)+'</div>':'')
+       +'<div class="hint" style="margin-top:6px">'
+       +(c.phone?'<a href="tel:'+esc(c.phone)+'">'+esc(c.phone)+'</a> · ':'')
+       +(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')
+       +'</div>'
+       +(c.address?'<div class="hint">'+esc(c.address)+'</div>':'')
+       +'</div>':'')
+   +(d.nextAction?'<div class="field"><label>'+esc(T('deal.next'))+'</label><div>'+esc(d.nextAction)+'</div></div>':'')
+   +(d.notes?'<div class="field"><label>'+esc(T('deal.notes'))+'</label><div style="white-space:pre-wrap;line-height:1.55">'+esc(d.notes)+'</div></div>':'')
+   +(d.lostReason?'<div class="field"><label>'+esc(T('deal.lost_reason'))+'</label><div>'+esc(d.lostReason)+'</div></div>':'')
+   +(ho.length?'<div class="sep"></div><label>'+esc(T('ho.h'))+'</label><div style="display:flex;gap:8px;flex-wrap:wrap">'+ho.join('')+'</div>':'')
+   +'<div class="sep"></div>'
+   +'<label>'+esc(T('deal.activity'))+'</label>'
+   +'<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+   +'<select id="a-type" style="width:auto;flex:0 0 auto">'
+   + selOpts([{v:'note',l:T('nb.note')},{v:'call',l:T('nb.call')},{v:'meet',l:T('nb.meet')},{v:'email',l:T('nb.email')}],'note')
+   +'</select>'
+   +'<input id="a-text" autofocus style="flex:1;min-width:140px" placeholder="'+esc(T('deal.add_note'))+'" '
+   +'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addAct(\''+id+'\')}">'
+   +'<button class="btn btn-sm" onclick="addAct(\''+id+'\')">'+esc(T('deal.log'))+'</button>'
+   +'</div>'
+   +'<div class="tl">'+tl+'</div>'
+   +'</div>'
+   +'<div class="sheetfoot">'
+   +'<button class="btn" onclick="closeModal()">'+esc(T('act.close'))+'</button>'
+   +'<button class="btn btn-primary" onclick="editDeal(\''+id+'\')">'+esc(T('act.edit'))+'</button>'
+   +'</div>', true);
+}
+function addAct(dealId){
+  var txt=(el('a-text').value||'').trim(); if(!txt) return;
+  logAct(dealId,el('a-type').value||'note',txt);
+  touch(); openDeal(dealId);
+}
+
+/* ── hand-offs to the other CraftOS apps ───────────────────────────────────── */
+function handoffOffer(id){
+  var d=D.deals.filter(function(x){return x.id===id;})[0]; if(!d) return;
+  var c=clientOf(d.clientId);
+  var q=new URLSearchParams({
+    from:'crm', deal:d.id, project:d.title||'',
+    client:(c&&c.name)||'', contact:(c&&c.contact)||'',
+    phone:(c&&c.phone)||'', email:(c&&c.email)||'', address:(c&&c.address)||'',
+    ws:WS
+  });
+  logAct(id,'note',T('ho.offer'));
+  touch();
+  window.open(OFFER_URL+'/?'+q.toString(),'_blank','noopener');
+}
+function handoffDb(id){
+  var d=D.deals.filter(function(x){return x.id===id;})[0]; if(!d) return;
+  var c=clientOf(d.clientId);
+  var q=new URLSearchParams({
+    from:'crm', deal:d.id, project:d.title||'',
+    client:(c&&c.name)||'', value:String(d.value||''), ws:WS
+  });
+  logAct(id,'note',T('ho.db'));
+  touch();
+  window.open(DB_URL+'/?'+q.toString(),'_blank','noopener');
+}
+
+/* ── client editor ─────────────────────────────────────────────────────────── */
+function editClient(id,backToDeal){
+  var c=id?D.clients.filter(function(x){return x.id===id;})[0]:null;
+  var isNew=!c;
+  c=c||{id:'',name:'',kind:'company',contact:'',phone:'',email:'',address:'',vat:'',notes:''};
+  var mine=id?D.deals.filter(function(d){return d.clientId===id;}):[];
+  openModal(''
+   +'<div class="sheethead"><h2>'+esc(isNew?T('client.new'):T('client.edit'))+'</h2>'
+   +'<button class="x" onclick="closeModal()" aria-label="'+esc(T('act.close'))+'">×</button></div>'
+   +'<div class="sheetbody">'
+   +'<div class="field"><label for="c-name">'+esc(T('client.name'))+'</label>'
+   +'<input id="c-name" value="'+esc(c.name)+'"></div>'
+   +'<div class="grid2">'
+   +'<div class="field"><label for="c-kind">'+esc(T('client.kind'))+'</label>'
+   +'<select id="c-kind">'+selOpts([{v:'company',l:T('client.company')},{v:'person',l:T('client.person')}],c.kind)+'</select></div>'
+   +'<div class="field"><label for="c-contact">'+esc(T('client.contact'))+'</label>'
+   +'<input id="c-contact" value="'+esc(c.contact)+'"></div>'
+   +'</div>'
+   +'<div class="grid2">'
+   +'<div class="field"><label for="c-phone">'+esc(T('client.phone'))+'</label>'
+   +'<input id="c-phone" type="tel" value="'+esc(c.phone)+'"></div>'
+   +'<div class="field"><label for="c-email">'+esc(T('client.email'))+'</label>'
+   +'<input id="c-email" type="email" value="'+esc(c.email)+'"></div>'
+   +'</div>'
+   +'<div class="field"><label for="c-addr">'+esc(T('client.address'))+'</label>'
+   +'<input id="c-addr" value="'+esc(c.address)+'"></div>'
+   +'<div class="field"><label for="c-vat">'+esc(T('client.vat'))+'</label>'
+   +'<input id="c-vat" value="'+esc(c.vat)+'"></div>'
+   +'<div class="field"><label for="c-notes">'+esc(T('client.notes'))+'</label>'
+   +'<textarea id="c-notes">'+esc(c.notes)+'</textarea></div>'
+   +(mine.length?'<div class="sep"></div><label>'+esc(T('client.deals'))+'</label>'
+     +'<div class="tscroll"><table><tbody>'+mine.map(dealRow).join('')+'</tbody></table></div>':'')
+   +'</div>'
+   +'<div class="sheetfoot">'
+   +(isNew?'':'<button class="btn btn-danger" onclick="deleteClient(\''+c.id+'\')">'+esc(T('act.delete'))+'</button>')
+   +'<span style="flex:1"></span>'
+   +'<button class="btn" onclick="closeModal()">'+esc(T('act.cancel'))+'</button>'
+   +'<button class="btn btn-primary" onclick="saveClient(\''+(id||'')+'\',\''+(backToDeal||'')+'\')">'+esc(T('act.save'))+'</button>'
+   +'</div>');
+}
+function saveClient(id,backToDeal){
+  var patch={
+    name:(el('c-name').value||'').trim(),
+    kind:el('c-kind').value,
+    contact:(el('c-contact').value||'').trim(),
+    phone:(el('c-phone').value||'').trim(),
+    email:(el('c-email').value||'').trim(),
+    address:(el('c-addr').value||'').trim(),
+    vat:(el('c-vat').value||'').trim(),
+    notes:el('c-notes').value||'',
+    updated:Date.now()
+  };
+  if(!patch.name){ toast(T('client.name'),'err'); return; }
+  var newId=id;
+  if(id){
+    var c=D.clients.filter(function(x){return x.id===id;})[0]; if(!c) return;
+    Object.keys(patch).forEach(function(k){ c[k]=patch[k]; });
+  }else{
+    patch.id=uid(); patch.created=Date.now();
+    D.clients.push(patch);
+    newId=patch.id;
+  }
+  touch(); closeModal(); toast(T('act.saved'),'ok');
+  // Came from the deal editor → reopen it with the new client preselected.
+  if(backToDeal!==undefined&&backToDeal!==''){ editDeal(backToDeal); el('d-client').value=newId; }
+  else if(backToDeal===''){ editDeal(); el('d-client').value=newId; }
+  else render();
+}
+function deleteClient(id){
+  var c=D.clients.filter(function(x){return x.id===id;})[0]; if(!c) return;
+  if(!confirm(T('act.del_ask',{x:c.name}))) return;
+  D.clients=D.clients.filter(function(x){return x.id!==id;});
+  D.deals.forEach(function(d){ if(d.clientId===id) d.clientId=''; });
+  touch(); closeModal(); render(); toast(T('act.deleted'));
+}
+</script>
+
+<script>
+/* ── demo data (local mode only) ───────────────────────────────────────────── */
+function demoData(){
+  // Sample data in the reader's own language — a German prospect clicking
+  // "Demo" on the storefront should not land in a Lithuanian address book.
+  var SET={
+   lt:{clients:[
+     ['Vilniaus Namai UAB','company','Rasa Petrauskienė','+370 612 34567','rasa@vilniausnamai.lt','Konstitucijos pr. 12, Vilnius','LT100001234'],
+     ['Tomas Jankauskas','person','','+370 655 11223','tomas.j@gmail.com','Ozo g. 4-21, Vilnius',''],
+     ['Kavinė „Girios“','company','Mindaugas B.','+370 600 99887','info@girios.lt','Pilies g. 8, Kaunas','LT100009876'],
+     ['Eglė Kazlauskienė','person','','+370 677 45612','egle.k@gmail.com','Klaipėdos g. 30, Klaipėda',''],
+     ['Statybų Grupė UAB','company','Darius Norkus','+370 698 33221','d.norkus@sgrupe.lt','Savanorių pr. 187, Kaunas','LT100005555']],
+    deals:['Virtuvė 4.2 m — balta matinė','Vonios baldai + veidrodis','Baro spintelės ir lentynos',
+           'Įėjimo spinta 2.4 m','12 vnt. vienetinių stalų','Vaikų kambario baldai',
+           'Rūbinė 3.0 m su stiklu','Biuro priimamojo baldai'],
+    next:['Perskambinti dėl pasiūlymo','Matavimai objekte','Suderinti nuolaidą 5 %',
+          'Išsiųsti medžiagų pavyzdžius','Paskambinti ir išsiaiškinti'],
+    lost:'Pasirinko pigesnį pasiūlymą',
+    acts:['Pasiūlymas išsiųstas el. paštu, klientė žiūrės su vyru.',
+          'Susitikimas kavinėje — patvirtino medžiagas (ąžuolas + juoda).']},
+   en:{clients:[
+     ['Northwind Homes Ltd','company','Rachel Peters','+44 7700 900123','rachel@northwindhomes.co.uk','12 Constitution Road, Leeds','GB100001234'],
+     ['Tom Jenkins','person','','+44 7700 900456','tom.jenkins@gmail.com','4 Oak Street, Flat 21, Leeds',''],
+     ['The Grove Café','company','Michael B.','+44 7700 900789','info@grovecafe.co.uk','8 Castle Street, York','GB100009876'],
+     ['Ella Cassidy','person','','+44 7700 900321','ella.c@gmail.com','30 Harbour Road, Hull',''],
+     ['Buildgroup Ltd','company','Daniel Norris','+44 7700 900654','d.norris@buildgroup.co.uk','187 Volunteer Way, York','GB100005555']],
+    deals:['Kitchen 4.2 m — matt white','Bathroom units + mirror','Bar cabinets and shelving',
+           'Hallway wardrobe 2.4 m','12 bespoke tables','Children\u2019s room furniture',
+           'Walk-in wardrobe 3.0 m with glass','Office reception furniture'],
+    next:['Call back about the quote','On-site measuring','Agree the 5% discount',
+          'Send material samples','Call and qualify'],
+    lost:'Went with a cheaper quote',
+    acts:['Quote emailed; she will review it with her husband.',
+          'Met at the café — materials confirmed (oak + black).']},
+   de:{clients:[
+     ['Nordwind Wohnbau GmbH','company','Rita Peters','+49 151 23456789','rita@nordwind-wohnbau.de','Verfassungsallee 12, München','DE100001234'],
+     ['Thomas Jansen','person','','+49 151 11223344','thomas.jansen@gmail.com','Eichenweg 4, Whg. 21, München',''],
+     ['Café „Waldhain“','company','Markus B.','+49 151 99887766','info@waldhain.de','Burgstraße 8, Nürnberg','DE100009876'],
+     ['Elke Kaufmann','person','','+49 151 45612378','elke.k@gmail.com','Hafenstraße 30, Hamburg',''],
+     ['Baugruppe GmbH','company','Daniel Norder','+49 151 33221100','d.norder@baugruppe.de','Freiwilligenweg 187, Nürnberg','DE100005555']],
+    deals:['Küche 4,20 m — Weiß matt','Badmöbel + Spiegel','Barschränke und Regale',
+           'Flurschrank 2,40 m','12 Tische nach Maß','Kinderzimmermöbel',
+           'Ankleide 3,00 m mit Glas','Empfangsmöbel Büro'],
+    next:['Wegen des Angebots zurückrufen','Aufmaß vor Ort','5 % Rabatt abstimmen',
+          'Materialmuster senden','Anrufen und qualifizieren'],
+    lost:'Hat ein günstigeres Angebot gewählt',
+    acts:['Angebot per E-Mail geschickt; sie bespricht es mit ihrem Mann.',
+          'Treffen im Café — Materialien bestätigt (Eiche + Schwarz).']},
+   es:{clients:[
+     ['Viviendas Norteña S.L.','company','Raquel Pérez','+34 612 345 678','raquel@viviendasnortena.es','Av. de la Constitución 12, Valencia','ES100001234'],
+     ['Tomás Jiménez','person','','+34 655 112 233','tomas.j@gmail.com','C/ Roble 4, 21, Valencia',''],
+     ['Cafetería «El Robledal»','company','Miguel B.','+34 600 998 877','info@elrobledal.es','C/ del Castillo 8, Sevilla','ES100009876'],
+     ['Elena Castaño','person','','+34 677 456 123','elena.c@gmail.com','C/ del Puerto 30, Málaga',''],
+     ['Grupo Constructor S.L.','company','Daniel Noriega','+34 698 332 211','d.noriega@grupoconstructor.es','Av. Voluntarios 187, Sevilla','ES100005555']],
+    deals:['Cocina 4,20 m — blanco mate','Muebles de baño + espejo','Muebles de bar y estanterías',
+           'Armario de entrada 2,40 m','12 mesas a medida','Muebles de habitación infantil',
+           'Vestidor 3,00 m con cristal','Muebles de recepción de oficina'],
+    next:['Llamar por el presupuesto','Medición en obra','Acordar el 5 % de descuento',
+          'Enviar muestras de material','Llamar y cualificar'],
+    lost:'Eligió un presupuesto más barato',
+    acts:['Presupuesto enviado por email; lo verá con su marido.',
+          'Reunión en la cafetería — materiales confirmados (roble + negro).']}
+  };
+  var L=SET[LANG]||SET.en, src=defaultSources();
+  var d=blank();
+  L.clients.forEach(function(c,i){
+    d.clients.push({id:'c'+(i+1),name:c[0],kind:c[1],contact:c[2],phone:c[3],email:c[4],
+      address:c[5],vat:c[6],notes:'',created:Date.now()-(30-i*4)*86400000});
+  });
+  var PLAN=[
+    {c:'c1',v:6800,s:'quoted',      n:0, due:-2, src:0},
+    {c:'c2',v:1950,s:'measure',     n:1, due:0,  src:1},
+    {c:'c3',v:4200,s:'negotiation', n:2, due:1,  src:2},
+    {c:'c4',v:1450,s:'contacted',   n:3, due:3,  src:3},
+    {c:'c5',v:9600,s:'new',         n:4, due:1,  src:4},
+    {c:'c2',v:3100,s:'won',         n:-1,due:null,src:1},
+    {c:'c1',v:5400,s:'won',         n:-1,due:null,src:0},
+    {c:'c5',v:7200,s:'lost',        n:-1,due:null,src:2}
+  ];
+  PLAN.forEach(function(x,i){
+    var id='d'+(i+1);
+    d.deals.push({
+      id:id, title:L.deals[i], clientId:x.c, value:x.v, stage:x.s,
+      nextAction:x.n>=0?L.next[x.n]:'', nextDue:x.due==null?'':addDays(today(),x.due),
+      expectedClose:addDays(today(),14+i*3), source:src[x.src%src.length], notes:'',
+      lostReason:x.s==='lost'?L.lost:'',
+      created:Date.now()-(25-i*3)*86400000, updated:Date.now(),
+      closedAt:(x.s==='won'||x.s==='lost')?Date.now()-(6-i)*86400000:null
+    });
+    d.acts.push({id:uid(),dealId:id,type:'created',text:T('nb.created'),by:'Demo',at:Date.now()-(25-i*3)*86400000});
+  });
+  d.acts.push({id:uid(),dealId:'d1',type:'call',text:L.acts[0],by:'Demo',at:Date.now()-3*86400000});
+  d.acts.push({id:uid(),dealId:'d3',type:'meet',text:L.acts[1],by:'Demo',at:Date.now()-1*86400000});
+  return d;
+}
+
+/* ── go ────────────────────────────────────────────────────────────────────── */
+boot();
+</script>
+</body>
+</html>

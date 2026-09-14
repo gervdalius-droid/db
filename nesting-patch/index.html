@@ -8,6 +8,7 @@
 <script src="config.js"></script>
 <script>if(window.FAB_CONFIG&&FAB_CONFIG.APP_TITLE){document.title=FAB_CONFIG.APP_TITLE;}</script>
 <script src="shared/fabsuite-license.js"></script>
+<script src="shared/craftos-backup.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -790,6 +791,9 @@ body.print-mode{background:#fff}
     <button class="btn bs" onclick="refreshHistory()" title="Refresh from cloud" style="font-size:11px">↻ Refresh</button>
     <button class="btn bs" onclick="exportCurrentProject()" title="Download current project as JSON" style="font-size:11px">⤓ Export JSON</button>
     <label class="btn bs" title="Upload a project JSON file" style="font-size:11px;cursor:pointer;margin:0">⤒ Import JSON<input type="file" accept=".json" style="display:none" onchange="importProjectJSON(this)"></label>
+    <span style="width:1px;height:18px;background:#e9edf3"></span>
+    <button class="btn bs" onclick="backupAll()" title="Download every project in this workspace" style="font-size:11px">💾 Backup all</button>
+    <label class="btn bs" title="Restore every project from a backup file" style="font-size:11px;cursor:pointer;margin:0">↺ Restore<input type="file" accept=".json" style="display:none" onchange="restoreAll(this)"></label>
   </div>
   <div class="hist-body" id="hist-body"></div>
   <div class="hist-foot">
@@ -1764,7 +1768,34 @@ var WORKER_EMAIL_SCOPE=_NCFG.WORKER_EMAIL_SCOPE||'workshop';
 var SUPABASE_URL=_NCFG.DATA_URL||'https://qnnhvngjxrvqamikkocw.supabase.co';
 var SUPABASE_ANON_KEY=_NCFG.DATA_ANON_KEY||'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFubmh2bmdqeHJ2cWFtaWtrb2N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTkwNjYsImV4cCI6MjA5MTk5NTA2Nn0.5pOH_TSsOaMhcPF8ff45EFJT25PXoLbS2vtjKvZ7Mw0';
 var PROJECT_TABLE='fabflow_projects';
-var LS_PROJECT_PREFIX='fabflow_project:'; // localStorage fallback key prefix
+// Projects are keyed on (workspace_code, name) — see migration 0004. Without the
+// workspace in the key two customers who both save "Virtuvė" overwrite each
+// other and each sees the other's project list.
+function projWs(){ return (GVS_WORKSPACE_CODE||'LOCAL').toUpperCase(); }
+function projWsFilter(){ return '&workspace_code=eq.'+encodeURIComponent(projWs()); }
+// localStorage mirror. Also workspace-scoped, so signing a second company into
+// the same browser never shows the first company's projects.
+var LS_PROJECT_BASE='fabflow_project:';
+function lsProjPrefix(){ return LS_PROJECT_BASE+projWs()+':'; }
+// Older builds wrote unscoped keys; adopt them into the current workspace once.
+function migrateLocalProjectKeys(){
+  try{
+    var pre=lsProjPrefix(), moved=0, stale=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(!k||k.indexOf(LS_PROJECT_BASE)!==0||k.indexOf(pre)===0)continue;
+      var rest=k.substring(LS_PROJECT_BASE.length);
+      if(rest.indexOf(':')>=0)continue;              // belongs to another workspace
+      stale.push(k);
+    }
+    stale.forEach(function(k){
+      var v=localStorage.getItem(k);
+      if(v!==null){ localStorage.setItem(pre+k.substring(LS_PROJECT_BASE.length), v); moved++; }
+      localStorage.removeItem(k);
+    });
+    if(moved)console.info('[nesting] adopted '+moved+' local project(s) into '+projWs());
+  }catch(e){}
+}
 var LS_LAST_PROJECT='fabflow_last_project'; // last-opened project name
 var LS_PENDING_QUEUE='fabflow_pending_saves'; // offline queue
 
@@ -1777,9 +1808,13 @@ var _supabaseOnline=true; // optimistic; flips false on first network error
 var _suppressSave=false; // set during load to prevent save-triggered-by-load
 
 function supaHeaders(){
+  // Send the signed-in user's token when we have one. Row-level security keys
+  // off auth.uid(), so the bare anon key reads and writes nothing once tenant
+  // isolation is on (migration 0005) — and it would be everyone's data if it did.
+  var tok=(typeof AUTH!=='undefined'&&AUTH&&AUTH.access_token)?AUTH.access_token:SUPABASE_ANON_KEY;
   return {
     'apikey':SUPABASE_ANON_KEY,
-    'Authorization':'Bearer '+SUPABASE_ANON_KEY,
+    'Authorization':'Bearer '+tok,
     'Content-Type':'application/json',
     'Prefer':'return=representation'
   };
@@ -2479,15 +2514,15 @@ async function saveProject(){
   var updatedAt=new Date().toISOString();
   // Always write to localStorage as a mirror (backup + offline fallback)
   try{
-    localStorage.setItem(LS_PROJECT_PREFIX+name,JSON.stringify({name:name,data:data,updated_at:updatedAt}));
+    localStorage.setItem(lsProjPrefix()+name,JSON.stringify({name:name,data:data,updated_at:updatedAt}));
   }catch(e){console.warn('localStorage save failed',e);}
   // Attempt cloud save
   if(supaConfigured()){
     try{
-      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?on_conflict=name',{
+      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?on_conflict=workspace_code,name',{
         method:'POST',
         headers:Object.assign(supaHeaders(),{'Prefer':'resolution=merge-duplicates,return=representation'}),
-        body:'{"name":'+JSON.stringify(name)+',"data":'+serialized+',"updated_at":'+JSON.stringify(updatedAt)+'}'
+        body:'{"workspace_code":'+JSON.stringify(projWs())+',"name":'+JSON.stringify(name)+',"data":'+serialized+',"updated_at":'+JSON.stringify(updatedAt)+'}'
       });
       if(!r.ok){
         var errText=await r.text();
@@ -2621,13 +2656,13 @@ async function drainPendingQueue(){
   var remaining=[];
   for(var i=0;i<q.length;i++){
     var nm=q[i];
-    var raw=localStorage.getItem(LS_PROJECT_PREFIX+nm);if(!raw){continue;}
+    var raw=localStorage.getItem(lsProjPrefix()+nm);if(!raw){continue;}
     var obj;try{obj=JSON.parse(raw);}catch(e){continue;}
     try{
-      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?on_conflict=name',{
+      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?on_conflict=workspace_code,name',{
         method:'POST',
         headers:Object.assign(supaHeaders(),{'Prefer':'resolution=merge-duplicates,return=representation'}),
-        body:JSON.stringify({name:obj.name,data:obj.data,updated_at:obj.updated_at})
+        body:JSON.stringify({workspace_code:projWs(),name:obj.name,data:obj.data,updated_at:obj.updated_at})
       });
       if(!r.ok)remaining.push(nm);
     }catch(e){remaining.push(nm);}
@@ -2653,7 +2688,7 @@ async function listProjects(){
   try{
     for(var i=0;i<localStorage.length;i++){
       var k=localStorage.key(i);
-      if(!k||k.indexOf(LS_PROJECT_PREFIX)!==0)continue;
+      if(!k||k.indexOf(lsProjPrefix())!==0)continue;
       var raw=localStorage.getItem(k);if(!raw)continue;
       var obj;try{obj=JSON.parse(raw);}catch(e){continue;}
       if(!obj.name)continue;
@@ -2663,7 +2698,7 @@ async function listProjects(){
   // Cloud — overrides local for same name (cloud is source of truth)
   if(supaConfigured()){
     try{
-      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,updated_at&order=updated_at.desc&limit=200',{
+      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,updated_at'+projWsFilter()+'&order=updated_at.desc&limit=200',{
         headers:supaHeaders()
       });
       if(r.ok){
@@ -2700,7 +2735,7 @@ async function loadProjectByName(name){
   var loaded=null;
   if(supaConfigured()){
     try{
-      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,data,updated_at&name=eq.'+encodeURIComponent(name),{headers:supaHeaders()});
+      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,data,updated_at&name=eq.'+encodeURIComponent(name)+projWsFilter(),{headers:supaHeaders()});
       if(r.ok){
         var rows=await r.json();
         if(rows.length){loaded=rows[0];}
@@ -2709,7 +2744,7 @@ async function loadProjectByName(name){
     }catch(e){_supabaseOnline=false;}
   }
   if(!loaded){
-    var raw=localStorage.getItem(LS_PROJECT_PREFIX+name);
+    var raw=localStorage.getItem(lsProjPrefix()+name);
     if(raw){try{loaded=JSON.parse(raw);}catch(e){}}
   }
   if(!loaded){setStatus('error',t('notFound'));return false;}
@@ -2724,21 +2759,21 @@ async function loadProjectByName(name){
 async function deleteProjectByName(name){
   if(supaConfigured()&&_supabaseOnline){
     try{
-      await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?name=eq.'+encodeURIComponent(name),{method:'DELETE',headers:supaHeaders()});
+      await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?name=eq.'+encodeURIComponent(name)+projWsFilter(),{method:'DELETE',headers:supaHeaders()});
     }catch(e){console.warn('Cloud delete failed',e);}
   }
-  try{localStorage.removeItem(LS_PROJECT_PREFIX+name);}catch(e){}
+  try{localStorage.removeItem(lsProjPrefix()+name);}catch(e){}
 }
 
 async function duplicateProjectByName(name){
   var src=null;
   if(supaConfigured()){
     try{
-      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,data&name=eq.'+encodeURIComponent(name),{headers:supaHeaders()});
+      var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=name,data&name=eq.'+encodeURIComponent(name)+projWsFilter(),{headers:supaHeaders()});
       if(r.ok){var rows=await r.json();if(rows.length)src=rows[0];}
     }catch(e){}
   }
-  if(!src){var raw=localStorage.getItem(LS_PROJECT_PREFIX+name);if(raw){try{src=JSON.parse(raw);}catch(e){}}}
+  if(!src){var raw=localStorage.getItem(lsProjPrefix()+name);if(raw){try{src=JSON.parse(raw);}catch(e){}}}
   if(!src)return false;
   var newName=name+' (copy)',n=2;
   var existingNames={};(await listProjects()).forEach(function(p){existingNames[p.name]=1;});
@@ -2828,7 +2863,7 @@ function newProject(){
   // Generate a fresh default name
   var base='Untitled',n=1,tryName=base;
   try{
-    while(localStorage.getItem(LS_PROJECT_PREFIX+tryName)){n++;tryName=base+' '+n;}
+    while(localStorage.getItem(lsProjPrefix()+tryName)){n++;tryName=base+' '+n;}
   }catch(e){}
   currentProjectName=tryName;
   document.getElementById('projName').value=tryName;
@@ -2859,8 +2894,8 @@ async function newProjectPrompt(){
   try{
     for(var i=0;i<localStorage.length;i++){
       var k=localStorage.key(i);
-      if(k&&k.indexOf(LS_PROJECT_PREFIX)===0){
-        var nm=k.substring(LS_PROJECT_PREFIX.length);
+      if(k&&k.indexOf(lsProjPrefix())===0){
+        var nm=k.substring(lsProjPrefix().length);
         existing[nm]=1;
       }
     }
@@ -2911,6 +2946,81 @@ async function newProjectPrompt(){
   scheduleSave(); // save the empty new project immediately so it shows in history
   setStatus('',t('newProject'));
 }
+/* ── whole-workspace backup ─────────────────────────────────────────────────
+ * exportCurrentProject() saves the project you are looking at. This saves every
+ * project in the workspace, in the same envelope the other CraftOS apps use, so
+ * one file is a real safety net rather than one board's worth of work.
+ * ────────────────────────────────────────────────────────────────────────── */
+var _backupReady=false;
+function initBackup(){
+  if(_backupReady||!window.CraftOSBackup)return;
+  _backupReady=true;
+  CraftOSBackup.init({
+    app:'nesting', brand:(_NCFG.BRAND_NAME||'CraftOS'),
+    workspace:function(){ return projWs(); },
+    collect:function(){ return _backupSnapshot; },
+    restore:function(data){ _restoreSnapshot(data); },
+    describe:function(data){ return ((data&&data.projects)||[]).length+' projects'; },
+    toast:function(m,k){ setStatus(k==='error'?'error':'saved', m); },
+    lang:function(){ return (typeof _lang!=='undefined'?_lang:'en'); }
+  });
+}
+var _backupSnapshot=null;
+async function backupAll(){
+  initBackup();
+  if(!window.CraftOSBackup){alert('Backup module missing');return;}
+  setStatus('saving','Collecting projects…');
+  try{
+    if(currentProjectName)await saveProject();            // don't lose the open one
+    var list=await listProjects(), out=[];
+    for(var i=0;i<list.length;i++){
+      var nm=list[i].name, data=null;
+      // Cloud first, then the local mirror.
+      if(supaConfigured()){
+        try{
+          var r=await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?select=data,updated_at&name=eq.'+encodeURIComponent(nm)+projWsFilter(),{headers:supaHeaders()});
+          if(r.ok){var rows=await r.json(); if(rows.length)data=rows[0].data;}
+        }catch(e){}
+      }
+      if(!data){
+        var raw=localStorage.getItem(lsProjPrefix()+nm);
+        if(raw){ try{ data=JSON.parse(raw).data; }catch(e){} }
+      }
+      if(data)out.push({name:nm,updated_at:list[i].updated_at||null,data:data});
+    }
+    _backupSnapshot={v:1,projects:out};
+    CraftOSBackup.download();
+    setStatus('saved',out.length+' projects backed up');
+  }catch(e){
+    console.error('backupAll',e);
+    setStatus('error','Backup failed: '+(e&&e.message));
+  }
+}
+function restoreAll(input){ initBackup(); if(window.CraftOSBackup)CraftOSBackup.restoreFromInput(input); }
+async function _restoreSnapshot(data){
+  var projects=(data&&data.projects)||[];
+  if(!projects.length){setStatus('error','Backup has no projects');return;}
+  setStatus('saving','Restoring '+projects.length+' projects…');
+  var ok=0;
+  for(var i=0;i<projects.length;i++){
+    var pr=projects[i]; if(!pr||!pr.name||!pr.data)continue;
+    var when=pr.updated_at||new Date().toISOString();
+    try{ localStorage.setItem(lsProjPrefix()+pr.name,JSON.stringify({name:pr.name,data:pr.data,updated_at:when})); }catch(e){}
+    if(supaConfigured()){
+      try{
+        await fetch(SUPABASE_URL+'/rest/v1/'+PROJECT_TABLE+'?on_conflict=workspace_code,name',{
+          method:'POST',
+          headers:Object.assign(supaHeaders(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+          body:JSON.stringify({workspace_code:projWs(),name:pr.name,data:pr.data,updated_at:when})
+        });
+      }catch(e){}
+    }
+    ok++;
+  }
+  setStatus('saved','Restored '+ok+' projects');
+  try{ renderHistory(); }catch(e){}
+}
+
 function exportCurrentProject(){
   var data=collectProjectState();
   var payload={name:currentProjectName||'Untitled',data:data,exported_at:new Date().toISOString()};
@@ -2962,6 +3072,10 @@ setInterval(function(){drainPendingQueue();},30000);
 // Restore the most recently worked project. Runs ONLY after a valid login
 // (see the DOMContentLoaded gate below) so the app never opens unauthenticated.
 function bootApp(){
+  // The workspace is known only after login, so scope the local mirror now.
+  migrateLocalProjectKeys();
+  initBackup();
+  if(window.CraftOSBackup)setTimeout(CraftOSBackup.checkDaily,4000);
   // Load warehouse stock now that we're authenticated (carries the user's token).
   if(typeof whLoadStock==='function') whLoadStock();
   // Restore last imported xlsm filename for Excel-based label printing

@@ -41,6 +41,7 @@
       <input id="password" type="password" data-i18n-ph="signup.password_ph" autocomplete="new-password">
       <div class="err" id="err"></div>
       <button class="btn btn-primary btn-block btn-lg" id="go" style="margin-top:22px" onclick="submitForm()" data-i18n="signup.submit">Continue to payment →</button>
+      <p class="note" style="margin-top:14px;text-align:center;line-height:1.6" data-i18n-html="signup.consent">By continuing you accept the <a href="terms.html" target="_blank">Terms of Service</a> and the <a href="privacy.html" target="_blank">Privacy Policy</a>.</p>
     </form>
     <div class="muted-link" data-i18n="signup.terms">By creating an account you agree to the terms of service.</div>
   </div>
@@ -95,5 +96,6 @@ async function submitForm(){
 }
 if(document.readyState!=="loading") renderPlan(); else document.addEventListener("DOMContentLoaded", renderPlan);
 </script>
+<script src="readiness.js"></script>
 </body>
 </html>

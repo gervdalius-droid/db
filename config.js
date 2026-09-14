@@ -25,6 +25,10 @@ window.FAB_CONFIG = {
   PAYWALL_ENABLED: false, // private app → never gated
   APP_CODE: "db",
   FABSUITE_URL: "https://gervdalius-droid.github.io/db/fabsuite",
+  // Sibling CraftOS apps (sidebar cross-links).
+  CRM_URL: "https://gervdalius-droid.github.io/db/crm/",
+  OFFER_URL: "https://gervdalius-droid.github.io/offer/",
+  INVOICES_URL: "https://gervdalius-droid.github.io/invoices/",
 
   // Worker name+PIN synthetic-email scheme. MUST match the set-worker-pin edge
   // function for this deployment.

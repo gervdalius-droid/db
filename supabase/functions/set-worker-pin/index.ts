@@ -94,11 +94,28 @@ Deno.serve(async (req) => {
   const ns = scope === "workspace" ? ws : WORKSHOP_CODE;
   const email = slug(name) + "." + slug(ns) + "@" + AUTH_DOMAIN;
 
+  // Row-level security keys off org_members, so a worker who has an auth user
+  // but no membership row can log in and then read nothing. Keep the two in
+  // lockstep: every created worker gets a membership, every deleted one loses it.
+  async function linkMember(userId: string) {
+    if (!ws || !userId) return;
+    const { error } = await admin.from("org_members")
+      .upsert({ user_id: userId, workspace_code: ws, role: "worker" },
+              { onConflict: "user_id,workspace_code" });
+    if (error) console.warn("org_members upsert:", error.message);
+  }
+  async function unlinkMember(userId: string) {
+    if (!userId) return;
+    const { error } = await admin.from("org_members").delete().eq("user_id", userId);
+    if (error) console.warn("org_members delete:", error.message);
+  }
+
   // DELETE: remove the worker's login entirely (revokes both apps).
   if (action === "delete") {
     const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existing = list?.users?.find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
     if (!existing) return json({ ok: true, action: "none", email }); // already gone — idempotent
+    await unlinkMember(existing.id);
     const { error: delErr } = await admin.auth.admin.deleteUser(existing.id);
     if (delErr) return json({ error: "Nepavyko ištrinti: " + delErr.message }, 400);
     return json({ ok: true, action: "deleted", email });
@@ -109,15 +126,19 @@ Deno.serve(async (req) => {
   if (!/^\d{4,6}$/.test(pin)) return json({ error: "PIN turi būti 4–6 skaitmenys" }, 400);
   const password = pin + PIN_SALT;
 
-  const { error: createErr } = await admin.auth.admin.createUser({
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email, password, email_confirm: true, user_metadata: { name },
   });
-  if (!createErr) return json({ ok: true, action: "created", email });
+  if (!createErr) {
+    await linkMember(created?.user?.id || "");
+    return json({ ok: true, action: "created", email });
+  }
 
   const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const existing = list?.users?.find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
   if (!existing) return json({ error: "Nepavyko sukurti: " + createErr.message }, 400);
   const { error: updErr } = await admin.auth.admin.updateUserById(existing.id, { password });
   if (updErr) return json({ error: "Nepavyko atnaujinti: " + updErr.message }, 400);
+  await linkMember(existing.id);   // heal memberships created before this change
   return json({ ok: true, action: "updated", email });
 });

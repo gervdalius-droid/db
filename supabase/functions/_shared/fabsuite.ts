@@ -21,7 +21,7 @@ export function json(body: unknown, status = 200): Response {
 }
 
 // Valid product codes the storefront may ask to buy.
-export const PLANS = ["nesting", "db", "suite"] as const;
+export const PLANS = ["nesting", "db", "crm", "offer", "invoices", "suite"] as const;
 export type Plan = (typeof PLANS)[number];
 export const INTERVALS = ["month", "year"] as const;
 
@@ -29,13 +29,17 @@ export const INTERVALS = ["month", "year"] as const;
 // add its code here (or set FABSUITE_APPS="nesting,db,quote") — the suite then
 // automatically includes it. Each app is also sold standalone.
 export const ALL_APPS: string[] =
-  (Deno.env.get("FABSUITE_APPS") || "nesting,db").split(",").map((s) => s.trim()).filter(Boolean);
+  (Deno.env.get("FABSUITE_APPS") || "nesting,db,crm,offer,invoices")
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
 // Which apps each plan unlocks. The webhook prefers product metadata, but falls
 // back to this map. The "suite" always means every app in the catalog.
 export const PLAN_APPS: Record<string, string[]> = {
   nesting: ["nesting"],
   db: ["db"],
+  crm: ["crm"],
+  offer: ["offer"],
+  invoices: ["invoices"],
   suite: ALL_APPS,
 };
 

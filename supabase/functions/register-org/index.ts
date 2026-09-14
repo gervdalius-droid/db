@@ -12,7 +12,7 @@
 //
 // Secrets required: (none beyond the auto-provided SUPABASE_URL / SERVICE_ROLE)
 // ──────────────────────────────────────────────────────────────────────────
-import { admin, json, cors, callerUser, normCode } from "../_shared/fabsuite.ts";
+import { admin, json, cors, callerUser, normCode, ALL_APPS } from "../_shared/fabsuite.ts";
 
 function initials(name: string): string {
   return (name || "?").split(" ").filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     orgRow.comp = true;
     orgRow.status = "active";
     orgRow.plan = "suite";
-    orgRow.apps = ["nesting", "db"];
+    orgRow.apps = ALL_APPS;
   }
   const { error: orgErr } = await sb.from("fab_orgs").upsert(orgRow, { onConflict: "workspace_code" });
   if (orgErr) return json({ error: "Could not create workspace: " + orgErr.message }, 500);
