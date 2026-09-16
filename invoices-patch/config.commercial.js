@@ -20,5 +20,5 @@ window.FAB_CONFIG = {
 
   CRM_URL:   "https://dbxfabflow.github.io/fabflow-crm/",
   OFFER_URL: "https://dbxfabflow.github.io/fabflow-offer/",
-  DB_URL:    "https://dbxfabflow.github.io/fabflow-shop/",
+  DB_URL:    "https://dbxfabflow.github.io/fabflow/",
 };

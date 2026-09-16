@@ -19,6 +19,6 @@ window.FAB_CONFIG = {
   WORKER_EMAIL_SCOPE: "workspace",
 
   CRM_URL: "https://dbxfabflow.github.io/fabflow-crm/",
-  DB_URL:  "https://dbxfabflow.github.io/fabflow-shop/",
+  DB_URL:  "https://dbxfabflow.github.io/fabflow/",
   INVOICES_URL: "https://dbxfabflow.github.io/fabflow-invoices/",
 };

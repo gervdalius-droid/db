@@ -8,12 +8,11 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
         │
         │  bash scripts/build-product.sh
         ▼
-   build/fabflow/          ──push──►  repo fabflow          →  DB app + storefront + admin
+   build/fabflow/          ──push──►  repo fabflow          →  DB (ShopFlow) + storefront + admin
    build/fabflow-nesting/  ──push──►  repo fabflow-nesting  →  Nesting
    build/fabflow-crm/      ──push──►  repo fabflow-crm      →  CRM
    build/fabflow-offer/    ──push──►  repo fabflow-offer    →  Offer
    build/fabflow-invoices/ ──push──►  repo fabflow-invoices →  Invoices
-   build/fabflow-shop/     ──push──►  repo fabflow-shop     →  DB (ShopFlow)
                                         the product · NEW Supabase · paywall ON · "CraftOS"
                                         every customer = one workspace
 ```
@@ -39,7 +38,8 @@ See their READMEs.
 
 > **The `db` plan ships ShopFlow.** `index.html` in this repo is the older DB
 > app and is still the private deployment; the product's production app is
-> ShopFlow, wrapped by `shopflow-patch/`. The plan code stays `db`, so nothing
+> ShopFlow, wrapped by `shopflow-patch/`, and it replaces that index.html at
+> the **root of the `fabflow` repo** — so the app's URL never moved and nothing
 > in Stripe or the entitlements changed.
 
 - **Your private app stays exactly as it is** — same URL, your data, no paywall.

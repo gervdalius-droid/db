@@ -260,7 +260,7 @@
   // shared/ — so a break can exist only in the build output. Boot each one.
   group('Built product (build/)');
   var BUILT = [
-    ['DB app',      '../../build/fabflow/index.html'],
+    ['DB app (ShopFlow)', '../../build/fabflow/index.html?as=manager'],
     ['storefront',  '../../build/fabflow/fabsuite/index.html'],
     ['terms',       '../../build/fabflow/fabsuite/terms.html'],
     ['privacy',     '../../build/fabflow/fabsuite/privacy.html'],
@@ -268,8 +268,7 @@
     ['Nesting',     '../../build/fabflow-nesting/index.html'],
     ['CRM',         '../../build/fabflow-crm/index.html'],
     ['Offer',       '../../build/fabflow-offer/index.html'],
-    ['Invoices',    '../../build/fabflow-invoices/index.html'],
-    ['ShopFlow',    '../../build/fabflow-shop/index.html?as=manager']
+    ['Invoices',    '../../build/fabflow-invoices/index.html']
   ];
   for (var bi = 0; bi < BUILT.length; bi++) {
     try {
@@ -281,16 +280,16 @@
       (function (name, err) { check(name + ' boots', function () { throw err; }); })(BUILT[bi][0], e);
     }
   }
-  check('built ShopFlow is the DB app (CraftOS brand + db app code)', function () {
-    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+  check('the DB app is ShopFlow (CraftOS brand + db app code)', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/index.html"]');
     var w = f[f.length - 1].contentWindow, d = f[f.length - 1].contentDocument;
     return w.FAB_CONFIG && w.FAB_CONFIG.APP_CODE === 'db'
         && w.FAB_CONFIG.PAYWALL_ENABLED === true
         && d.title.indexOf('CraftOS') === 0
         && typeof w.FabsuiteLicense === 'object';
   });
-  check('built ShopFlow gates on a CraftOS workspace, not a shop password', function () {
-    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+  check('the DB app gates on a CraftOS workspace, not a shop password', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/index.html"]');
     var w = f[f.length - 1].contentWindow;
     // ShopFlow declares Sync with `const`, so it is a lexical global and never
     // a property of window — evaluate in the frame's own scope.
@@ -299,11 +298,20 @@
         && /cos-tabs/.test(html) && /cos-go-mgr/.test(html)
         && !/shop-pass/.test(html);
   });
-  check('built ShopFlow ships every script it references', function () {
+  check('the service worker keeps its hands off the storefront and admin', function () {
+    // ShopFlow sits at the ROOT of the product repo, so its worker's scope
+    // covers /fabsuite and /admin. Unscoped, an offline visit to the storefront
+    // would be answered with the production app's shell.
+    var x = new XMLHttpRequest();
+    x.open('GET', '../../build/fabflow/sw.js', false); x.send();
+    if (!/fabsuite\|admin/.test(x.responseText)) throw new Error('no scope guard in sw.js');
+    return true;
+  });
+  check('the DB app ships every script it references', function () {
     // The copy list is derived from index.html for exactly this reason: a
     // hand-written list dropped files.js once, and the order drawer then threw
     // "Files is not defined" — but only if you opened a drawer.
-    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/index.html"]');
     var w = f[f.length - 1].contentWindow, d = f[f.length - 1].contentDocument;
     var missing = [].filter.call(d.querySelectorAll('script[src]'), function (e) {
       var src = e.getAttribute('src');
@@ -318,16 +326,16 @@
     if (missing.length) throw new Error('404: ' + missing.join(', '));
     return true;
   });
-  check('built ShopFlow ships no other workshop\'s data or connection', function () {
-    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+  check('the DB app ships no other workshop\'s data or connection', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/index.html"]');
     var d = f[f.length - 1].contentDocument, w = f[f.length - 1].contentWindow;
     var src = [].map.call(d.querySelectorAll('script[src]'), function (e) { return e.getAttribute('src'); });
     if (src.indexOf('realdata.js') >= 0) throw new Error('realdata.js is referenced');
     if (src.indexOf('sync-config.js') >= 0) throw new Error('sync-config.js is referenced');
     return typeof w.SYNC_CONFIG === 'undefined';
   });
-  check('built ShopFlow carries the cross-links to the other four apps', function () {
-    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+  check('the DB app carries the cross-links to the other four apps', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/index.html"]');
     var d = f[f.length - 1].contentDocument, c = f[f.length - 1].contentWindow.FAB_CONFIG;
     var bar = d.getElementById('cos-bar');
     if (!bar) throw new Error('no workspace chip');
@@ -513,11 +521,11 @@
   render();
 
   group('Built product (build/) — continued');
-  check('the storefront sends db buyers to the ShopFlow deployment', function () {
+  check('the storefront sends db buyers to the app root, where ShopFlow now lives', function () {
     var f = document.querySelectorAll('#frames iframe[src*="fabflow/fabsuite"]');
     var w = f[f.length - 1].contentWindow;
     var db = (w.FABSUITE && w.FABSUITE.APP_URLS && w.FABSUITE.APP_URLS.db) || '';
-    return /fabflow-shop/.test(db);
+    return /dbxfabflow\.github\.io\/fabflow\/?$/.test(db) || /\/fabflow\/$/.test(db);
   });
   check('built apps point at the commercial project, paywall on', function () {
     var f = document.querySelectorAll('#frames iframe[src*="fabflow-offer"]');

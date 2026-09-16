@@ -17,7 +17,7 @@ window.FAB_CONFIG = {
   WORKSHOP_CODE: "ff",
   WORKER_EMAIL_SCOPE: "workspace",
 
-  DB_URL:    "https://dbxfabflow.github.io/fabflow-shop/",
+  DB_URL:    "https://dbxfabflow.github.io/fabflow/",
   OFFER_URL: "https://dbxfabflow.github.io/fabflow-offer/",
   INVOICES_URL: "https://dbxfabflow.github.io/fabflow-invoices/",
 };

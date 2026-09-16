@@ -78,11 +78,18 @@ Nesting app, keyed by `workspace_code,sku`.
 ## Build
 
 ```bash
-bash scripts/build-product.sh shop     # → build/fabflow-shop/
+bash scripts/build-product.sh db       # → build/fabflow/
 ```
 
-Push that to the `fabflow-shop` repo (GitHub Pages). Override the source
-location with `SHOP_SRC=/path/to/repo`.
+ShopFlow **replaces the older `index.html` at the root of the `fabflow` repo**,
+with the storefront and the admin console still alongside it under `/fabsuite`
+and `/admin`. The app's URL therefore never moved. Override the source location
+with `SHOP_SRC=/path/to/repo`.
+
+Because it sits at the root, its service worker's scope covers those siblings —
+left alone it would answer an offline `/fabsuite/` navigation with the
+production app's shell. The build injects a guard into `sw.js` so the worker
+only ever owns the app it shipped with.
 
 Two files must **never** ship and the build refuses if they appear:
 `realdata.js` (a real workshop's client data) and `sync-config.js` (that

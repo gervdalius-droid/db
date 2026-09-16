@@ -10,7 +10,7 @@ window.FABSUITE = {
 
   // Where the apps live (Launch buttons + post-signup redirect).
   APP_URLS: {
-    db: "https://dbxfabflow.github.io/fabflow-shop/",
+    db: "https://dbxfabflow.github.io/fabflow/",
     nesting: "https://dbxfabflow.github.io/fabflow-nesting/",
     crm: "https://dbxfabflow.github.io/fabflow-crm/",
     offer: "https://dbxfabflow.github.io/fabflow-offer/",

@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
- * CraftOS ShopFlow — COMMERCIAL config (becomes config.js in the fabflow-shop
- * repo). This is the app the `db` plan unlocks: customer-only Supabase project,
+ * CraftOS ShopFlow — COMMERCIAL config (becomes config.js at the root of the
+ * fabflow repo, replacing the older DB app). This is the app the `db` plan unlocks: customer-only Supabase project,
  * paywall ON, worker logins scoped per company. Read by craftos.js, which wraps
  * ShopFlow.
  * ════════════════════════════════════════════════════════════════════════════ */

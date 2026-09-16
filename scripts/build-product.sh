@@ -5,12 +5,11 @@
 # Same app code, COMMERCIAL config swapped in + paywall ON. Produces one folder
 # per deployment, which you push to its own GitHub Pages repo:
 #
-#   build/fabflow/          → repo `fabflow`          (DB app + storefront + admin)
+#   build/fabflow/          → repo `fabflow`          (ShopFlow + storefront + admin)
 #   build/fabflow-nesting/  → repo `fabflow-nesting`  (Nesting app)
 #   build/fabflow-crm/      → repo `fabflow-crm`      (CRM app)
 #   build/fabflow-offer/    → repo `fabflow-offer`    (Offer app, wrapped)
 #   build/fabflow-invoices/ → repo `fabflow-invoices` (Invoices app, wrapped)
-#   build/fabflow-shop/     → repo `fabflow-shop`     (ShopFlow = the DB app)
 #
 # Editing happens HERE (one source of truth); the product is always a build of
 # it. Run this whenever you change an app and want to ship the update.
@@ -30,7 +29,7 @@ INVOICES_SRC="${INVOICES_SRC:-$HOME/github/invoices}"
 # repo too, and is wrapped rather than edited.
 SHOP_SRC="${SHOP_SRC:-$HOME/shopflow}"
 
-WANT="${*:-db nesting crm offer invoices shop}"
+WANT="${*:-db nesting crm offer invoices}"
 want() { [[ " $WANT " == *" $1 "* ]]; }
 say()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
@@ -73,16 +72,61 @@ fi
 
 clean() { find "$1" -name ".DS_Store" -delete 2>/dev/null || true; }
 
-# ── 1) DB app + storefront + admin ──────────────────────────────────────────
+# ── 1) DB app (ShopFlow) + storefront + admin ───────────────────────────────
+# The DB app customers get IS ShopFlow, wrapped — it replaces this repo's older
+# index.html at the root of the product repo, so the URL never moved. The
+# storefront and admin console stay alongside it under /fabsuite and /admin.
 if want db; then
   OUT="$BUILD/fabflow"
-  say "DB app + storefront → $OUT"
+  say "DB app (ShopFlow) + storefront → $OUT"
   # Keep the repo's .git so pushes stay incremental (build/fabflow is a checkout
   # of the product repo). Everything else is replaced.
   mkdir -p "$OUT"
   find "$OUT" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
-  cp "$ROOT/index.html"                     "$OUT/index.html"
+  if [ ! -f "$SHOP_SRC/index.html" ]; then
+    echo "  ✗ ShopFlow source not found at $SHOP_SRC — the DB app cannot be built."
+    echo "    Clone the 'shopflow' repo, or set SHOP_SRC=/path/to/repo."
+    exit 5
+  fi
+
+  # WHICH files to copy is derived from ShopFlow's own <script> tags, never
+  # hand-listed: a hand-list silently drops a file the moment upstream adds one
+  # (files.js went missing exactly that way, and the order drawer threw
+  # "Files is not defined" only once you opened it).
+  python3 - "$SHOP_SRC" "$OUT" <<'PYCOPY'
+import sys, os, re, io, shutil
+src, out = sys.argv[1], sys.argv[2]
+html = io.open(os.path.join(src, "index.html"), encoding="utf-8").read()
+
+# never ship: another workshop's data, or its own cloud connection
+SKIP = {"realdata.js", "sync-config.js"}
+wanted = []
+for ref in re.findall(r'<script[^>]+src="([^"]+)"', html):
+    if ref.startswith("../") or ref.startswith("http"):
+        continue                      # the optional hub; it 404s harmlessly
+    if ref in SKIP:
+        continue
+    wanted.append(ref)
+for extra in ("styles.css", "manifest.json", "sw.js"):
+    if os.path.exists(os.path.join(src, extra)):
+        wanted.append(extra)
+
+missing = [f for f in wanted if not os.path.exists(os.path.join(src, f))]
+if missing:
+    raise SystemExit("build: ShopFlow references files that do not exist: " + ", ".join(missing))
+
+for f in wanted:
+    dst = os.path.join(out, f)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy2(os.path.join(src, f), dst)
+if os.path.isdir(os.path.join(src, "icons")):
+    shutil.copytree(os.path.join(src, "icons"), os.path.join(out, "icons"), dirs_exist_ok=True)
+print("  copied %d ShopFlow files" % len(wanted))
+PYCOPY
+
+  cp "$ROOT/shopflow-patch/craftos.js"      "$OUT/craftos.js"
+  cp "$ROOT/shopflow-patch/config.commercial.js" "$OUT/config.js"
   cp -R "$ROOT/shared"                      "$OUT/shared"
   cp -R "$ROOT/fabsuite"                    "$OUT/fabsuite"
   cp -R "$ROOT/admin"                       "$OUT/admin"
@@ -92,10 +136,68 @@ if want db; then
   [ -f "$ROOT/FABSUITE_SETUP.md" ]          && cp "$ROOT/FABSUITE_SETUP.md"      "$OUT/"
   [ -f "$ROOT/NESTING_INTEGRATION.md" ]     && cp "$ROOT/NESTING_INTEGRATION.md" "$OUT/"
 
-  # The ONLY real difference: commercial config (Supabase + brand + paywall ON).
-  cp "$ROOT/config.commercial.js"           "$OUT/config.js"
+  # The storefront's commercial config (Supabase + brand + paywall ON).
   cp "$ROOT/fabsuite/config.commercial.js"  "$OUT/fabsuite/config.js"
-  rm -f "$OUT/config.commercial.js" "$OUT/fabsuite/config.commercial.js" "$OUT/admin/preview.html"
+  rm -f "$OUT/fabsuite/config.commercial.js" "$OUT/admin/preview.html"
+
+  # Fail loudly rather than ship a customer someone else's workshop.
+  for leak in realdata.js sync-config.js; do
+    if [ -f "$OUT/$leak" ]; then
+      echo "  ✗ REFUSING: $leak ended up in the build."
+      rm -f "$OUT/$leak"
+      exit 4
+    fi
+  done
+
+  python3 - "$SHOP_SRC/index.html" "$OUT/index.html" "$OUT/sw.js" <<'PYSHOP'
+import sys, io, re
+src, dst, sw = sys.argv[1], sys.argv[2], sys.argv[3]
+s = io.open(src, encoding="utf-8").read()
+
+head_tag = '<script src="config.js"></script>'
+pre_boot = ('<script src="shared/fabsuite-license.js"></script>\n'
+            '  <script src="craftos.js"></script>\n  ')
+
+if head_tag not in s:
+    i = s.lower().find("</head>")
+    if i < 0:
+        raise SystemExit("build: no </head> in the ShopFlow source")
+    s = s[:i] + head_tag + "\n" + s[i:]
+
+# realdata.js is dev-only and git-ignored; never reference it in the product.
+s = s.replace('<script src="realdata.js"></script>\n  ', "")
+s = s.replace('<script src="realdata.js"></script>', "")
+# the shop's own hand-configured cloud connection is replaced by craftos.js
+s = re.sub(r'\s*<script src="sync-config\.js"[^>]*></script>', "", s)
+
+if 'src="craftos.js"' not in s:
+    m = re.search(r'<script>\s*App\.boot\(\)\s*</script>', s)
+    if not m:
+        raise SystemExit("build: no inline App.boot() in the ShopFlow source")
+    s = s[:m.start()] + pre_boot + s[m.start():]
+
+io.open(dst, "w", encoding="utf-8").write(s)
+
+# ── service-worker scope ────────────────────────────────────────────────────
+# ShopFlow sits at the ROOT of the product repo, so its service worker's scope
+# covers the storefront and the admin console as siblings. Left alone it would
+# cache them into the app's shell and, offline, answer a /fabsuite/ navigation
+# with ShopFlow's own index.html. Bail out for both, so it only ever owns the
+# app it shipped with.
+w = io.open(sw, encoding="utf-8").read()
+m = re.search(r'^(\s*)if \(url\.origin !== self\.location\.origin\) return;.*$', w, re.M)
+if not m:
+    raise SystemExit("build: ShopFlow's sw.js no longer has the origin guard to hook")
+pad = m.group(1)
+guard = (m.group(0) + "\n" +
+         pad + "// CraftOS build: the storefront and the admin console are siblings\n" +
+         pad + "// under the same Pages path and are none of this worker's business.\n" +
+         pad + "if (/\\/(fabsuite|admin)(\\/|$)/.test(url.pathname)) return;")
+w = w[:m.start()] + guard + w[m.end():]
+io.open(sw, "w", encoding="utf-8").write(w)
+
+print("  injected config.js + craftos.js; scoped the service worker off /fabsuite and /admin")
+PYSHOP
   clean "$OUT"
   echo "  ✓ $(du -sh "$OUT" | cut -f1)"
 fi
@@ -231,108 +333,6 @@ PYINV
   fi
 fi
 
-# ── 6) ShopFlow — the DB app customers actually get ─────────────────────────
-# Wrapped exactly like Offer and Invoices: the pristine app plus config.js,
-# the licence client and craftos.js. The two files that must NEVER ship are
-# realdata.js (a real workshop's client data) and sync-config.js (that
-# workshop's own Supabase connection) — the wrapper owns the connection.
-if want shop; then
-  OUT="$BUILD/fabflow-shop"
-  say "ShopFlow (DB app) → $OUT"
-  if [ ! -f "$SHOP_SRC/index.html" ]; then
-    echo "  ⚠  ShopFlow source not found at $SHOP_SRC — skipping."
-    echo "     Clone the 'shopflow' repo, or set SHOP_SRC=/path/to/repo."
-  else
-    mkdir -p "$OUT"
-    find "$OUT" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-
-    # WHICH files to copy is derived from the app's own <script> tags, never
-    # hand-listed: a hand-list silently drops a file the moment upstream adds
-    # one (files.js went missing exactly that way, and the order drawer threw
-    # "Files is not defined" only once you opened it).
-    python3 - "$SHOP_SRC" "$OUT" <<'PYCOPY'
-import sys, os, re, io, shutil
-src, out = sys.argv[1], sys.argv[2]
-html = io.open(os.path.join(src, "index.html"), encoding="utf-8").read()
-
-# never ship: another workshop's data, or its own cloud connection
-SKIP = {"realdata.js", "sync-config.js"}
-wanted = []
-for ref in re.findall(r'<script[^>]+src="([^"]+)"', html):
-    if ref.startswith("../") or ref.startswith("http"):
-        continue                      # the optional hub; it 404s harmlessly
-    if ref in SKIP:
-        continue
-    wanted.append(ref)
-for extra in ("styles.css", "manifest.json", "sw.js"):
-    if os.path.exists(os.path.join(src, extra)):
-        wanted.append(extra)
-
-missing = [f for f in wanted if not os.path.exists(os.path.join(src, f))]
-if missing:
-    raise SystemExit("build: ShopFlow references files that do not exist: " + ", ".join(missing))
-
-for f in wanted:
-    dst = os.path.join(out, f)
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    shutil.copy2(os.path.join(src, f), dst)
-if os.path.isdir(os.path.join(src, "icons")):
-    shutil.copytree(os.path.join(src, "icons"), os.path.join(out, "icons"), dirs_exist_ok=True)
-print("  copied %d app files" % len(wanted))
-PYCOPY
-
-    cp -R "$ROOT/shopflow-patch/shared"            "$OUT/shared"
-    cp "$ROOT/shopflow-patch/craftos.js"           "$OUT/craftos.js"
-    cp "$ROOT/shopflow-patch/config.commercial.js" "$OUT/config.js"
-    [ -f "$ROOT/.nojekyll" ] && cp "$ROOT/.nojekyll" "$OUT/.nojekyll"
-
-    # Fail loudly rather than ship a customer someone else's workshop.
-    for leak in realdata.js sync-config.js; do
-      if [ -f "$OUT/$leak" ]; then
-        echo "  ✗ REFUSING: $leak ended up in the build."
-        rm -f "$OUT/$leak"
-        exit 4
-      fi
-    done
-
-    # config.js into <head>; the licence client + wrapper immediately BEFORE the
-    # inline App.boot(), so the Sync overrides are installed for the very first
-    # render and the demo shop's PIN picker never flashes past.
-    python3 - "$SHOP_SRC/index.html" "$OUT/index.html" <<'PYSHOP'
-import sys, io, re
-src, dst = sys.argv[1], sys.argv[2]
-s = io.open(src, encoding="utf-8").read()
-
-head_tag = '<script src="config.js"></script>'
-pre_boot = ('<script src="shared/fabsuite-license.js"></script>\n'
-            '  <script src="craftos.js"></script>\n  ')
-
-if head_tag not in s:
-    i = s.lower().find("</head>")
-    if i < 0:
-        raise SystemExit("build: no </head> in the ShopFlow source")
-    s = s[:i] + head_tag + "\n" + s[i:]
-
-# realdata.js is dev-only and git-ignored; never reference it in the product.
-s = s.replace('<script src="realdata.js"></script>\n  ', "")
-s = s.replace('<script src="realdata.js"></script>', "")
-# the shop's own hand-configured cloud connection is replaced by craftos.js
-s = re.sub(r'\s*<script src="sync-config\.js"[^>]*></script>', "", s)
-
-if 'src="craftos.js"' not in s:
-    m = re.search(r'<script>\s*App\.boot\(\)\s*</script>', s)
-    if not m:
-        raise SystemExit("build: no inline App.boot() in the ShopFlow source")
-    s = s[:m.start()] + pre_boot + s[m.start():]
-
-io.open(dst, "w", encoding="utf-8").write(s)
-print("  injected config.js + craftos.js, dropped realdata.js + sync-config.js")
-PYSHOP
-    clean "$OUT"
-    echo "  ✓ $(du -sh "$OUT" | cut -f1)"
-  fi
-fi
-
 say "Done."
 cat <<'TXT'
 Before pushing, run the suite:  bash scripts/suite-test/run.sh   (55 checks,
@@ -345,7 +345,6 @@ Push each folder to its own repo (GitHub Pages serves from the default branch):
   cd build/fabflow-crm      && git add -A && git commit -m "Update" && git push
   cd build/fabflow-offer    && git add -A && git commit -m "Update" && git push
   cd build/fabflow-invoices && git add -A && git commit -m "Update" && git push
-  cd build/fabflow-shop     && git add -A && git commit -m "Update" && git push
 
 Your private apps (this repo, ~/github/offer, ~/github/invoices and
 ~/shopflow) are untouched.
