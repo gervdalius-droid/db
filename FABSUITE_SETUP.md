@@ -19,7 +19,7 @@ the **fabsuite** storefront.
                            │  create-checkout-session ────────► Checkout (14-day trial)
   success.html ◄───────────┘                                   │
                                                                 ▼
-  DB / NESTING / INVOICES app           stripe-webhook ◄──── subscription events
+  DB (ShopFlow) / NESTING / INVOICES     stripe-webhook ◄──── subscription events
   ─────────────────────                 (updates fab_orgs.status + apps)
   enterApp() → FabsuiteLicense.gate()
         │  org_entitlement(code)  ─────► reads fab_orgs
@@ -51,6 +51,7 @@ a Stripe subscription and the list of unlocked apps. The apps ask
 | `crm/` | The CRM app (source; built to `fabflow-crm`) |
 | `offer-patch/` | Wrapper that turns `~/github/offer` into the CraftOS Offer app |
 | `invoices-patch/` | Wrapper that turns `~/github/invoices` into the CraftOS Invoices app |
+| `shopflow-patch/` | Wrapper that turns `~/shopflow` into the CraftOS **DB** app |
 | `scripts/stripe-seed.mjs` | Create the products & prices in Stripe |
 | `index.html` | DB app — gate wired into `enterApp()`, billing link in sidebar |
 

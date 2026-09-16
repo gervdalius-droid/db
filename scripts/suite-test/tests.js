@@ -268,7 +268,8 @@
     ['Nesting',     '../../build/fabflow-nesting/index.html'],
     ['CRM',         '../../build/fabflow-crm/index.html'],
     ['Offer',       '../../build/fabflow-offer/index.html'],
-    ['Invoices',    '../../build/fabflow-invoices/index.html']
+    ['Invoices',    '../../build/fabflow-invoices/index.html'],
+    ['ShopFlow',    '../../build/fabflow-shop/index.html?as=manager']
   ];
   for (var bi = 0; bi < BUILT.length; bi++) {
     try {
@@ -280,6 +281,62 @@
       (function (name, err) { check(name + ' boots', function () { throw err; }); })(BUILT[bi][0], e);
     }
   }
+  check('built ShopFlow is the DB app (CraftOS brand + db app code)', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var w = f[f.length - 1].contentWindow, d = f[f.length - 1].contentDocument;
+    return w.FAB_CONFIG && w.FAB_CONFIG.APP_CODE === 'db'
+        && w.FAB_CONFIG.PAYWALL_ENABLED === true
+        && d.title.indexOf('CraftOS') === 0
+        && typeof w.FabsuiteLicense === 'object';
+  });
+  check('built ShopFlow gates on a CraftOS workspace, not a shop password', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var w = f[f.length - 1].contentWindow;
+    // ShopFlow declares Sync with `const`, so it is a lexical global and never
+    // a property of window — evaluate in the frame's own scope.
+    var html = w.eval('Sync.gateHtml()');
+    return w.eval('Sync.configured()') === true
+        && /cos-tabs/.test(html) && /cos-go-mgr/.test(html)
+        && !/shop-pass/.test(html);
+  });
+  check('built ShopFlow ships every script it references', function () {
+    // The copy list is derived from index.html for exactly this reason: a
+    // hand-written list dropped files.js once, and the order drawer then threw
+    // "Files is not defined" — but only if you opened a drawer.
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var w = f[f.length - 1].contentWindow, d = f[f.length - 1].contentDocument;
+    var missing = [].filter.call(d.querySelectorAll('script[src]'), function (e) {
+      var src = e.getAttribute('src');
+      if (src.indexOf('../') === 0 || /^https?:/.test(src)) return false;  // the optional hub
+      // A script that failed to load leaves its global undefined; the cheap,
+      // universal check is that the file is actually reachable.
+      var x = new w.XMLHttpRequest();
+      x.open('HEAD', src, false);
+      try { x.send(); } catch (_) { return true; }
+      return x.status >= 400;
+    }).map(function (e) { return e.getAttribute('src'); });
+    if (missing.length) throw new Error('404: ' + missing.join(', '));
+    return true;
+  });
+  check('built ShopFlow ships no other workshop\'s data or connection', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var d = f[f.length - 1].contentDocument, w = f[f.length - 1].contentWindow;
+    var src = [].map.call(d.querySelectorAll('script[src]'), function (e) { return e.getAttribute('src'); });
+    if (src.indexOf('realdata.js') >= 0) throw new Error('realdata.js is referenced');
+    if (src.indexOf('sync-config.js') >= 0) throw new Error('sync-config.js is referenced');
+    return typeof w.SYNC_CONFIG === 'undefined';
+  });
+  check('built ShopFlow carries the cross-links to the other four apps', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow-shop"]');
+    var d = f[f.length - 1].contentDocument, c = f[f.length - 1].contentWindow.FAB_CONFIG;
+    var bar = d.getElementById('cos-bar');
+    if (!bar) throw new Error('no workspace chip');
+    var trim = function (u) { return String(u || '').replace(/\/+$/, ''); };
+    var hrefs = [].map.call(bar.querySelectorAll('a'), function (a) { return trim(a.getAttribute('href')); });
+    return [c.CRM_URL, c.OFFER_URL, c.NESTING_URL, c.INVOICES_URL].every(function (u) {
+      return u && hrefs.indexOf(trim(u)) >= 0;
+    });
+  });
   check('built Invoices is wrapped (login + gate + CraftOS brand)', function () {
     var f = document.querySelectorAll('#frames iframe[src*="fabflow-invoices"]');
     var w = f[f.length - 1].contentWindow, d = f[f.length - 1].contentDocument;
@@ -456,6 +513,12 @@
   render();
 
   group('Built product (build/) — continued');
+  check('the storefront sends db buyers to the ShopFlow deployment', function () {
+    var f = document.querySelectorAll('#frames iframe[src*="fabflow/fabsuite"]');
+    var w = f[f.length - 1].contentWindow;
+    var db = (w.FABSUITE && w.FABSUITE.APP_URLS && w.FABSUITE.APP_URLS.db) || '';
+    return /fabflow-shop/.test(db);
+  });
   check('built apps point at the commercial project, paywall on', function () {
     var f = document.querySelectorAll('#frames iframe[src*="fabflow-offer"]');
     var w = f[f.length - 1].contentWindow;

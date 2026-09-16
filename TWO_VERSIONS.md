@@ -13,6 +13,7 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
    build/fabflow-crm/      ──push──►  repo fabflow-crm      →  CRM
    build/fabflow-offer/    ──push──►  repo fabflow-offer    →  Offer
    build/fabflow-invoices/ ──push──►  repo fabflow-invoices →  Invoices
+   build/fabflow-shop/     ──push──►  repo fabflow-shop     →  DB (ShopFlow)
                                         the product · NEW Supabase · paywall ON · "CraftOS"
                                         every customer = one workspace
 ```
@@ -24,16 +25,22 @@ small `config.js`. Never fork the code — edit here, rebuild the product.
 | CRM | `crm` | `crm/` | Clients, enquiries, deal pipeline. Hands a won deal to Offer or DB. |
 | Offer | `offer` | `~/github/offer` + `offer-patch/` | Cabinet costing → client-ready quotation PDF. |
 | Nesting | `nesting` | `nesting-patch/` | Cutting-plan optimisation + offcut warehouse. |
-| DB | `db` | `index.html` | The whole production flow: projects, steps, team, warehouse. |
+| DB | `db` | `~/shopflow` + `shopflow-patch/` | ShopFlow: station board, parallel routings, piece tracking, scan station. |
 | Invoices | `invoices` | `~/github/invoices` + `invoices-patch/` | VAT invoices, waybills, payments and debt tracking. |
 
 They share one Supabase project and one workspace code, so a job flows
 **client → quote → project → cutting → invoice** without re-typing anything.
 
-`crm/` and `nesting-patch/` hold a full copy of their app. `offer-patch/` and
-`invoices-patch/` hold only a wrapper (`craftos.js`) — the build pulls the
-pristine app from `~/github/offer` / `~/github/invoices` and injects the
-wrapper, so upstream changes need no re-patching. See their READMEs.
+`crm/` and `nesting-patch/` hold a full copy of their app. `offer-patch/`,
+`invoices-patch/` and `shopflow-patch/` hold only a wrapper (`craftos.js`) —
+the build pulls the pristine app from `~/github/offer`, `~/github/invoices` or
+`~/shopflow` and injects the wrapper, so upstream changes need no re-patching.
+See their READMEs.
+
+> **The `db` plan ships ShopFlow.** `index.html` in this repo is the older DB
+> app and is still the private deployment; the product's production app is
+> ShopFlow, wrapped by `shopflow-patch/`. The plan code stays `db`, so nothing
+> in Stripe or the entitlements changed.
 
 - **Your private app stays exactly as it is** — same URL, your data, no paywall.
 - **The product is a build of the same files** with `config.commercial.js`

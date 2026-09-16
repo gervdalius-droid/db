@@ -10,6 +10,7 @@
 #   build/fabflow-crm/      → repo `fabflow-crm`      (CRM app)
 #   build/fabflow-offer/    → repo `fabflow-offer`    (Offer app, wrapped)
 #   build/fabflow-invoices/ → repo `fabflow-invoices` (Invoices app, wrapped)
+#   build/fabflow-shop/     → repo `fabflow-shop`     (ShopFlow = the DB app)
 #
 # Editing happens HERE (one source of truth); the product is always a build of
 # it. Run this whenever you change an app and want to ship the update.
@@ -25,8 +26,11 @@ BUILD="$ROOT/build"
 OFFER_SRC="${OFFER_SRC:-$HOME/github/offer/index.html}"
 # Same arrangement for the invoicing app (repo `invoices`).
 INVOICES_SRC="${INVOICES_SRC:-$HOME/github/invoices}"
+# ShopFlow is the production app the `db` plan unlocks. It lives in its own
+# repo too, and is wrapped rather than edited.
+SHOP_SRC="${SHOP_SRC:-$HOME/shopflow}"
 
-WANT="${*:-db nesting crm offer invoices}"
+WANT="${*:-db nesting crm offer invoices shop}"
 want() { [[ " $WANT " == *" $1 "* ]]; }
 say()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
@@ -227,6 +231,108 @@ PYINV
   fi
 fi
 
+# ── 6) ShopFlow — the DB app customers actually get ─────────────────────────
+# Wrapped exactly like Offer and Invoices: the pristine app plus config.js,
+# the licence client and craftos.js. The two files that must NEVER ship are
+# realdata.js (a real workshop's client data) and sync-config.js (that
+# workshop's own Supabase connection) — the wrapper owns the connection.
+if want shop; then
+  OUT="$BUILD/fabflow-shop"
+  say "ShopFlow (DB app) → $OUT"
+  if [ ! -f "$SHOP_SRC/index.html" ]; then
+    echo "  ⚠  ShopFlow source not found at $SHOP_SRC — skipping."
+    echo "     Clone the 'shopflow' repo, or set SHOP_SRC=/path/to/repo."
+  else
+    mkdir -p "$OUT"
+    find "$OUT" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+    # WHICH files to copy is derived from the app's own <script> tags, never
+    # hand-listed: a hand-list silently drops a file the moment upstream adds
+    # one (files.js went missing exactly that way, and the order drawer threw
+    # "Files is not defined" only once you opened it).
+    python3 - "$SHOP_SRC" "$OUT" <<'PYCOPY'
+import sys, os, re, io, shutil
+src, out = sys.argv[1], sys.argv[2]
+html = io.open(os.path.join(src, "index.html"), encoding="utf-8").read()
+
+# never ship: another workshop's data, or its own cloud connection
+SKIP = {"realdata.js", "sync-config.js"}
+wanted = []
+for ref in re.findall(r'<script[^>]+src="([^"]+)"', html):
+    if ref.startswith("../") or ref.startswith("http"):
+        continue                      # the optional hub; it 404s harmlessly
+    if ref in SKIP:
+        continue
+    wanted.append(ref)
+for extra in ("styles.css", "manifest.json", "sw.js"):
+    if os.path.exists(os.path.join(src, extra)):
+        wanted.append(extra)
+
+missing = [f for f in wanted if not os.path.exists(os.path.join(src, f))]
+if missing:
+    raise SystemExit("build: ShopFlow references files that do not exist: " + ", ".join(missing))
+
+for f in wanted:
+    dst = os.path.join(out, f)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy2(os.path.join(src, f), dst)
+if os.path.isdir(os.path.join(src, "icons")):
+    shutil.copytree(os.path.join(src, "icons"), os.path.join(out, "icons"), dirs_exist_ok=True)
+print("  copied %d app files" % len(wanted))
+PYCOPY
+
+    cp -R "$ROOT/shopflow-patch/shared"            "$OUT/shared"
+    cp "$ROOT/shopflow-patch/craftos.js"           "$OUT/craftos.js"
+    cp "$ROOT/shopflow-patch/config.commercial.js" "$OUT/config.js"
+    [ -f "$ROOT/.nojekyll" ] && cp "$ROOT/.nojekyll" "$OUT/.nojekyll"
+
+    # Fail loudly rather than ship a customer someone else's workshop.
+    for leak in realdata.js sync-config.js; do
+      if [ -f "$OUT/$leak" ]; then
+        echo "  ✗ REFUSING: $leak ended up in the build."
+        rm -f "$OUT/$leak"
+        exit 4
+      fi
+    done
+
+    # config.js into <head>; the licence client + wrapper immediately BEFORE the
+    # inline App.boot(), so the Sync overrides are installed for the very first
+    # render and the demo shop's PIN picker never flashes past.
+    python3 - "$SHOP_SRC/index.html" "$OUT/index.html" <<'PYSHOP'
+import sys, io, re
+src, dst = sys.argv[1], sys.argv[2]
+s = io.open(src, encoding="utf-8").read()
+
+head_tag = '<script src="config.js"></script>'
+pre_boot = ('<script src="shared/fabsuite-license.js"></script>\n'
+            '  <script src="craftos.js"></script>\n  ')
+
+if head_tag not in s:
+    i = s.lower().find("</head>")
+    if i < 0:
+        raise SystemExit("build: no </head> in the ShopFlow source")
+    s = s[:i] + head_tag + "\n" + s[i:]
+
+# realdata.js is dev-only and git-ignored; never reference it in the product.
+s = s.replace('<script src="realdata.js"></script>\n  ', "")
+s = s.replace('<script src="realdata.js"></script>', "")
+# the shop's own hand-configured cloud connection is replaced by craftos.js
+s = re.sub(r'\s*<script src="sync-config\.js"[^>]*></script>', "", s)
+
+if 'src="craftos.js"' not in s:
+    m = re.search(r'<script>\s*App\.boot\(\)\s*</script>', s)
+    if not m:
+        raise SystemExit("build: no inline App.boot() in the ShopFlow source")
+    s = s[:m.start()] + pre_boot + s[m.start():]
+
+io.open(dst, "w", encoding="utf-8").write(s)
+print("  injected config.js + craftos.js, dropped realdata.js + sync-config.js")
+PYSHOP
+    clean "$OUT"
+    echo "  ✓ $(du -sh "$OUT" | cut -f1)"
+  fi
+fi
+
 say "Done."
 cat <<'TXT'
 Before pushing, run the suite:  bash scripts/suite-test/run.sh   (55 checks,
@@ -239,6 +345,8 @@ Push each folder to its own repo (GitHub Pages serves from the default branch):
   cd build/fabflow-crm      && git add -A && git commit -m "Update" && git push
   cd build/fabflow-offer    && git add -A && git commit -m "Update" && git push
   cd build/fabflow-invoices && git add -A && git commit -m "Update" && git push
+  cd build/fabflow-shop     && git add -A && git commit -m "Update" && git push
 
-Your private apps (this repo, ~/github/offer and ~/github/invoices) are untouched.
+Your private apps (this repo, ~/github/offer, ~/github/invoices and
+~/shopflow) are untouched.
 TXT

@@ -10,7 +10,7 @@ window.FABSUITE = {
 
   // Where the apps live (Launch buttons + post-signup redirect).
   APP_URLS: {
-    db: "https://dbxfabflow.github.io/fabflow/",
+    db: "https://dbxfabflow.github.io/fabflow-shop/",
     nesting: "https://dbxfabflow.github.io/fabflow-nesting/",
     crm: "https://dbxfabflow.github.io/fabflow-crm/",
     offer: "https://dbxfabflow.github.io/fabflow-offer/",
@@ -96,13 +96,13 @@ window.FABSUITE = {
     },
     db: {
       name: "DB",
-      tagline: "Visa gamybos eiga: projektai, žingsniai, komanda.",
+      tagline: "Visas cechas: maršrutai, postai, vienetai, komanda.",
       month: 49, year: 490, apps: ["db"],
       features: [
-        "Cecho rodinys ir gamybos žingsniai",
-        "Projektai, užsakymai, terminai",
-        "Komanda, PIN prisijungimai, vaidmenys",
-        "Sandėlis ir medžiagų poreikis",
+        "Postų lenta su gyvais laikmačiais",
+        "Lygiagretūs maršrutai ir vienetų sekimas",
+        "Sąrašas, lenta, Gantas, kalendorius, apkrova",
+        "Skenavimo postas, sandėlis, PIN prisijungimai",
       ],
       missing: ["Pjovimo optimizacija (Nesting)"],
     },
